@@ -79,6 +79,52 @@ body{max-width:480px;margin:0 auto;padding:24px 16px 48px}
   </div>
 </a>
 
+<div class="section-label">Migração de dados</div>
+<div style="background:var(--s2);border:1px solid var(--bd);border-radius:14px;padding:18px 20px;margin-bottom:12px">
+  <div style="font-size:13px;color:var(--tx2);line-height:1.6;margin-bottom:14px">Use os botões abaixo para <b style="color:var(--tx)">exportar</b> seus dados do Netlify e depois <b style="color:var(--tx)">importar</b> aqui no GitHub Pages. Faça isso antes de cancelar o Netlify.</div>
+  <button onclick="exportarDados()" style="width:100%;background:#1a73e8;border:none;color:#fff;font-family:Inter,sans-serif;font-size:13px;font-weight:700;padding:12px;border-radius:9px;cursor:pointer;margin-bottom:8px">⬇️ Exportar dados (baixar arquivo)</button>
+  <label style="width:100%;background:var(--s1);border:1px solid var(--bd);color:var(--tx2);font-family:Inter,sans-serif;font-size:13px;font-weight:700;padding:12px;border-radius:9px;cursor:pointer;display:block;text-align:center">
+    ⬆️ Importar dados (abrir arquivo)
+    <input type="file" accept=".json" onchange="importarDados(this)" style="display:none">
+  </label>
+  <div id="import-status" style="font-size:11px;color:#4ade80;margin-top:8px;text-align:center;display:none"></div>
+</div>
+
 <div class="footer">o sistema serve à vida, não o contrário</div>
+
+<script>
+function exportarDados(){
+  var dados={};
+  for(var i=0;i<localStorage.length;i++){
+    var k=localStorage.key(i);
+    try{dados[k]=JSON.parse(localStorage.getItem(k));}catch(e){dados[k]=localStorage.getItem(k);}
+  }
+  if(Object.keys(dados).length===0){alert('Nenhum dado encontrado no localStorage deste domínio.');return;}
+  var blob=new Blob([JSON.stringify(dados,null,2)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='dashboards-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+}
+function importarDados(input){
+  var file=input.files[0];
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var dados=JSON.parse(e.target.result);
+      var count=0;
+      Object.keys(dados).forEach(function(k){
+        localStorage.setItem(k,JSON.stringify(dados[k]));
+        count++;
+      });
+      var el=document.getElementById('import-status');
+      el.textContent='✓ '+count+' itens importados com sucesso!';
+      el.style.display='block';
+    }catch(err){alert('Erro ao importar. Verifique se o arquivo é válido.');}
+  };
+  reader.readAsText(file);
+}
+</script>
 </body>
 </html>
