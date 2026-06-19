@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Seu Trem · Gestão</title>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fafafa; --s:#fff; --s2:#f1f3f4;
+  --tx:#202124; --tx2:#5f6368; --tx3:#9aa0a6;
+  --bd:#e0e0e0; --bd2:#dadce0;
+  --blue:#1a73e8; --blueL:#e8f0fe; --blueD:#174ea6;
+  --green:#1e8e3e; --greenL:#e6f4ea;
+  --yellow:#f9ab00; --yellowL:#fef7e0;
+  --red:#d93025; --redL:#fce8e6;
+  --purple:#9334e6; --purpleL:#f3e8fd;
+  --teal:#12827f; --tealL:#e4f7f6;
+  --orange:#e8710a; --orangeL:#feefe3;
+  --r:12px; --rs:8px; --sw:280px;
+  --sh:0 1px 2px rgba(60,64,67,.08),0 1px 3px rgba(60,64,67,.10);
+  --sh2:0 1px 3px rgba(60,64,67,.12),0 4px 8px rgba(60,64,67,.10);
+}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);font-family:'Roboto',sans-serif;color:var(--tx)}
+body{max-width:520px;margin:0 auto;min-height:100vh}
+.gs{font-family:'Google Sans',sans-serif}
+.mono{font-family:'Roboto Mono',monospace}
+
+/* SIDEBAR */
+.overlay{position:fixed;inset:0;background:rgba(32,33,36,.45);z-index:90;opacity:0;pointer-events:none;transition:opacity .25s}
+.overlay.open{opacity:1;pointer-events:all}
+.sidebar{position:fixed;top:0;left:-300px;width:var(--sw);height:100vh;background:var(--s);z-index:100;transition:left .28s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:var(--sh2);display:flex;flex-direction:column}
+.sidebar.open{left:0}
+.sb-head{padding:20px 18px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--bd)}
+.sb-logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--teal));display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.sb-title{font-size:15px;font-weight:700;color:var(--tx);line-height:1.2;font-family:'Google Sans',sans-serif}
+.sb-sub{font-size:10.5px;color:var(--tx2);margin-top:2px;letter-spacing:.2px}
+.sb-close{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--s2);border:none;color:var(--tx2);font-size:14px;cursor:pointer}
+.sb-nav{padding:8px 10px;flex:1}
+.nav-lbl{font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;padding:14px 10px 6px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--tx2);transition:background .15s;margin-bottom:1px;user-select:none}
+.nav-item:active{background:var(--s2)}
+.nav-item.active{background:var(--blueL);color:var(--blueD);font-weight:700}
+.nav-item .ni{font-size:17px;width:20px;text-align:center;flex-shrink:0}
+.nav-item .na{flex:1}
+.nav-badge{font-family:'Roboto Mono',monospace;font-size:10px;font-weight:500;padding:2px 7px;border-radius:10px;background:var(--s2);color:var(--tx2)}
+.nav-badge.full{background:var(--green);color:#fff}
+.nav-badge.alert{background:var(--red);color:#fff}
+.nav-now{font-size:8px;font-weight:700;color:var(--blue);letter-spacing:.4px;background:var(--blueL);padding:2px 6px;border-radius:7px}
+.sb-foot{padding:14px 18px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3);line-height:1.5}
+
+/* TOPBAR */
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd);padding:12px 16px;display:flex;align-items:center;gap:12px}
+.tb-menu{width:36px;height:36px;border-radius:50%;background:var(--s2);border:none;color:var(--tx2);font-size:16px;cursor:pointer;flex-shrink:0}
+.tb-title{font-size:15px;font-weight:700;color:var(--tx);flex:1;font-family:'Google Sans',sans-serif}
+
+/* PANELS */
+.panel{display:none;padding:14px 14px 80px;position:relative;z-index:1}
+.panel.active{display:block}
+
+/* HERO */
+.hero{background:linear-gradient(120deg,#1a73e8 0%,#12827f 100%);border-radius:16px;padding:18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;box-shadow:var(--sh2);position:relative;overflow:hidden}
+.hero::after{content:'🚂';position:absolute;right:-8px;bottom:-12px;font-size:68px;opacity:.14}
+.hero-info{flex:1;min-width:0}
+.hero-name{font-size:18px;font-weight:700;color:#fff;font-family:'Google Sans',sans-serif}
+.hero-msg{font-size:11.5px;color:rgba(255,255,255,.88);margin-top:3px;font-weight:500}
+.hero-score{text-align:right}
+.hero-pct{font-family:'Roboto Mono',monospace;font-size:30px;font-weight:700;color:#fff;line-height:1}
+.hero-pct small{font-size:13px;font-weight:500;opacity:.75}
+.hero-lbl{font-size:9px;font-weight:700;color:rgba(255,255,255,.7);letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+
+.sec{font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:20px 2px 9px;display:flex;align-items:center;gap:8px;font-family:'Google Sans',sans-serif}
+.sec::after{content:'';flex:1;height:1px;background:var(--bd)}
+
+/* KPI ROW */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.kpi{background:var(--s);border:1px solid var(--bd);border-radius:var(--rs);padding:12px 13px;box-shadow:var(--sh);cursor:pointer}
+.kpi-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.kpi-ic{font-size:14px}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.3px}
+.kpi-val{font-family:'Roboto Mono',monospace;font-size:19px;font-weight:700;color:var(--tx)}
+.kpi-val.red{color:var(--red)}
+.kpi-val.green{color:var(--green)}
+.kpi-val.purple{color:var(--purple)}
+.kpi-sub{font-size:9.5px;color:var(--tx3);margin-top:2px;font-weight:500}
+
+/* ALERT BANNER */
+.alert-bnr{background:var(--redL);border:1px solid #f5b8b1;border-radius:var(--rs);padding:12px 14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start}
+.alert-bnr.warn{background:var(--yellowL);border-color:#fde293}
+.alert-bnr .ic{font-size:18px;flex-shrink:0}
+.alert-bnr .tx{font-size:12px;font-weight:500;color:#5f2120;line-height:1.4}
+.alert-bnr.warn .tx{color:#5c4500}
+.alert-bnr .tx b{font-weight:700}
+
+/* CARD GENÉRICO */
+.card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden}
+.card-pad{padding:14px}
+
+/* FORNECEDOR ROW (semana) */
+.forn-row{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--bd)}
+.forn-row:last-child{border-bottom:none}
+.forn-chk{width:24px;height:24px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;cursor:pointer;transition:all .18s}
+.forn-chk.on{background:var(--green);border-color:var(--green)}
+.forn-body{flex:1;min-width:0}
+.forn-name{font-size:13px;font-weight:700;color:var(--tx);font-family:'Google Sans',sans-serif}
+.forn-name.done{color:var(--tx3)}
+.forn-meta{font-size:10.5px;color:var(--tx2);margin-top:1px}
+.forn-debt{text-align:right;flex-shrink:0}
+.forn-debt-lbl{font-size:8.5px;color:var(--tx3);text-transform:uppercase;font-weight:700}
+.forn-debt-input{width:74px;font-family:'Roboto Mono',monospace;font-size:12px;font-weight:700;text-align:right;padding:5px 6px;border:1px solid var(--bd2);border-radius:6px;background:var(--s2);color:var(--red)}
+.forn-debt-input:focus{outline:none;border-color:var(--blue);background:#fff}
+
+/* CONTA/ASSINATURA ROW */
+.bill-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--bd)}
+.bill-row:last-child{border-bottom:none}
+.bill-cb{width:21px;height:21px;border-radius:6px;border:2px solid var(--bd2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;cursor:pointer;transition:all .18s}
+.bill-cb.on{background:var(--green);border-color:var(--green)}
+.bill-info{flex:1;min-width:0}
+.bill-name{font-size:12.5px;font-weight:600;color:var(--tx)}
+.bill-name.paid{color:var(--tx3)}
+.bill-sub{font-size:10px;color:var(--tx3);margin-top:1px}
+.bill-val{font-family:'Roboto Mono',monospace;font-size:12.5px;font-weight:700;color:var(--tx2);flex-shrink:0}
+.bill-val.var{color:var(--tx3);font-style:italic;font-size:10.5px}
+.bill-val-input{width:96px;font-family:'Roboto Mono',monospace;font-size:12px;font-weight:700;text-align:right;padding:5px 6px;border:1px solid var(--bd2);border-radius:6px;background:var(--s2);color:var(--red);flex-shrink:0}
+.bill-val-input:focus{outline:none;border-color:var(--blue);background:#fff}
+.status-pill{font-size:8.5px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0}
+.pill-aberto{background:var(--redL);color:var(--red)}
+.pill-dia{background:var(--greenL);color:var(--green)}
+
+/* DEMANDA CARD (catálogo) */
+.dem-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--rs);padding:12px 13px;margin-bottom:8px;display:flex;gap:11px;align-items:flex-start;box-shadow:var(--sh)}
+.dem-num{width:26px;height:26px;border-radius:50%;background:var(--s2);color:var(--tx2);font-family:'Roboto Mono',monospace;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dem-body{flex:1;min-width:0}
+.dem-title{font-size:12.5px;font-weight:600;color:var(--tx);line-height:1.4}
+.dem-sel-btn{font-size:10px;font-weight:700;padding:5px 11px;border-radius:14px;border:1.5px solid var(--blue);background:#fff;color:var(--blue);cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;transition:all .15s}
+.dem-sel-btn.on{background:var(--blue);color:#fff}
+
+/* DEMANDA DESTAQUE (semana) */
+.dem-week-card{background:var(--s);border:1.5px solid var(--blueL);border-left:4px solid var(--blue);border-radius:var(--rs);padding:11px 13px;margin-bottom:8px;display:flex;gap:11px;align-items:flex-start;box-shadow:var(--sh);cursor:pointer;transition:all .15s}
+.dem-week-card.done{border-left-color:var(--green);background:var(--greenL)}
+.dem-week-chk{width:22px;height:22px;border-radius:6px;border:2px solid var(--bd2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;margin-top:1px}
+.dem-week-card.done .dem-week-chk{background:var(--green);border-color:var(--green)}
+.dem-week-title{font-size:12.5px;font-weight:600;color:var(--tx);line-height:1.4}
+.dem-week-card.done .dem-week-title{color:var(--tx3);text-decoration:line-through}
+.dem-week-num{font-size:9.5px;font-weight:700;color:var(--blue);font-family:'Roboto Mono',monospace;margin-bottom:2px}
+
+/* WEEK HERO */
+.wk-hero{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:15px;display:flex;align-items:center;gap:12px;margin-bottom:4px;box-shadow:var(--sh)}
+.wk-emoji{font-size:24px}
+.wk-info{flex:1}
+.wk-name{font-size:15px;font-weight:700;color:var(--tx);font-family:'Google Sans',sans-serif}
+.wk-dates{font-size:11px;color:var(--tx2);margin-top:2px}
+.wk-score{text-align:right}
+.wk-pct{font-family:'Roboto Mono',monospace;font-size:20px;font-weight:700;color:var(--blue)}
+.wk-pct-lbl{font-size:9px;color:var(--tx3);font-weight:700;text-transform:uppercase}
+
+/* LINE CHART (painel) */
+.linechart-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:14px 12px 10px;box-shadow:var(--sh);margin-bottom:10px}
+.linechart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px}
+.linechart-title{font-size:12.5px;font-weight:700;color:var(--tx);font-family:'Google Sans',sans-serif}
+.linechart-now{font-family:'Roboto Mono',monospace;font-size:15px;font-weight:700}
+.linechart-svg{width:100%;display:block}
+.linechart-legend{display:flex;justify-content:space-between;padding:2px 4px 0;font-size:8.5px;color:var(--tx3);font-weight:600}
+
+/* DEMANDA CHECKLIST DENTRO DA SEMANA */
+.weeklist-empty{font-size:11px;color:var(--tx3);font-weight:500;text-align:center;padding:18px 10px;background:var(--s2);border-radius:var(--rs)}
+
+.note{font-size:10.5px;color:var(--tx3);font-weight:500;line-height:1.5;text-align:center;padding:10px 8px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--tx);color:#fff;font-size:12.5px;font-weight:600;padding:10px 20px;border-radius:24px;box-shadow:var(--sh2);z-index:200;opacity:0;transition:all .3s;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.back-btn{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;font-size:12.5px;font-weight:700;color:var(--tx2);cursor:pointer;margin-bottom:14px;font-family:'Google Sans',sans-serif}
+
+/* ═══ CICLO 1 — sub-tema (paleta própria dentro do mesmo shell) ═══ */
+.c1-hero{border-radius:16px;padding:16px;margin-bottom:12px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--sh2)}
+.c1-hero-label{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;opacity:.8}
+.c1-hero-name{font-size:16px;font-weight:700;font-family:'Google Sans',sans-serif;margin-top:2px}
+.c1-hero-sub{font-size:11px;opacity:.9;margin-top:3px;font-style:italic}
+.c1-task{background:var(--s);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 12px;margin-bottom:7px;display:flex;gap:10px;align-items:flex-start;box-shadow:var(--sh)}
+.c1-task.done{background:var(--greenL);border-color:#b7dfc2}
+.c1-chk{width:21px;height:21px;border-radius:6px;border:2px solid var(--bd2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;cursor:pointer;margin-top:1px}
+.c1-chk.on{background:var(--green);border-color:var(--green)}
+.c1-task-title{font-size:12px;font-weight:600;color:var(--tx);line-height:1.4}
+.c1-task.done .c1-task-title{color:var(--tx3);text-decoration:line-through}
+.c1-tag{font-size:8.5px;font-weight:700;padding:1.5px 7px;border-radius:7px;margin-top:4px;display:inline-block;text-transform:uppercase}
+.c1-phase-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden;cursor:pointer}
+.c1-phase-top{padding:13px 15px;color:#fff;display:flex;align-items:center;gap:10px}
+.c1-phase-bar-bg{height:5px;background:var(--s2)}
+.c1-phase-bar-fg{height:100%;transition:width .5s}
+.c1-offer-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--rs);padding:12px 13px;margin-bottom:8px;box-shadow:var(--sh)}
+.c1-offer-name{font-size:12.5px;font-weight:700;color:var(--tx);font-family:'Google Sans',sans-serif}
+.c1-offer-role{font-size:10px;color:var(--tx3);margin-bottom:7px}
+.c1-offer-input{width:100%;font-family:'Roboto',sans-serif;font-size:12px;padding:7px 9px;border:1px solid var(--bd2);border-radius:7px;background:var(--s2);margin-bottom:5px}
+.c1-offer-input:focus{outline:none;border-color:var(--blue);background:#fff}
+.c1-funnel-row{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px dashed var(--bd)}
+.c1-funnel-row:last-child{border-bottom:none}
+.c1-funnel-lbl{flex:1;font-size:11.5px;font-weight:600;color:var(--tx2)}
+.c1-funnel-input{width:80px;font-family:'Roboto Mono',monospace;font-size:13px;text-align:center;padding:6px 4px;border:1px solid var(--bd2);border-radius:7px;background:var(--s2)}
+.c1-funnel-input:focus{outline:none;border-color:var(--blue);background:#fff}
+.c1-conv-box{margin:12px 13px 13px;padding:13px;border-radius:var(--rs);background:linear-gradient(120deg,#1a73e8,#12827f);text-align:center}
+.c1-conv-pct{font-family:'Roboto Mono',monospace;font-size:26px;font-weight:700;color:#fff}
+.c1-conv-lbl{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sb-head">
+    <div class="sb-logo">🚂</div>
+    <div><div class="sb-title">Seu Trem</div><div class="sb-sub">Gestão · 16 jun — 5 jul</div></div>
+    <button class="sb-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <nav class="sb-nav">
+    <div class="nav-lbl">Visão geral</div>
+    <div class="nav-item active" id="nav-home" onclick="navTo('home')"><span class="ni">📊</span><span class="na">Painel</span></div>
+    <div class="nav-lbl">Gestão</div>
+    <div class="nav-item" id="nav-financeiro" onclick="navTo('financeiro')"><span class="ni">💰</span><span class="na">Financeiro</span><span class="nav-badge alert" id="nb-fin">!</span></div>
+    <div class="nav-item" id="nav-demandas" onclick="navTo('demandas')"><span class="ni">📋</span><span class="na">Demandas</span><span class="nav-badge" id="nb-dem">0/21</span></div>
+    <div class="nav-item" id="nav-ciclo1" onclick="navTo('ciclo1')"><span class="ni">🎯</span><span class="na">Ciclo 1</span><span class="nav-badge" id="nb-c1">0%</span></div>
+    <div class="nav-lbl">Semanas</div>
+    <div class="nav-item" id="nav-s1" onclick="navTo('s1')"><span class="ni">①</span><span class="na">16–21 jun</span><span class="nav-now" id="now-1" style="display:none">AGORA</span><span class="nav-badge" id="nb-s1">0%</span></div>
+    <div class="nav-item" id="nav-s2" onclick="navTo('s2')"><span class="ni">②</span><span class="na">22–28 jun</span><span class="nav-now" id="now-2" style="display:none">AGORA</span><span class="nav-badge" id="nb-s2">0%</span></div>
+    <div class="nav-item" id="nav-s3" onclick="navTo('s3')"><span class="ni">③</span><span class="na">29 jun–5 jul</span><span class="nav-now" id="now-3" style="display:none">AGORA</span><span class="nav-badge" id="nb-s3">0%</span></div>
+  </nav>
+  <div class="sb-foot">Seu Trem · vegano<br>Belo Horizonte · 2026</div>
+</aside>
+
+<header class="topbar">
+  <button class="tb-menu" onclick="openSidebar()">☰</button>
+  <div class="tb-title" id="tb-title">Painel</div>
+</header>
+
+<!-- ============ HOME / PAINEL ============ -->
+<div class="panel active" id="panel-home">
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name">Seu Trem</div>
+      <div class="hero-msg" id="hero-msg">Painel de desempenho do ciclo</div>
+    </div>
+    <div class="hero-score">
+      <div class="hero-pct"><span id="hero-pct">0</span><small>%</small></div>
+      <div class="hero-lbl">demandas no ciclo</div>
+    </div>
+  </div>
+
+  <div id="alert-area"></div>
+
+  <div class="sec">Saúde financeira da semana</div>
+  <div class="kpi-grid">
+    <div class="kpi" onclick="navTo('financeiro')">
+      <div class="kpi-top"><span class="kpi-ic">📦</span><span class="kpi-lbl">Pedidos feitos</span></div>
+      <div class="kpi-val" id="kpi-pedidos">0/12</div>
+      <div class="kpi-sub">fornecedores nas 3 semanas</div>
+    </div>
+    <div class="kpi" onclick="navTo('financeiro')">
+      <div class="kpi-top"><span class="kpi-ic">✅</span><span class="kpi-lbl">Contas em dia</span></div>
+      <div class="kpi-val green" id="kpi-contas">0/11</div>
+      <div class="kpi-sub">fixos + assinaturas</div>
+    </div>
+    <div class="kpi" onclick="navTo('financeiro')">
+      <div class="kpi-top"><span class="kpi-ic">💸</span><span class="kpi-lbl">Dívida conhecida</span></div>
+      <div class="kpi-val red" id="kpi-divida">R$ 0</div>
+      <div class="kpi-sub">fornecedores + antigas + fiscal</div>
+    </div>
+    <div class="kpi" onclick="navTo('ciclo1')">
+      <div class="kpi-top"><span class="kpi-ic">🎯</span><span class="kpi-lbl">Ciclo 1</span></div>
+      <div class="kpi-val purple" id="kpi-ciclo1">0%</div>
+      <div class="kpi-sub" id="kpi-ciclo1-sub">fase atual</div>
+    </div>
+  </div>
+
+  <div class="sec">Desempenho — Semana 1 · 16-21 jun</div>
+  <div class="linechart-card" id="lc-1"></div>
+
+  <div class="sec">Desempenho — Semana 2 · 22-28 jun</div>
+  <div class="linechart-card" id="lc-2"></div>
+
+  <div class="sec">Desempenho — Semana 3 · 29 jun-5 jul</div>
+  <div class="linechart-card" id="lc-3"></div>
+
+  <div class="note">Cada ponto é a % de execução acumulada do dia: pedidos feitos + demandas concluídas daquela semana, sobre o total que você decidiu controlar nela.</div>
+</div>
+
+<!-- ============ FINANCEIRO ============ -->
+<div class="panel" id="panel-financeiro">
+  <div class="back-btn" onclick="navTo('home')">← Voltar ao Painel</div>
+  <div class="hero" style="background:linear-gradient(120deg,#d93025,#e8710a)">
+    <div class="hero-info">
+      <div class="hero-name">Financeiro</div>
+      <div class="hero-msg">Dívidas · custos fixos · fornecedores · fiscal</div>
+    </div>
+  </div>
+
+  <div class="sec">Fornecedores</div>
+  <div class="card" id="card-fornecedores"></div>
+  <div class="note">O marcador de pedido feito/não feito vive dentro de cada semana (menu lateral). Aqui você atualiza as dívidas.</div>
+
+  <div class="sec">Custos fixos</div>
+  <div class="card" id="card-fixos"></div>
+
+  <div class="sec">Assinaturas</div>
+  <div class="card" id="card-assinaturas"></div>
+
+  <div class="sec">Dívidas antigas <span style="font-weight:500;text-transform:none;color:var(--tx3)">— editável</span></div>
+  <div class="card" id="card-antigas"></div>
+
+  <div class="sec">Parte fiscal <span style="font-weight:500;text-transform:none;color:var(--tx3)">— marque ao pagar</span></div>
+  <div class="card" id="card-fiscal"></div>
+</div>
+
+<!-- ============ DEMANDAS (catálogo) ============ -->
+<div class="panel" id="panel-demandas">
+  <div class="back-btn" onclick="navTo('home')">← Voltar ao Painel</div>
+  <div class="hero" style="background:linear-gradient(120deg,#9334e6,#1a73e8)">
+    <div class="hero-info">
+      <div class="hero-name">Demandas</div>
+      <div class="hero-msg">Catálogo completo — selecione as que vai trabalhar</div>
+    </div>
+  </div>
+  <div class="note" style="text-align:left;padding:0 2px 12px">Toque em <b>Trabalhar</b> e a demanda aparece automaticamente dentro da <b>semana atual</b> para você controlar e ter o desempenho refletido no gráfico do Painel.</div>
+  <div id="dem-catalogo"></div>
+</div>
+
+<!-- ============ CICLO 1 (categoria completa) ============ -->
+<div class="panel" id="panel-ciclo1">
+  <div class="back-btn" onclick="navTo('home')">← Voltar ao Painel</div>
+  <div class="hero" style="background:linear-gradient(120deg,#0d47a1,#7e57c2)">
+    <div class="hero-info">
+      <div class="hero-name">Ciclo 1</div>
+      <div class="hero-msg">10 jun — 5 jul · Plano Integrado · Funil 5x</div>
+    </div>
+    <div class="hero-score">
+      <div class="hero-pct"><span id="c1-hero-pct">0</span><small>%</small></div>
+      <div class="hero-lbl">do ciclo</div>
+    </div>
+  </div>
+  <div class="note" style="text-align:left;padding:0 2px 10px">"Se a oferta x é apresentada a um público 5x, existe sempre uma % de conversão positiva." Este ciclo existe para descobrir o seu número.</div>
+
+  <div class="sec">Fases do ciclo</div>
+  <div id="c1-phase-cards"></div>
+
+  <div class="sec">A Forja da Oferta</div>
+  <div id="c1-offer-grid"></div>
+  <div class="note">A promessa, para quem, e o preço-coragem de cada frente. Fecha no domingo da fase Relacionamento.</div>
+
+  <div class="sec">Funil & Lei 5x</div>
+  <div class="card">
+    <div id="c1-funnel-rows"></div>
+    <div class="c1-conv-box"><div class="c1-conv-pct" id="c1-conv-val">0,0%</div><div class="c1-conv-lbl">conversão (x ÷ 5x)</div></div>
+  </div>
+</div>
+<div class="panel" id="panel-c1f1"><div id="c1fc-1"></div></div>
+<div class="panel" id="panel-c1f2"><div id="c1fc-2"></div></div>
+<div class="panel" id="panel-c1f3"><div id="c1fc-3"></div></div>
+<div class="panel" id="panel-c1f4"><div id="c1fc-4"></div></div>
+
+<!-- ============ SEMANAS ============ -->
+<div class="panel" id="panel-s1"><div id="sc-1"></div></div>
+<div class="panel" id="panel-s2"><div id="sc-2"></div></div>
+<div class="panel" id="panel-s3"><div id="sc-3"></div></div>
+
+<div class="toast" id="toast">✓</div>
+
+<script>
+/* ═══════════ DADOS — SEU TREM ═══════════ */
+var WEEKS=[
+  {n:1,emoji:'1️⃣',label:'Semana 1',dates:'16 — 21 jun',start:'2026-06-16',end:'2026-06-21'},
+  {n:2,emoji:'2️⃣',label:'Semana 2',dates:'22 — 28 jun',start:'2026-06-22',end:'2026-06-28'},
+  {n:3,emoji:'3️⃣',label:'Semana 3',dates:'29 jun — 5 jul',start:'2026-06-29',end:'2026-07-05'}
+];
+
+var FORNECEDORES=[
+  {id:'atelier',nome:'Atelier',item:'doces',freq:'1 pedido/semana'},
+  {id:'arigatou',nome:'Arigatou',item:'cogumelos',freq:'1 pedido/semana'},
+  {id:'demarchi',nome:'DeMarchi',item:'pães · 2 caixas · R$348,90',freq:'1 pedido/semana'},
+  {id:'verace',nome:'Verace',item:'cerveja · 5 caixas',freq:'1 pedido/semana'}
+];
+
+var FIXOS=[
+  {nome:'Aluguel',val:'R$ 1.650,00',status:'aberto'},
+  {nome:'Cemig',sub:'energia · valor variável',val:'variável',status:'dia'},
+  {nome:'Nuv',sub:'energia solar · valor variável',val:'variável',status:'dia'},
+  {nome:'Copasa',sub:'água · valor variável',val:'variável',status:'dia'}
+];
+
+var ASSINATURAS=[
+  {id:'claude',nome:'Claude',val:'R$ 110,00',status:'dia'},
+  {id:'nfce',nome:'NFC-e',val:'R$ 60,00',status:'dia'},
+  {id:'streaming',nome:'Premier + Paramount',val:'R$ 100,00',status:'aberto'},
+  {id:'netlify',nome:'Netlify',val:'R$ 51,00',status:'dia'},
+  {id:'capcut',nome:'CapCut',val:'R$ 35,00',status:'aberto'},
+  {id:'claro',nome:'Claro',sub:'internet',val:'R$ 99,00',status:'aberto'},
+  {id:'iacourse',nome:'Formação em IA',val:'R$ 97,00',status:'aberto'}
+];
+
+var ANTIGAS=[
+  {id:'xambin',nome:'Xambin',sub:'ex-sócio',divida:1800},
+  {id:'veggieroots',nome:'VeggieRoots',sub:'ex-fornecedor de proteínas',divida:2100},
+  {id:'lemon',nome:'Lemon',sub:'ex-fornecedor de energia solar',divida:681.03}
+];
+
+var FISCAL=[
+  {id:'ativa',nome:'Dívida ativa parcelada',sub:'R$375/mês — 3 meses atrasado',status:'aberto'},
+  {id:'simples',nome:'Dívida simples parcelada',sub:'R$300/mês — 3 meses atrasado',status:'aberto'},
+  {id:'imposto',nome:'Imposto mensal (4% faturamento)',sub:'7 meses atrasado — precisa negociar',status:'aberto'},
+  {id:'contadora',nome:'Contadora',sub:'R$352 — já pago este mês',status:'dia'},
+  {id:'pref2025',nome:'Taxa prefeitura 2025',sub:'R$450',status:'aberto'},
+  {id:'pref2026',nome:'Taxa prefeitura 2026',sub:'R$300',status:'aberto'}
+];
+
+var DEMANDAS=[
+  'Buscar patrocinadores: proposta estruturada com ativações variadas e espaço para adaptar conforme retorno',
+  'Padronizar áreas da loja — uma por vez até concluir; catalogar todas as áreas que precisam de padrão',
+  'Padronizar potes, estoque e linhas de produção; fotos + informativos direcionadores nas paredes',
+  'Padronizar pranchetas (iFood, WhatsApp, presencial): desenhar, justificar, imprimir, colar mapa + comprar 1 extra pro salão',
+  'Estruturar contrato de sociedade + documento de acompanhamento; revisar história da empresa, assinar',
+  'Parte fiscal em dia + soluções comerciais para suprir e superar os gastos com impostos',
+  'Reforma elétrica, estofados, chão, laje, passeio, Vivo e Copasa (6k) — orçamentos e definição de quem executa',
+  'Alvará sanitário e outros + padrão de faxina/abertura/operação/fechamento + dedetização e antipragas',
+  'Sistema de captação e treinamento contínuo de mão de obra para todas as áreas',
+  'Atualizar cardápios físico/digital, iFood 1 e 2, WhatsApp, Instagram, lado B, e cadastrar 1ª experiência no Airbnb',
+  'Planilha financeira profissional: gastos, dívidas, salários, investimentos, novas rendas, consumo interno',
+  'Airbnb, experiências, eventos e parcerias — calendário próprio cruzado com calendário comercial nacional',
+  'Gestão iFood: analisar e atualizar as 2 lojas, pesquisar mercado, cursos/consultoria, ajustes semanais',
+  'Fluxo perpétuo de marketing: pirâmide de Maslow, gatilhos mentais, editorial vivo, testes A/B constantes',
+  'Fichas técnicas, CMV correto, livro de receitas, padrão de estocagem e apresentação dos blends',
+  'Padrão para listas de compras, tarefas do dia a dia, estoque e negociação com fornecedores',
+  'Estudo contínuo de referências de negócios bem-sucedidos — seleção, filtro, adaptação e testes',
+  'Cultura de reunião e treinamento; resolver pendência do Yuri no Serasa; contato Procred 360 / Caixa',
+  'Reformular o NFC-e',
+  'Reparos, manutenções e orçamentos padrão + seguro patrimonial (contato Itaú)',
+  'Construir modelo de negócio para franquia — pesquisar requisitos formais de franqueamento'
+];
+
+/* ═══════════ DADOS — CICLO 1 ═══════════ */
+var C1_PHASES=[
+  {n:1,emoji:'🤝',label:'Relacionamento',dates:'10–14 Jun',start:'2026-06-10',end:'2026-06-14',color:'#1565c0',
+   focus:'"Quem somos quando ninguém compra." Vínculo antes da venda.',
+   tasks:[
+     {id:'r-mapa',t:'Listar canais ativos de cada frente (perfil, freq., seguidores)',tag:'BASE'},
+     {id:'r-tema',t:'Definir o tema transversal da semana de Relacionamento',tag:'EDITORIAL'},
+     {id:'r-v1',t:'Gravar Vídeo 1 — bastidor/processo (voz: Ritual de Sempre)',tag:'VÍDEO'},
+     {id:'r-v2',t:'Gravar Vídeo 2 — pessoas/valores (Seu Trem ou Circuito)',tag:'VÍDEO'},
+     {id:'r-carr',t:'Carrossel de história/valores (Claude → Canva)',tag:'CARROSSEL'},
+     {id:'r-stories',t:'Pauta de stories da semana (caixinhas, enquetes, conversa)',tag:'STORIES'},
+     {id:'r-seed',t:'Cultivar a pergunta-semente da oferta',tag:'OFERTA'},
+     {id:'r-dom14',t:'DOM 14 — bloco criativo: fechar a oferta + roteiros 15–20',tag:'DOMINGO'}
+   ]},
+  {n:2,emoji:'🎁',label:'Oferta',dates:'15–20 Jun',start:'2026-06-15',end:'2026-06-20',color:'#ec407a',
+   focus:'"A mão estendida." Apresentar o x ao público acumulado.',
+   tasks:[
+     {id:'o-canais',t:'Definir dias/horários fixos de publicação (não mudar no ciclo)',tag:'BASE'},
+     {id:'o-v1',t:'Gravar Vídeo 1 — oferta direta (a transformação prometida)',tag:'VÍDEO'},
+     {id:'o-v2',t:'Gravar Vídeo 2 — oferta, segundo ângulo / frente',tag:'VÍDEO'},
+     {id:'o-carr',t:'Carrossel de oferta: o quê / pra quem / por quê agora',tag:'CARROSSEL'},
+     {id:'o-stories',t:'Stories de direcionamento (link, "eu quero", pedido)',tag:'STORIES'},
+     {id:'o-pago',t:'Decidir: ativar tráfego pago como acelerador?',tag:'DECISÃO'},
+     {id:'o-medir',t:'Registrar alcance e conversões no Funil',tag:'MÉTRICA'},
+     {id:'o-dom21',t:'DOM 21 — bloco criativo: analisar objeções → Remarketing',tag:'DOMINGO'}
+   ]},
+  {n:3,emoji:'🔄',label:'Remarketing',dates:'22–27 Jun',start:'2026-06-22',end:'2026-06-27',color:'#26a69a',
+   focus:'"A segunda chance da verdade." Reapresentar a quem viu e não agiu.',
+   tasks:[
+     {id:'m-v1',t:'Gravar Vídeo 1 — depoimento / prova social / resultado',tag:'VÍDEO'},
+     {id:'m-v2',t:'Gravar Vídeo 2 — quebra de objeções',tag:'VÍDEO'},
+     {id:'m-carr',t:'Carrossel: objeções respondidas uma a uma',tag:'CARROSSEL'},
+     {id:'m-stories',t:'Stories de "últimos dias" / escassez honesta',tag:'STORIES'},
+     {id:'m-medir',t:'Registrar conversões recuperadas no Funil',tag:'MÉTRICA'},
+     {id:'m-dom28',t:'DOM 28 — bloco criativo: roteiro das perguntas de Pesquisa',tag:'DOMINGO'}
+   ]},
+  {n:4,emoji:'🔍',label:'Pesquisa',dates:'29 Jun–5 Jul',start:'2026-06-29',end:'2026-07-05',color:'#7e57c2',
+   focus:'"Ouvir antes de plantar de novo." Desenhar o Ciclo 2.',
+   tasks:[
+     {id:'p-caix',t:'Publicar caixinhas/enquetes estruturadas (cocriação)',tag:'STORIES'},
+     {id:'p-v1',t:'Gravar Vídeo 1 — "o que aprendemos neste ciclo"',tag:'VÍDEO'},
+     {id:'p-analise',t:'Análise interna: fechar a % de conversão de cada frente',tag:'MÉTRICA'},
+     {id:'p-baseline',t:'Registrar a baseline do Ciclo 1',tag:'BASE'},
+     {id:'p-c2',t:'Iniciar documento do Ciclo 2 (julho)',tag:'PLANO'},
+     {id:'p-skill',t:'O que estabilizou → inscrever na skill ritual-de-sempre',tag:'SISTEMA'},
+     {id:'p-dom5',t:'DOM 5 JUL — revisão completa + lançamento do Ciclo 2',tag:'DOMINGO'}
+   ]}
+];
+var C1_FRONTS=[
+  {id:'ritual',emoji:'🌅',name:'Ritual de Sempre',role:'A voz · narrativa & profundidade'},
+  {id:'trem',emoji:'🚂',name:'Seu Trem',role:'O lugar · experiência presencial'},
+  {id:'nu',emoji:'⚡',name:'NU (iFood)',role:'O braço · conveniência & delivery'},
+  {id:'circuito',emoji:'🌱',name:'Circuito Vegano BH',role:'O movimento · comunidade & cidade'},
+  {id:'pessoal',emoji:'🏃',name:'Vida pessoal',role:'A prova viva · disciplina vivida'}
+];
+var C1_FUNNEL_FIELDS=[
+  {id:'alcance',lbl:'Alcance da oferta',sub:'quantas pessoas viram (o 5x)'},
+  {id:'cliques',lbl:'Cliques / conversas',sub:'demonstraram interesse'},
+  {id:'conv',lbl:'Conversões',sub:'viraram cliente (o x)'},
+  {id:'receita',lbl:'Receita (R$)',sub:'faturamento do ciclo'}
+];
+
+/* ═══════════ STATE ═══════════ */
+var LS='seutrem_v2';
+function defState(){
+  return {
+    pedidos:{1:{},2:{},3:{}},
+    fornDivida:{atelier:330,arigatou:550,demarchi:0,verace:468.33},
+    assinaturaPaga:{},
+    fixoPago:{},
+    antigaDivida:{xambin:1800,veggieroots:2100,lemon:681.03},
+    fiscalPago:{},
+    demSelecionadas:{},
+    demSemana:{1:{},2:{},3:{}},
+    c1Tasks:{},
+    c1Offer:{},
+    c1Funnel:{}
+  };
+}
+function lsGet(){try{var v=localStorage.getItem(LS);return v?JSON.parse(v):null}catch(e){return null}}
+function lsSet(){try{localStorage.setItem(LS,JSON.stringify(ST))}catch(e){}}
+var ST=lsGet()||defState();
+(function ensure(){
+  var d=defState();
+  Object.keys(d).forEach(function(k){if(!ST[k])ST[k]=d[k];});
+})();
+function save(){lsSet()}
+
+/* ═══════════ HELPERS ═══════════ */
+function todayISO(){var d=new Date();var m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+dd}
+function currentWeek(){
+  var t=todayISO();
+  for(var i=0;i<WEEKS.length;i++){if(t>=WEEKS[i].start&&t<=WEEKS[i].end)return WEEKS[i].n;}
+  if(t<WEEKS[0].start)return 1;
+  return 3;
+}
+function brl(v){return 'R$ '+v.toFixed(2).replace('.',',');}
+function pedidosFeitosWeek(wn){
+  var c=0;FORNECEDORES.forEach(function(f){if(ST.pedidos[wn]&&ST.pedidos[wn][f.id])c++;});
+  return c;
+}
+function pedidosFeitosTotal(){
+  var c=0;[1,2,3].forEach(function(wn){c+=pedidosFeitosWeek(wn);});
+  return c;
+}
+function contasEmDia(){
+  var total=FIXOS.length+ASSINATURAS.length;
+  var ok=0;
+  FIXOS.forEach(function(f){
+    var override=ST.fixoPago[f.nome];
+    var st=override!==undefined?(override?'dia':'aberto'):f.status;
+    if(st==='dia')ok++;
+  });
+  ASSINATURAS.forEach(function(a){
+    var override=ST.assinaturaPaga[a.id];
+    var st=override!==undefined?(override?'dia':'aberto'):a.status;
+    if(st==='dia')ok++;
+  });
+  return {ok:ok,total:total};
+}
+function dividaTotal(){
+  var t=0;
+  Object.keys(ST.fornDivida).forEach(function(k){t+=(ST.fornDivida[k]||0);});
+  Object.keys(ST.antigaDivida).forEach(function(k){t+=(ST.antigaDivida[k]||0);});
+  FISCAL.forEach(function(f){
+    if(f.id==='ativa'&&!ST.fiscalPago.ativa)t+=375*3;
+    if(f.id==='simples'&&!ST.fiscalPago.simples)t+=300*3;
+    if(f.id==='pref2025'&&!ST.fiscalPago.pref2025)t+=450;
+    if(f.id==='pref2026'&&!ST.fiscalPago.pref2026)t+=300;
+  });
+  return t;
+}
+function demSelecionadasCount(){
+  var c=0;for(var k in ST.demSelecionadas){if(ST.demSelecionadas[k])c++;}return c;
+}
+/* cada demanda selecionada pertence à semana em que foi marcada (trava lá) */
+function demsNaSemana(wn){
+  return Object.keys(ST.demSelecionadas).filter(function(k){return ST.demSelecionadas[k]===wn;}).map(Number);
+}
+function demSemanaPct(wn){
+  var sel=demsNaSemana(wn);
+  if(sel.length===0)return 0;
+  var done=0;
+  sel.forEach(function(idx){if(ST.demSemana[wn]&&ST.demSemana[wn][idx])done++;});
+  return Math.round(done/sel.length*100);
+}
+function cyclePct(){
+  var totalSel=0,totalDone=0;
+  [1,2,3].forEach(function(wn){
+    var sel=demsNaSemana(wn);
+    totalSel+=sel.length;
+    sel.forEach(function(idx){if(ST.demSemana[wn]&&ST.demSemana[wn][idx])totalDone++;});
+  });
+  if(totalSel===0)return 0;
+  return Math.round(totalDone/totalSel*100);
+}
+
+/* ── série diária para o gráfico de linha: combina pedidos + demandas daquela semana ── */
+function weekDays(wk){
+  var days=[];
+  var cur=new Date(wk.start+'T12:00:00');
+  var end=new Date(wk.end+'T12:00:00');
+  var names=['dom','seg','ter','qua','qui','sex','sáb'];
+  while(cur<=end){
+    var m=('0'+(cur.getMonth()+1)).slice(-2),d=('0'+cur.getDate()).slice(-2);
+    days.push({iso:cur.getFullYear()+'-'+m+'-'+d,lbl:names[cur.getDay()]+' '+cur.getDate(),day:cur.getDate()});
+    cur.setDate(cur.getDate()+1);
+  }
+  return days;
+}
+/* progresso acumulado por dia: como não há timestamp de quando cada item foi marcado,
+   usamos um modelo justo: distribui o total de itens concluídos da semana ao longo dos dias
+   já passados, mostrando uma reta de acúmulo até hoje e projeção neutra nos dias futuros */
+function weekSeries(wk){
+  var days=weekDays(wk);
+  var sel=demsNaSemana(wk.n);
+  var totalItens=FORNECEDORES.length+sel.length;
+  var doneItens=pedidosFeitosWeek(wk.n)+sel.filter(function(idx){return ST.demSemana[wk.n]&&ST.demSemana[wk.n][idx];}).length;
+  var pctHoje=totalItens>0?Math.round(doneItens/totalItens*100):0;
+  var t=todayISO();
+  var series=[];
+  var idxHoje=-1;
+  days.forEach(function(d,i){if(d.iso===t)idxHoje=i;});
+  var weekIsFuture = t<wk.start;
+  var weekIsPast = t>wk.end;
+  if(idxHoje===-1){ idxHoje = weekIsPast ? days.length-1 : -1; }
+  days.forEach(function(d,i){
+    if(weekIsFuture){ series.push(null); }
+    else if(idxHoje===-1){ series.push(null); }
+    else if(i<idxHoje){
+      // sobe linearmente até hoje (estimativa de ritmo constante)
+      series.push(Math.round(pctHoje*(i+1)/(idxHoje+1)));
+    } else if(i===idxHoje){
+      series.push(pctHoje);
+    } else {
+      series.push(null); // futuro: sem dado
+    }
+  });
+  return {days:days,series:series,pctHoje:pctHoje,idxHoje:idxHoje};
+}
+
+/* ═══════════ NAV ═══════════ */
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open');}
+var TITLES={home:'Painel',financeiro:'Financeiro',demandas:'Demandas',ciclo1:'Ciclo 1',
+  s1:'Semana 1',s2:'Semana 2',s3:'Semana 3',
+  c1f1:'Ciclo 1 · Relacionamento',c1f2:'Ciclo 1 · Oferta',c1f3:'Ciclo 1 · Remarketing',c1f4:'Ciclo 1 · Pesquisa'};
+function navTo(id){
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('panel-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+  var navId=id.indexOf('c1f')===0?'ciclo1':id;
+  var el=document.getElementById('nav-'+navId);if(el)el.classList.add('active');
+  document.getElementById('tb-title').textContent=TITLES[id]||'Seu Trem';
+  closeSidebar();window.scrollTo(0,0);
+  // re-renderiza a seção que está sendo aberta, garantindo que qualquer valor salvo apareça
+  if(id==='home')renderHome();
+  else if(id==='financeiro')renderFinanceiro();
+  else if(id==='demandas')renderDemandas();
+  else if(id==='ciclo1'||id.indexOf('c1f')===0)renderCiclo1();
+  else if(id==='s1'||id==='s2'||id==='s3'){var wn=parseInt(id[1]);document.getElementById('sc-'+wn).innerHTML=renderWeek(WEEKS[wn-1]);}
+  renderNav();
+}
+
+var tt;
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(function(){t.classList.remove('show');},1500);}
+
+/* ═══════════ ACTIONS — SEU TREM ═══════════ */
+function togglePedido(wn,fid){
+  if(!ST.pedidos[wn])ST.pedidos[wn]={};
+  ST.pedidos[wn][fid]=!ST.pedidos[wn][fid];
+  save();renderAll();
+  toast(ST.pedidos[wn][fid]?'✓ Pedido feito':'Pedido desmarcado');
+}
+function setFornDivida(fid,v){ST.fornDivida[fid]=parseFloat(v)||0;save();renderAll();}
+function setAntigaDivida(id,v){ST.antigaDivida[id]=parseFloat(v)||0;save();renderAll();}
+function toggleAssinatura(id){
+  var a=ASSINATURAS.find(function(x){return x.id===id;});
+  var cur=ST.assinaturaPaga[id]!==undefined?ST.assinaturaPaga[id]:(a.status==='dia');
+  ST.assinaturaPaga[id]=!cur;save();renderAll();
+}
+function toggleFixo(nome){
+  var f=FIXOS.find(function(x){return x.nome===nome;});
+  var cur=ST.fixoPago[nome]!==undefined?ST.fixoPago[nome]:(f.status==='dia');
+  ST.fixoPago[nome]=!cur;save();renderAll();
+}
+function toggleFiscal(id){
+  var f=FISCAL.find(function(x){return x.id===id;});
+  var cur=ST.fiscalPago[id]!==undefined?ST.fiscalPago[id]:(f.status==='dia');
+  ST.fiscalPago[id]=!cur;save();renderAll();
+  toast(!cur?'✓ Marcado como pago':'Desmarcado');
+}
+function toggleDemSel(idx){
+  if(ST.demSelecionadas[idx]){
+    delete ST.demSelecionadas[idx];
+  } else {
+    ST.demSelecionadas[idx]=currentWeek(); // trava na semana atual no momento da seleção
+  }
+  save();renderAll();
+  toast(ST.demSelecionadas[idx]?'✓ Entrou na Semana '+ST.demSelecionadas[idx]:'Removida das semanas');
+}
+function toggleDemSemana(wn,idx){
+  if(!ST.demSemana[wn])ST.demSemana[wn]={};
+  ST.demSemana[wn][idx]=!ST.demSemana[wn][idx];
+  save();renderAll();
+  toast(ST.demSemana[wn][idx]?'✓ Demanda concluída':'Desmarcada');
+}
+
+/* ═══════════ ACTIONS — CICLO 1 ═══════════ */
+function c1Toggle(id){ST.c1Tasks[id]=!ST.c1Tasks[id];save();renderCiclo1();}
+function c1SetOffer(fid,field,v){
+  if(!ST.c1Offer[fid])ST.c1Offer[fid]={};
+  ST.c1Offer[fid][field]=v;save();
+}
+function c1SetFunnel(fid,v){ST.c1Funnel[fid]=v;save();renderC1Conv();}
+function c1PhaseDone(p){var d=0;p.tasks.forEach(function(tk){if(ST.c1Tasks[tk.id])d++;});return d;}
+function c1PhasePct(p){return Math.round(c1PhaseDone(p)/p.tasks.length*100);}
+function c1TotalTasks(){var t=0;C1_PHASES.forEach(function(p){t+=p.tasks.length;});return t;}
+function c1TotalDone(){var d=0;C1_PHASES.forEach(function(p){d+=c1PhaseDone(p);});return d;}
+function c1CyclePct(){return Math.round(c1TotalDone()/c1TotalTasks()*100);}
+function c1CurrentPhase(){
+  var t=todayISO();
+  for(var i=0;i<C1_PHASES.length;i++){if(t>=C1_PHASES[i].start&&t<=C1_PHASES[i].end)return C1_PHASES[i].n;}
+  if(t<C1_PHASES[0].start)return 1;
+  return 4;
+}
+
+/* ═══════════ RENDER: FINANCEIRO ═══════════ */
+function renderFinanceiro(){
+  var h='';
+  FORNECEDORES.forEach(function(f){
+    var divida=ST.fornDivida[f.id]||0;
+    h+='<div class="forn-row">'+
+      '<div class="forn-body"><div class="forn-name">'+f.nome+'</div><div class="forn-meta">'+f.item+' · '+f.freq+'</div></div>'+
+      '<div class="forn-debt"><div class="forn-debt-lbl">dívida</div>'+
+        '<input class="forn-debt-input" type="number" step="0.01" value="'+divida.toFixed(2)+'" oninput="setFornDivida(\''+f.id+'\',this.value)"></div>'+
+    '</div>';
+  });
+  document.getElementById('card-fornecedores').innerHTML=h;
+
+  var hf='';
+  FIXOS.forEach(function(f){
+    var override=ST.fixoPago[f.nome];
+    var st=override!==undefined?(override?'dia':'aberto'):f.status;
+    hf+='<div class="bill-row">'+
+      '<div class="bill-cb'+(st==='dia'?' on':'')+'" onclick="toggleFixo(\''+f.nome.replace(/'/g,"\\'")+'\')">'+(st==='dia'?'✓':'')+'</div>'+
+      '<div class="bill-info"><div class="bill-name">'+f.nome+'</div>'+(f.sub?'<div class="bill-sub">'+f.sub+'</div>':'')+'</div>'+
+      '<div class="bill-val'+(f.val==='variável'?' var':'')+'">'+f.val+'</div>'+
+      '<span class="status-pill '+(st==='dia'?'pill-dia':'pill-aberto')+'">'+(st==='dia'?'EM DIA':'ABERTO')+'</span>'+
+    '</div>';
+  });
+  document.getElementById('card-fixos').innerHTML=hf;
+
+  var ha='';
+  ASSINATURAS.forEach(function(a){
+    var override=ST.assinaturaPaga[a.id];
+    var st=override!==undefined?(override?'dia':'aberto'):a.status;
+    ha+='<div class="bill-row">'+
+      '<div class="bill-cb'+(st==='dia'?' on':'')+'" onclick="toggleAssinatura(\''+a.id+'\')">'+(st==='dia'?'✓':'')+'</div>'+
+      '<div class="bill-info"><div class="bill-name">'+a.nome+'</div>'+(a.sub?'<div class="bill-sub">'+a.sub+'</div>':'')+'</div>'+
+      '<div class="bill-val">'+a.val+'</div>'+
+      '<span class="status-pill '+(st==='dia'?'pill-dia':'pill-aberto')+'">'+(st==='dia'?'EM DIA':'ABERTO')+'</span>'+
+    '</div>';
+  });
+  document.getElementById('card-assinaturas').innerHTML=ha;
+
+  var hn='';
+  ANTIGAS.forEach(function(a){
+    var v=ST.antigaDivida[a.id]!==undefined?ST.antigaDivida[a.id]:a.divida;
+    hn+='<div class="bill-row">'+
+      '<div class="bill-info"><div class="bill-name">'+a.nome+'</div><div class="bill-sub">'+a.sub+'</div></div>'+
+      '<input class="bill-val-input" type="number" step="0.01" value="'+v.toFixed(2)+'" oninput="setAntigaDivida(\''+a.id+'\',this.value)">'+
+    '</div>';
+  });
+  document.getElementById('card-antigas').innerHTML=hn;
+
+  var hfi='';
+  FISCAL.forEach(function(f){
+    var override=ST.fiscalPago[f.id];
+    var st=override!==undefined?(override?'dia':'aberto'):f.status;
+    hfi+='<div class="bill-row">'+
+      '<div class="bill-cb'+(st==='dia'?' on':'')+'" onclick="toggleFiscal(\''+f.id+'\')">'+(st==='dia'?'✓':'')+'</div>'+
+      '<div class="bill-info"><div class="bill-name">'+f.nome+'</div><div class="bill-sub">'+f.sub+'</div></div>'+
+      '<span class="status-pill '+(st==='dia'?'pill-dia':'pill-aberto')+'">'+(st==='dia'?'PAGO':'ABERTO')+'</span>'+
+    '</div>';
+  });
+  document.getElementById('card-fiscal').innerHTML=hfi;
+}
+
+/* ═══════════ RENDER: DEMANDAS ═══════════ */
+function renderDemandas(){
+  var h='';
+  DEMANDAS.forEach(function(d,idx){
+    var wn=ST.demSelecionadas[idx];
+    var sel=!!wn;
+    h+='<div class="dem-card">'+
+      '<div class="dem-num">'+(idx+1)+'</div>'+
+      '<div class="dem-body"><div class="dem-title">'+d+'</div></div>'+
+      '<button class="dem-sel-btn'+(sel?' on':'')+'" onclick="toggleDemSel('+idx+')">'+(sel?'✓ Sem. '+wn:'Trabalhar')+'</button>'+
+    '</div>';
+  });
+  document.getElementById('dem-catalogo').innerHTML=h;
+}
+
+/* ═══════════ RENDER: SEMANA (Seu Trem) ═══════════ */
+function renderWeek(wk){
+  var cw=currentWeek();var isC=wk.n===cw;
+  var h='<div class="back-btn" onclick="navTo(\'home\')">← Voltar ao Painel</div>';
+  h+='<div class="wk-hero"><span class="wk-emoji">'+wk.emoji+'</span>'+
+    '<div class="wk-info"><div class="wk-name">'+wk.label+(isC?' · acontecendo agora':'')+'</div><div class="wk-dates">'+wk.dates+'</div></div>'+
+    '<div class="wk-score"><div class="wk-pct">'+demSemanaPct(wk.n)+'%</div><div class="wk-pct-lbl">demandas</div></div></div>';
+
+  h+='<div class="sec">Pedidos aos fornecedores</div><div class="card">';
+  FORNECEDORES.forEach(function(f){
+    var done=!!(ST.pedidos[wk.n]&&ST.pedidos[wk.n][f.id]);
+    h+='<div class="forn-row">'+
+      '<div class="forn-chk'+(done?' on':'')+'" onclick="togglePedido('+wk.n+',\''+f.id+'\')">'+(done?'✓':'')+'</div>'+
+      '<div class="forn-body"><div class="forn-name'+(done?' done':'')+'">'+f.nome+'</div><div class="forn-meta">'+f.item+'</div></div>'+
+    '</div>';
+  });
+  h+='</div>';
+
+  h+='<div class="sec">Demandas desta semana</div>';
+  var sel=demsNaSemana(wk.n);
+  if(sel.length===0){
+    h+='<div class="weeklist-empty">Nenhuma demanda selecionada ainda. Abra <b>Demandas</b> no menu e toque em "Trabalhar" — elas entram automaticamente na semana atual.</div>';
+  } else {
+    sel.forEach(function(idx){
+      var doneW=!!(ST.demSemana[wk.n]&&ST.demSemana[wk.n][idx]);
+      h+='<div class="dem-week-card'+(doneW?' done':'')+'" onclick="toggleDemSemana('+wk.n+','+idx+')">'+
+        '<div class="dem-week-chk">'+(doneW?'✓':'')+'</div>'+
+        '<div class="dem-body"><div class="dem-week-num">DEMANDA '+(idx+1)+'</div><div class="dem-week-title">'+DEMANDAS[idx]+'</div></div>'+
+      '</div>';
+    });
+  }
+  return h;
+}
+
+/* ═══════════ RENDER: GRÁFICO DE LINHA (eixo X dia, eixo Y %) ═══════════ */
+function lineChartSVG(wk){
+  var data=weekSeries(wk);
+  var W=300,H=110,PAD_L=22,PAD_R=8,PAD_T=10,PAD_B=18;
+  var CW=W-PAD_L-PAD_R, CH=H-PAD_T-PAD_B;
+  var n=data.days.length;
+  function xOf(i){return PAD_L+(n<=1?0:(i/(n-1))*CW);}
+  function yOf(v){return PAD_T+(1-v/100)*CH;}
+  var colors=['#1a73e8','#9334e6','#12827f'];
+  var color=colors[wk.n-1];
+  // grid horizontal (0,25,50,75,100)
+  var grid='';
+  [0,25,50,75,100].forEach(function(v){
+    var y=yOf(v);
+    grid+='<line x1="'+PAD_L+'" y1="'+y+'" x2="'+(W-PAD_R)+'" y2="'+y+'" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="2,3"/>';
+    grid+='<text x="2" y="'+(y+3)+'" font-size="7" fill="#9aa0a6" font-family="Roboto Mono">'+v+'</text>';
+  });
+  // linha conectando pontos não-nulos
+  var pathPts=[];
+  data.series.forEach(function(v,i){if(v!==null)pathPts.push(xOf(i)+','+yOf(v));});
+  var pathD=pathPts.length>1?('M'+pathPts.join(' L')):'';
+  var areaD='';
+  if(pathPts.length>1){
+    var lastX=xOf(data.idxHoje);
+    areaD='M'+PAD_L+','+yOf(0)+' L'+pathPts.join(' L')+' L'+lastX+','+yOf(0)+' Z';
+  }
+  var dots='',labels='';
+  data.series.forEach(function(v,i){
+    var x=xOf(i);
+    if(v!==null){
+      dots+='<circle cx="'+x+'" cy="'+yOf(v)+'" r="'+(i===data.idxHoje?3.6:2.6)+'" fill="'+color+'"'+(i===data.idxHoje?' stroke="#fff" stroke-width="1.5"':'')+'/>';
+    } else {
+      dots+='<circle cx="'+x+'" cy="'+yOf(0)+'" r="1.6" fill="#dadce0"/>';
+    }
+    labels+='<text x="'+x+'" y="'+(H-4)+'" font-size="6.6" fill="#9aa0a6" font-family="Roboto" text-anchor="middle">'+data.days[i].day+'</text>';
+  });
+  var svg='<svg class="linechart-svg" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">'+
+    grid+
+    (areaD?'<path d="'+areaD+'" fill="'+color+'" opacity="0.08"/>':'')+
+    (pathD?'<path d="'+pathD+'" fill="none" stroke="'+color+'" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>':'')+
+    dots+labels+
+  '</svg>';
+  return {svg:svg,pctHoje:data.pctHoje,color:color};
+}
+function renderLineCharts(){
+  WEEKS.forEach(function(wk){
+    var r=lineChartSVG(wk);
+    var sel=demsNaSemana(wk.n);
+    var h='<div class="linechart-head"><div class="linechart-title">'+wk.label+' · pedidos + '+sel.length+' demanda(s)</div>'+
+      '<div class="linechart-now" style="color:'+r.color+'">'+r.pctHoje+'%</div></div>'+
+      r.svg;
+    document.getElementById('lc-'+wk.n).innerHTML=h;
+  });
+}
+
+/* ═══════════ RENDER: HOME ═══════════ */
+function renderHome(){
+  document.getElementById('hero-pct').textContent=cyclePct();
+  var cw=currentWeek();
+  document.getElementById('hero-msg').textContent='Semana atual: Semana '+cw+' · '+WEEKS[cw-1].dates;
+
+  var alertHtml='';
+  var fiscalAbertos=FISCAL.filter(function(f){
+    var override=ST.fiscalPago[f.id];
+    var st=override!==undefined?(override?'dia':'aberto'):f.status;
+    return st==='aberto';
+  }).length;
+  if(fiscalAbertos>0){
+    alertHtml+='<div class="alert-bnr"><span class="ic">🚨</span><div class="tx"><b>Atenção fiscal:</b> '+fiscalAbertos+' itens em aberto — imposto mensal com 7 meses de atraso precisa negociar. Marque os pagos em Financeiro.</div></div>';
+  }
+  var pedFeitos=pedidosFeitosWeek(cw);
+  if(pedFeitos===0){
+    alertHtml+='<div class="alert-bnr warn"><span class="ic">📦</span><div class="tx"><b>Nenhum pedido feito</b> na Semana '+cw+' ainda. Atelier, Arigatou, DeMarchi e Verace estão pendentes.</div></div>';
+  }
+  document.getElementById('alert-area').innerHTML=alertHtml;
+
+  document.getElementById('kpi-pedidos').textContent=pedidosFeitosTotal()+'/12';
+  var contas=contasEmDia();
+  document.getElementById('kpi-contas').textContent=contas.ok+'/'+contas.total;
+  document.getElementById('kpi-divida').textContent=brl(dividaTotal());
+
+  var c1pct=c1CyclePct();
+  var c1cp=C1_PHASES[c1CurrentPhase()-1];
+  document.getElementById('kpi-ciclo1').textContent=c1pct+'%';
+  document.getElementById('kpi-ciclo1-sub').textContent=c1cp.emoji+' '+c1cp.label;
+
+  renderLineCharts();
+}
+
+function renderNav(){
+  var cw=currentWeek();
+  document.getElementById('nb-dem').textContent=demSelecionadasCount()+'/21';
+  document.getElementById('nb-c1').textContent=c1CyclePct()+'%';
+  WEEKS.forEach(function(wk){
+    var b=document.getElementById('nb-s'+wk.n);
+    var pct=demSemanaPct(wk.n);
+    b.textContent=pct+'%';
+    b.className='nav-badge'+(pct===100&&demsNaSemana(wk.n).length>0?' full':'');
+    document.getElementById('now-'+wk.n).style.display=(wk.n===cw)?'inline-block':'none';
+  });
+  var contas=contasEmDia();
+  var fiscalAbertos=FISCAL.filter(function(f){
+    var override=ST.fiscalPago[f.id];
+    var st=override!==undefined?(override?'dia':'aberto'):f.status;
+    return st==='aberto';
+  }).length;
+  var nbFin=document.getElementById('nb-fin');
+  if(fiscalAbertos>0||contas.ok<contas.total){nbFin.style.display='inline-block';nbFin.textContent='!';}
+  else{nbFin.style.display='none';}
+}
+
+/* ═══════════ RENDER: CICLO 1 ═══════════ */
+function renderCiclo1(){
+  document.getElementById('c1-hero-pct').textContent=c1CyclePct();
+
+  var hp='';
+  var cp=c1CurrentPhase();
+  C1_PHASES.forEach(function(p){
+    var isC=p.n===cp;
+    hp+='<div class="c1-phase-card" onclick="navTo(\'c1f'+p.n+'\')">'+
+      '<div class="c1-phase-top" style="background:linear-gradient(120deg,'+p.color+'cc,'+p.color+')">'+
+        '<span style="font-size:20px">'+p.emoji+'</span>'+
+        '<div style="flex:1"><div style="font-weight:700;font-size:13px;font-family:Google Sans,sans-serif">'+p.label+(isC?' · AGORA':'')+'</div>'+
+        '<div style="font-size:10px;opacity:.85;margin-top:1px">'+p.dates+'</div></div>'+
+        '<div style="font-family:Roboto Mono,monospace;font-weight:700;font-size:16px">'+c1PhaseDone(p)+'<span style="font-size:11px;opacity:.7">/'+p.tasks.length+'</span></div>'+
+      '</div>'+
+      '<div class="c1-phase-bar-bg"><div class="c1-phase-bar-fg" style="width:'+c1PhasePct(p)+'%;background:'+p.color+'"></div></div>'+
+    '</div>';
+  });
+  document.getElementById('c1-phase-cards').innerHTML=hp;
+
+  var ho='';
+  C1_FRONTS.forEach(function(f){
+    var o=ST.c1Offer[f.id]||{};
+    ho+='<div class="c1-offer-card">'+
+      '<div class="c1-offer-name">'+f.emoji+' '+f.name+'</div><div class="c1-offer-role">'+f.role+'</div>'+
+      '<input class="c1-offer-input" placeholder="Promessa..." value="'+(o.promessa||'').replace(/"/g,'&quot;')+'" oninput="c1SetOffer(\''+f.id+'\',\'promessa\',this.value)">'+
+      '<input class="c1-offer-input" placeholder="Para quem..." value="'+(o.paraquem||'').replace(/"/g,'&quot;')+'" oninput="c1SetOffer(\''+f.id+'\',\'paraquem\',this.value)">'+
+      '<input class="c1-offer-input" placeholder="Preço-coragem R$" value="'+(o.preco||'').replace(/"/g,'&quot;')+'" oninput="c1SetOffer(\''+f.id+'\',\'preco\',this.value)">'+
+    '</div>';
+  });
+  document.getElementById('c1-offer-grid').innerHTML=ho;
+
+  var hf='';
+  C1_FUNNEL_FIELDS.forEach(function(f){
+    hf+='<div class="c1-funnel-row"><div class="c1-funnel-lbl">'+f.lbl+'<br><span style="font-size:9px;color:var(--tx3);font-weight:500">'+f.sub+'</span></div>'+
+      '<input class="c1-funnel-input" type="number" value="'+(ST.c1Funnel[f.id]||'')+'" oninput="c1SetFunnel(\''+f.id+'\',this.value)"></div>';
+  });
+  document.getElementById('c1-funnel-rows').innerHTML=hf;
+  renderC1Conv();
+
+  C1_PHASES.forEach(function(p){
+    var isC=p.n===cp;
+    var h2='<div class="back-btn" onclick="navTo(\'ciclo1\')">← Voltar ao Ciclo 1</div>';
+    h2+='<div class="c1-hero" style="background:linear-gradient(120deg,'+p.color+'cc,'+p.color+')">'+
+      '<div class="c1-hero-label">FASE '+p.n+' · '+p.dates+(isC?' · AGORA':'')+'</div>'+
+      '<div class="c1-hero-name">'+p.emoji+' '+p.label+'</div>'+
+      '<div class="c1-hero-sub">'+p.focus+'</div></div>';
+    p.tasks.forEach(function(tk){
+      var done=!!ST.c1Tasks[tk.id];
+      h2+='<div class="c1-task'+(done?' done':'')+'">'+
+        '<div class="c1-chk'+(done?' on':'')+'" onclick="c1Toggle(\''+tk.id+'\')">'+(done?'✓':'')+'</div>'+
+        '<div><div class="c1-task-title">'+tk.t+'</div><span class="c1-tag" style="background:'+p.color+'1a;color:'+p.color+'">'+tk.tag+'</span></div>'+
+      '</div>';
+    });
+    document.getElementById('c1fc-'+p.n).innerHTML=h2;
+  });
+}
+function renderC1Conv(){
+  var a=parseFloat(ST.c1Funnel.alcance)||0,c=parseFloat(ST.c1Funnel.conv)||0;
+  var pct=a>0?(c/a*100):0;
+  var el=document.getElementById('c1-conv-val');
+  if(el)el.textContent=pct.toFixed(1)+'%';
+}
+
+/* ═══════════ RENDER ALL ═══════════ */
+function renderAll(){
+  renderHome();
+  renderFinanceiro();
+  renderDemandas();
+  WEEKS.forEach(function(wk){document.getElementById('sc-'+wk.n).innerHTML=renderWeek(wk);});
+  renderCiclo1();
+  renderNav();
+}
+
+renderAll();
+</script>
+</body>
+</html>

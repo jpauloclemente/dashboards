@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ritual de Sempre · JP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,::before,::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0e; --s1:#121218; --s2:#191920; --s3:#22222b; --bd:#2a2a36; --bd2:#37374a;
+  --tx:#eaeaf2; --tx2:#9595ab; --tx3:#54546b;
+  --fin:#a78bfa; --finL:#1b1430; --carro:#f87171; --carroL:#2a1414; --cur:#fb923c; --curL:#2a1c0c;
+  --proj:#fb7185; --projL:#2a1420; --leit:#94a3b8; --leitL:#1a1f28; --rit:#4ade80; --ritL:#0f2418;
+  --gold:#f9d65c;
+  --r:14px; --rs:10px; --sw:268px;
+  --sh:0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.35);
+}
+html,body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--tx);min-height:100vh}
+body{max-width:520px;margin:0 auto;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* ═══ SIDEBAR ═══ */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .25s}
+.overlay.open{opacity:1;pointer-events:all}
+.sidebar{position:fixed;top:0;left:-280px;width:var(--sw);height:100vh;background:var(--s1);z-index:100;
+  transition:left .28s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:var(--sh);border-right:1px solid var(--bd)}
+.sidebar.open{left:0}
+.sb-head{padding:20px 16px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px}
+.sb-dot{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--fin),var(--rit));flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
+.sb-title{font-size:14px;font-weight:800;color:var(--tx);line-height:1.2}
+.sb-sub{font-size:10px;color:var(--tx3);letter-spacing:.5px;margin-top:1px}
+.sb-close{margin-left:auto;background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:4px 8px}
+.nav-lbl{font-size:9px;letter-spacing:1.8px;color:var(--tx3);font-weight:700;padding:16px 16px 6px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:background .15s;border-left:2px solid transparent}
+.nav-item:active{background:var(--s2)}
+.nav-item.active{background:var(--s2);border-left-color:var(--fin)}
+.ni{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+.na{font-size:13px;font-weight:600;color:var(--tx2);flex:1}
+.nav-item.active .na{color:var(--tx)}
+.nav-now{font-size:8px;font-weight:800;letter-spacing:1px;background:var(--rit);color:#04130a;padding:2px 6px;border-radius:8px;flex-shrink:0}
+.nav-pct{font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace;flex-shrink:0}
+.sb-foot{padding:16px;font-size:10px;color:var(--tx3);text-align:center;border-top:1px solid var(--bd);margin-top:8px}
+
+/* ═══ TOPBAR ═══ */
+.topbar{position:sticky;top:0;z-index:80;background:rgba(10,10,14,.92);backdrop-filter:blur(10px);
+  display:flex;align-items:center;gap:10px;padding:max(env(safe-area-inset-top),12px) 14px 12px;border-bottom:1px solid var(--bd)}
+.tb-menu{background:var(--s2);border:1px solid var(--bd);color:var(--tx);width:36px;height:36px;border-radius:9px;font-size:16px;cursor:pointer}
+.tb-title{font-size:13px;font-weight:700;color:var(--tx)}
+.tb-sub{font-size:10px;color:var(--tx3)}
+
+/* ═══ PANELS ═══ */
+.panel{display:none;padding:14px 14px 36px}
+.panel.active{display:block}
+.sec{font-size:10px;letter-spacing:2px;color:var(--tx3);font-weight:700;padding:18px 0 8px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
+.sec::after{content:'';flex:1;height:1px;background:var(--bd)}
+.sec:first-child{padding-top:2px}
+
+/* ═══ HERO ═══ */
+.hero{background:linear-gradient(160deg,var(--s2),var(--s1));border:1px solid var(--bd);border-radius:var(--r);padding:16px;display:flex;align-items:center;gap:14px;box-shadow:var(--sh)}
+.hero-info{flex:1}
+.hero-date{font-size:11px;color:var(--tx3);letter-spacing:1px;margin-bottom:2px}
+.hero-name{font-size:17px;font-weight:800;color:var(--tx)}
+.hero-msg{font-size:12px;color:var(--tx2);margin-top:3px}
+.hero-chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chip{font-size:10px;font-weight:700;padding:4px 9px;border-radius:7px;letter-spacing:.3px}
+.chip-c{background:var(--curL);color:var(--cur);border:1px solid rgba(251,146,60,.25)}
+.chip-r{background:var(--carroL);color:var(--carro);border:1px solid rgba(248,113,113,.25)}
+.chip-g{background:var(--ritL);color:var(--rit);border:1px solid rgba(74,222,128,.25)}
+.hero-score{text-align:center;flex-shrink:0}
+.hero-pct{font-size:26px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--tx)}
+.hero-pct small{font-size:12px;color:var(--tx3);font-weight:600}
+.hero-wlbl{font-size:9px;color:var(--tx3);letter-spacing:.5px;margin-top:1px}
+
+/* ═══ ÂNCORA — 3 prioridades ═══ */
+.anc-wrap{background:var(--s2);border:1.5px solid rgba(167,139,250,.4);border-radius:var(--r);padding:14px;margin-top:10px;box-shadow:0 0 22px rgba(167,139,250,.06)}
+.anc-lbl{font-size:10px;letter-spacing:2.5px;color:var(--fin);margin-bottom:10px;font-weight:700}
+.anc-row{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-top:1px solid var(--bd)}
+.anc-row:first-of-type{border-top:none}
+.anc-num{width:22px;height:22px;border-radius:6px;background:var(--s3);border:1.5px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--tx3);flex-shrink:0;margin-top:2px;cursor:pointer;transition:all .15s}
+.anc-num.done{background:var(--fin);border-color:var(--fin);color:#15092e}
+.anc-inp{flex:1;background:transparent;border:none;color:var(--tx);font-family:'Inter',sans-serif;font-size:13.5px;font-weight:500;outline:none;padding:2px 0;line-height:1.4}
+.anc-inp::placeholder{color:var(--tx3)}
+.anc-inp.done{color:var(--tx3);text-decoration:line-through}
+
+/* ═══ ÁREA — DONUTS POR SEMANA ═══ */
+.area-block{background:var(--s2);border:1px solid var(--bd);border-radius:var(--rs);padding:13px;margin-bottom:9px}
+.area-block-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.area-block-emoji{font-size:16px}
+.area-block-name{font-size:12px;font-weight:700;color:var(--tx);flex:1}
+.donut-row{display:flex;justify-content:space-around}
+.donut-cell{display:flex;flex-direction:column;align-items:center;gap:4px}
+.donut-wk{font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:.5px}
+
+/* ═══ SCHEDULE GRID (Home) ═══ */
+.sched-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.sched-scroll::-webkit-scrollbar{display:none}
+.sched-card{flex:0 0 100px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--rs);padding:10px;text-align:center}
+.sched-card.today{border-color:var(--fin);box-shadow:0 0 0 1px var(--fin) inset}
+.sched-day{font-size:10px;color:var(--tx3);font-weight:700;letter-spacing:.5px}
+.sched-date{font-size:14px;font-weight:800;color:var(--tx);margin:2px 0 6px;font-family:'JetBrains Mono',monospace}
+.sched-status{font-size:9px;font-weight:800;letter-spacing:.5px;padding:3px 6px;border-radius:6px;display:inline-block;margin-bottom:6px}
+.st-fechado{background:var(--carroL);color:var(--carro)}
+.st-presencial{background:var(--curL);color:var(--cur)}
+.st-livre{background:var(--ritL);color:var(--rit)}
+.sched-uber{font-size:9px;color:var(--tx3);margin-bottom:4px;font-family:'JetBrains Mono',monospace}
+.sched-act{font-size:9.5px;color:var(--tx2);line-height:1.3}
+
+/* ═══ DAY CHART (canvas) ═══ */
+.chart-card{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 8px 8px;margin-bottom:10px}
+.chart-title{font-size:11px;font-weight:700;color:var(--tx2);padding:0 6px 6px}
+canvas.dchart{display:block;width:100%}
+
+/* ═══ MOTIVAÇÃO ═══ */
+.mot-card{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:15px;margin-bottom:9px}
+.mot-lbl{font-size:10px;letter-spacing:2px;font-weight:700;margin-bottom:9px}
+.mot-list{font-size:12.5px;color:var(--tx2);line-height:1.85}
+
+/* ═══ TIMELINE removido — mantido apenas estilos legados não usados ═══ */
+
+/* ═══ WEEK HEADER ═══ */
+.wk-head{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.wk-emoji{font-size:24px}
+.wk-name{font-size:15px;font-weight:800;color:var(--tx)}
+.wk-dates{font-size:11.5px;color:var(--tx2);margin-top:2px}
+.wk-badge{margin-left:auto;text-align:right;flex-shrink:0}
+.wk-esc{font-size:10px;font-weight:800;letter-spacing:1px;background:var(--curL);color:var(--cur);padding:4px 9px;border-radius:7px}
+.wk-pct2{font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;margin-top:4px}
+
+/* ═══ TRACK CARD (day-grid habit) ═══ */
+.trk-card{background:var(--s2);border:1px solid var(--bd);border-radius:var(--rs);padding:13px;margin-bottom:9px;position:relative;overflow:hidden}
+.trk-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac)}
+.trk-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.trk-icon{font-size:16px}
+.trk-name{font-size:12.5px;font-weight:700;color:var(--tx);flex:1}
+.trk-meta{font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+.dot-row{display:flex;gap:5px;justify-content:space-between}
+.dot-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.dot-day{font-size:8.5px;color:var(--tx3);font-weight:700}
+.dot{width:28px;height:28px;border-radius:8px;border:1.5px solid var(--bd2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:11px;font-weight:700;color:transparent}
+.dot.today{border-color:var(--ac)}
+.dot.on{background:var(--ac);border-color:var(--ac);color:#0a0a0e}
+
+/* ═══ COUNTER ═══ */
+.cnt-row{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.cnt-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--bd2);background:var(--s3);color:var(--tx);font-size:16px;cursor:pointer}
+.cnt-val{font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace}
+
+/* ═══ NOTE FIELD ═══ */
+.note-inp{width:100%;background:var(--s3);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-family:'Inter',sans-serif;font-size:12.5px;padding:9px 10px;outline:none;margin-top:6px}
+.note-inp::placeholder{color:var(--tx3)}
+
+/* ═══ BILLS / CHECK ═══ */
+.bill-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.bill-row:last-child{border-bottom:none}
+.bill-cb{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--bd2);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.bill-cb.on{background:var(--fin);border-color:var(--fin)}
+.bill-ck{color:#15092e;font-size:11px;opacity:0}
+.bill-cb.on .bill-ck{opacity:1}
+.bill-info{flex:1;min-width:0}
+.bill-name{font-size:12.5px;font-weight:600;color:var(--tx)}
+.bill-name.paid{color:var(--tx3);text-decoration:line-through}
+.bill-sub{font-size:10.5px;color:var(--tx3);margin-top:1px}
+.bill-val{font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2);flex-shrink:0}
+
+/* ═══ PENDÊNCIA LIST ═══ */
+.pend-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.pend-item:last-child{border-bottom:none}
+.pend-cb{width:19px;height:19px;border-radius:5px;border:1.5px solid var(--bd2);flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.pend-cb.on{background:var(--carro);border-color:var(--carro)}
+.pend-ck{font-size:10px;opacity:0;color:#1a0808}
+.pend-cb.on .pend-ck{opacity:1}
+.pend-txt{font-size:12.5px;color:var(--tx);flex:1;line-height:1.4}
+.pend-txt.done{color:var(--tx3);text-decoration:line-through}
+
+/* agenda usa cor lavanda no check */
+.agd-cb.on{background:var(--fin);border-color:var(--fin)}
+.agd-ck{font-size:10px;opacity:0;color:#15092e}
+.agd-cb.on .agd-ck{opacity:1}
+
+.note-box{font-size:11.5px;color:var(--tx3);line-height:1.55;padding:9px 11px;background:var(--s1);border-radius:8px;margin-top:4px}
+.warn-box{font-size:11.5px;color:var(--gold);line-height:1.55;padding:10px 12px;background:rgba(249,214,92,.07);border:1px solid rgba(249,214,92,.25);border-radius:8px;margin-bottom:10px}
+
+/* ═══ PLAYBOOK ═══ */
+.cycle-ring{display:flex;justify-content:center;margin:6px 0 16px}
+.pb-stage{background:var(--s2);border:1px solid rgba(167,139,250,.35);border-radius:var(--r);padding:16px;text-align:center}
+.pb-stage-lbl{font-size:10px;letter-spacing:2px;color:var(--fin);font-weight:700;margin-bottom:6px}
+.pb-stage-name{font-size:19px;font-weight:800;color:var(--tx);margin-bottom:6px}
+.pb-stage-sub{font-size:12px;color:var(--tx2);line-height:1.5}
+.exq-edit{padding:9px 0;border-top:1px solid var(--bd)}
+.exq-edit:first-child{border-top:none}
+.exq-num{font-size:9px;color:var(--fin);font-weight:800;letter-spacing:1px;margin-bottom:5px}
+.exq-textarea{width:100%;background:var(--s3);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-family:'Inter',sans-serif;font-size:12.5px;padding:9px 10px;outline:none;resize:none;line-height:1.4;min-height:40px}
+
+.gloss-item{padding:11px 0;border-top:1px solid var(--bd)}
+.gloss-item:first-child{border-top:none}
+.gloss-name{font-size:13px;font-weight:800;margin-bottom:4px}
+.gloss-def{font-size:12px;color:var(--tx2);line-height:1.55}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-head">
+    <div class="sb-dot">🌀</div>
+    <div>
+      <div class="sb-title">Ritual de Sempre</div>
+      <div class="sb-sub">Dashboard Pessoal · JP</div>
+    </div>
+    <button class="sb-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <nav>
+    <div class="nav-lbl">Visão geral</div>
+    <div class="nav-item active" id="nav-home" onclick="navTo('home')"><span class="ni">📊</span><span class="na">Desempenho</span></div>
+    <div class="nav-item" id="nav-pend" onclick="navTo('pend')"><span class="ni">📌</span><span class="na">Pendências</span></div>
+    <div class="nav-item" id="nav-agd" onclick="navTo('agd')"><span class="ni">🗒️</span><span class="na">Pendências da Agenda</span></div>
+    <div class="nav-item" id="nav-ineg" onclick="navTo('ineg')"><span class="ni">⚓</span><span class="na">Inegociável</span></div>
+    <div class="nav-item" id="nav-pb" onclick="navTo('pb')"><span class="ni">🌀</span><span class="na">Playbook</span></div>
+    <div class="nav-lbl">Janela de 3 semanas</div>
+    <div class="nav-item" id="nav-w1" onclick="navTo('w1')"><span class="ni">①</span><span class="na">16–22 jun · C</span><span class="nav-now" id="now-1" style="display:none">AGORA</span><span class="nav-pct" id="pct-1">0%</span></div>
+    <div class="nav-item" id="nav-w2" onclick="navTo('w2')"><span class="ni">②</span><span class="na">23–29 jun · A</span><span class="nav-now" id="now-2" style="display:none">AGORA</span><span class="nav-pct" id="pct-2">0%</span></div>
+    <div class="nav-item" id="nav-w3" onclick="navTo('w3')"><span class="ni">③</span><span class="na">30jun–6jul · B</span><span class="nav-now" id="now-3" style="display:none">AGORA</span><span class="nav-pct" id="pct-3">0%</span></div>
+  </nav>
+  <div class="sb-foot">o sistema serve à vida, não o contrário</div>
+</aside>
+
+<!-- ═══ TOPBAR ═══ -->
+<div class="topbar">
+  <button class="tb-menu" onclick="openSidebar()">☰</button>
+  <div>
+    <div class="tb-title">Ritual de Sempre</div>
+    <div class="tb-sub" id="tb-sub">carregando...</div>
+  </div>
+</div>
+
+<!-- ═══ HOME ═══ -->
+<div class="panel active" id="panel-home">
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-date mono" id="h-date">—</div>
+      <div class="hero-name" id="h-name">Hoje</div>
+      <div class="hero-msg" id="h-msg">—</div>
+      <div class="hero-chips" id="h-chips"></div>
+    </div>
+    <div class="hero-score">
+      <div class="hero-pct mono"><span id="h-pct">0</span><small>%</small></div>
+      <div class="hero-wlbl">da semana</div>
+    </div>
+  </div>
+
+  <div class="anc-wrap">
+    <div class="anc-lbl mono">⚡ 3 PRIORIDADES DE HOJE</div>
+    <div id="anc-rows"></div>
+  </div>
+
+  <div class="sec">grade da semana</div>
+  <div class="sched-scroll" id="sched-scroll"></div>
+
+  <div class="sec">desempenho por área — 3 semanas comparadas</div>
+  <div id="area-donuts"></div>
+
+  <div class="sec">evolução diária — % de realização por semana</div>
+  <div class="chart-card"><div class="chart-title">Semana 1 · 16–22 jun</div><canvas class="dchart" id="dchart-1" height="150"></canvas></div>
+  <div class="chart-card"><div class="chart-title">Semana 2 · 23–29 jun</div><canvas class="dchart" id="dchart-2" height="150"></canvas></div>
+  <div class="chart-card"><div class="chart-title">Semana 3 · 30 jun–6 jul</div><canvas class="dchart" id="dchart-3" height="150"></canvas></div>
+
+  <div class="sec">sonhos, ambições & inegociáveis</div>
+  <div class="mot-card">
+    <div class="mot-lbl" style="color:var(--fin)">SONHOS & AMBIÇÕES</div>
+    <div class="mot-list">Casa própria · independência financeira · independência geográfica · fazer gracinhas para quem eu amo · monetizar o Circuito Vegano BH · transformar o Seu Trem em franquia · abrir um segundo restaurante · construir e monetizar o Ritual de Sempre · escrever como colunista em portais.</div>
+  </div>
+  <div class="mot-card">
+    <div class="mot-lbl" style="color:var(--rit)">INEGOCIÁVEL</div>
+    <div class="mot-list">1º ciclo circadiano · 2º saúde (corridas, academia, alimentação, água, dentes, autocuidados) · 3º quebrar resistências mentais e me colocar em movimento · 4º analisar e criar — me manter sempre aprendendo, executando, questionando, refletindo e conectado com o que importa.</div>
+  </div>
+</div>
+
+<!-- ═══ SEMANAS ═══ -->
+<div class="panel" id="panel-w1"><div id="content-w1"></div></div>
+<div class="panel" id="panel-w2"><div id="content-w2"></div></div>
+<div class="panel" id="panel-w3"><div id="content-w3"></div></div>
+
+<!-- ═══ PENDÊNCIAS ═══ -->
+<div class="panel" id="panel-pend">
+  <div class="sec">financeiro — vencidas e a vencer</div>
+  <div class="trk-card" style="--ac:var(--fin)" id="fin-checklist"></div>
+
+  <div class="sec">outras assinaturas — sem ação necessária agora</div>
+  <div class="note-box">Seguro do carro (R$210, em dia) · Claude (R$110/mês, pago — próxima julho) · Amazon Prime/Premiere (R$60, quitado) · Netlify (R$51, quitado) · assinatura com a irmã / gatos (R$200/mês, promoção entra em julho).</div>
+
+  <div class="sec">carro — toyota etios 2016</div>
+  <div class="trk-card" style="--ac:var(--carro)" id="carro-list"></div>
+
+  <div class="sec">conferências administrativas</div>
+  <div class="trk-card" style="--ac:var(--fin)" id="conf-list"></div>
+
+  <div class="sec">cursos — status</div>
+  <div class="note-box">Comunidade Sobral de Tráfego · Maestros da IA · Comunicador de Elite — os 3 estão na fase de <strong>arranque</strong>: iniciar e desenvolver, não manter.</div>
+</div>
+
+<!-- ═══ PENDÊNCIAS DA AGENDA ═══ -->
+<div class="panel" id="panel-agd">
+  <div class="sec">pendências da agenda · consulta</div>
+  <div class="note-box" style="margin-bottom:10px">Backlog completo levantado dos cadernos — sem prazo fixo. Marque conforme for resolvendo; use como consulta, não como meta diária.</div>
+  <div class="trk-card" style="--ac:var(--fin)" id="agenda-list"></div>
+</div>
+
+<!-- ═══ INEGOCIÁVEL ═══ -->
+<div class="panel" id="panel-ineg">
+  <div class="sec">o que é inegociável</div>
+  <div class="mot-card">
+    <div class="mot-list" style="line-height:2.1">
+      <strong style="color:var(--tx)">1º</strong> Ciclo circadiano.<br>
+      <strong style="color:var(--tx)">2º</strong> Saúde — corridas, academia, alimentação, água, dentes, autocuidados.<br>
+      <strong style="color:var(--tx)">3º</strong> Quebrar resistências mentais no dia a dia e me colocar em movimento.<br>
+      <strong style="color:var(--tx)">4º</strong> Analisar e criar — me manter sempre aprendendo, criando, executando e analisando meu trabalho e minhas ideologias pessoais; me manter questionando, refletindo, me informando e me conectando com o que é importante pra mim.
+    </div>
+  </div>
+
+  <div class="sec">interesses do momento</div>
+  <div class="mot-card">
+    <div class="mot-list">Ser humano · comunicação · elementos literários · negócios · administração · marketing · gestão de tráfego · inglês · espanhol · violão · cajon · canto · rotinas e experiências · serenidade/tranquilidade/presença não resistente · contemplação/observação ativa · técnicas como 3x1 · equilíbrio · energia masculina/feminina — autoequilíbrio e potencialização · consciência plena e ocupação natural de espaço · estudar/anotar/expressar com minhas próprias palavras.</div>
+  </div>
+</div>
+
+<!-- ═══ PLAYBOOK ═══ -->
+<div class="panel" id="panel-pb">
+  <div class="cycle-ring">
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="48" fill="none" stroke="#22222b" stroke-width="2"/>
+      <g id="ring-dots"></g>
+      <text x="60" y="65" text-anchor="middle" font-size="22" fill="#eaeaf2">🌀</text>
+    </svg>
+  </div>
+
+  <div class="pb-stage">
+    <div class="pb-stage-lbl mono">CICLO ÚNICO · 6 ÁREAS</div>
+    <div class="pb-stage-name">IDEIA → MVP</div>
+    <div class="pb-stage-sub">O sistema pessoal acaba de ser desenhado. A vida de João é o produto — as 6 áreas não são startups separadas, são módulos do mesmo ciclo. A pergunta não é "qual área validar", é: <strong>este sistema, na prática real do dia a dia, vai ser usado de novo na semana 2?</strong></div>
+  </div>
+
+  <div class="sec">critério de saída deste estágio</div>
+  <div class="note-box">Sair de IDEIA para MVP exige 3 semanas seguidas em que o dashboard foi aberto, editado e usado — não apenas desenhado. PMF pessoal = o sistema voltar a ser aberto sem precisar de lembrete.</div>
+
+  <div class="sec">exercício da semana · editável</div>
+  <div class="warn-box">⚠️ Estas 3 perguntas são editáveis. Nas próximas semanas eu vou te sugerir novas perguntas na conversa — é só substituir o texto aqui quando isso acontecer.</div>
+  <div class="trk-card" style="--ac:var(--fin)">
+    <div id="pb-qs"></div>
+  </div>
+
+  <div class="sec">nota rápida</div>
+  <textarea class="note-inp" id="pb-note" placeholder="O que o ciclo sinalizou esta semana. O que resistiu. O que precisa mudar." rows="3" style="min-height:70px" oninput="saveNote()"></textarea>
+
+  <div class="sec">glossário — os 4 estágios</div>
+  <div class="trk-card" style="--ac:var(--fin)">
+    <div class="gloss-item">
+      <div class="gloss-name" style="color:var(--fin)">IDEIA</div>
+      <div class="gloss-def">Validação por pesquisa. Reunir evidência de que o problema é real e que a solução proposta o resolve, antes de investir recurso em construir. Sai daqui quando há sinal qualitativo suficiente (problem-solution fit).</div>
+    </div>
+    <div class="gloss-item">
+      <div class="gloss-name" style="color:var(--cur)">MVP</div>
+      <div class="gloss-def">Traduzir o problema validado no menor produto que pessoas reais de fato usam — sem acumular dívida que compõe. Sai daqui com evidência de que alguém volta, paga ou indica (product-market fit).</div>
+    </div>
+    <div class="gloss-item">
+      <div class="gloss-name" style="color:var(--proj)">LANÇAMENTO</div>
+      <div class="gloss-def">Transformar tração inicial em crescimento repetível; endurecer a infraestrutura; sair do "eu faço tudo" para "eu projeto os sistemas que fazem". Sai daqui quando a operação não depende mais do fundador como gargalo.</div>
+    </div>
+    <div class="gloss-item">
+      <div class="gloss-name" style="color:var(--rit)">ESCALA</div>
+      <div class="gloss-def">Crescimento sistemático sustentado por operação madura; construir um moat defensável por profundidade — expertise, integrações, dados de uso. É o estágio de "de aposta a negócio".</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════ CONFIG ═══════════════ */
+var AREAS=[
+  {id:'fin', emoji:'💰', name:'Financeiro & custo de vida', color:'var(--fin)', hex:'#a78bfa'},
+  {id:'carro', emoji:'🚗', name:'Gestão de automóvel', color:'var(--carro)', hex:'#f87171'},
+  {id:'cur', emoji:'📚', name:'Cursos em desenvolvimento', color:'var(--cur)', hex:'#fb923c'},
+  {id:'proj', emoji:'🎬', name:'Projeto pessoal', color:'var(--proj)', hex:'#fb7185'},
+  {id:'leit', emoji:'📖', name:'Leituras & estudos', color:'var(--leit)', hex:'#94a3b8'},
+  {id:'rit', emoji:'🌱', name:'Rituais & treinos', color:'var(--rit)', hex:'#4ade80'}
+];
+
+var WEEKS=[
+  {n:1, label:'Semana 1', esc:'C', startISO:'2026-06-16', range:'16–22 jun',
+   days:[{d:'Ter',n:16},{d:'Qua',n:17},{d:'Qui',n:18},{d:'Sex',n:19},{d:'Sáb',n:20},{d:'Dom',n:21},{d:'Seg',n:22}]},
+  {n:2, label:'Semana 2', esc:'A', startISO:'2026-06-23', range:'23–29 jun',
+   days:[{d:'Ter',n:23},{d:'Qua',n:24},{d:'Qui',n:25},{d:'Sex',n:26},{d:'Sáb',n:27},{d:'Dom',n:28},{d:'Seg',n:29}]},
+  {n:3, label:'Semana 3', esc:'B', startISO:'2026-06-30', range:'30 jun–6 jul',
+   days:[{d:'Ter',n:30},{d:'Qua',n:1},{d:'Qui',n:2},{d:'Sex',n:3},{d:'Sáb',n:4},{d:'Dom',n:5},{d:'Seg',n:6}]}
+];
+
+/* Status por escala: presencial / livre / fechado (Ter sempre fechado) */
+var ESCALA_STATUS={
+  A:{Ter:'fechado',Qua:'presencial',Qui:'presencial',Sex:'livre',Sáb:'livre',Dom:'livre',Seg:'livre'},
+  B:{Ter:'fechado',Qua:'presencial',Qui:'presencial',Sex:'presencial',Sáb:'presencial',Dom:'presencial',Seg:'livre'},
+  C:{Ter:'fechado',Qua:'livre',Qui:'livre',Sex:'presencial',Sáb:'presencial',Dom:'presencial',Seg:'presencial'}
+};
+var ESCALA_UBER={
+  A:{Sex:'17–21h',Sáb:'14–18h',Dom:'14–18h',Seg:'17–21h',Ter:'17–21h'},
+  B:{Sex:'14–18h',Sáb:'14–18h',Dom:'14–18h',Seg:'17–21h',Ter:'17–21h'},
+  C:{Qua:'17–21h',Qui:'17–21h',Ter:'17–21h'}
+};
+function activitySuggestion(dayLabel,status){
+  if(dayLabel==='Dom') return 'Contemplação + bloco criativo';
+  if(status==='fechado') return 'Descanso & recompensa';
+  if(status==='presencial') return 'Produção pela manhã + presencial';
+  return 'Produção intensa';
+}
+
+/* Tracks recorrentes — mesmos em todas as semanas */
+var TRACKS=[
+  {id:'sobral', area:'cur', icon:'📈', name:'Sobral de Tráfego', meta:4},
+  {id:'maestros', area:'cur', icon:'🤖', name:'Maestros da IA', meta:4},
+  {id:'elite', area:'cur', icon:'🎤', name:'Comunicador de Elite', meta:4},
+  {id:'vlog', area:'proj', icon:'🎥', name:'Vlog — gravar/analisar/pesquisar', meta:3},
+  {id:'autobio', area:'rit', icon:'✍️', name:'Escrita autobiográfica', meta:3},
+  {id:'leitura', area:'leit', icon:'📖', name:'Leitura diária', meta:7},
+  {id:'corpo', area:'rit', icon:'🧘', name:'Ritual do corpo (alongamento+assoalho+aparência+solar+meditação+oração)', meta:7},
+  {id:'casa', area:'rit', icon:'🏠', name:'Cuidados com a casa', meta:5},
+  {id:'treino', area:'rit', icon:'🎸', name:'Treino & idioma (comunicação/violão/inglês/espanhol)', meta:3}
+];
+
+var BILLS_W1=[
+  {id:'aluguel', name:'Aluguel', sub:'devendo maio + junho', val:'R$2.400'},
+  {id:'cruzeiro', name:'Sócio torcedor Cruzeiro', sub:'junho não pago', val:'R$100'},
+  {id:'pai', name:'Dívida com o pai (parcela)', sub:'junho não pago', val:'R$200'},
+  {id:'spotify', name:'Spotify', sub:'pagar este mês', val:'R$18'},
+  {id:'smartfit', name:'Smartfit', sub:'vence dia 20', val:'R$145'},
+  {id:'paramount', name:'Paramount', sub:'vence dia 19', val:'R$40'}
+];
+var BILLS_W2=[
+  {id:'claro', name:'Claro (internet)', sub:'vence dia 25', val:'R$166'},
+  {id:'cursoia', name:'Curso de IA', sub:'vence dia 23', val:'R$97'}
+];
+var BILLS_W3=[];
+var ALL_BILLS=BILLS_W1.concat(BILLS_W2);
+
+var CARRO_TASKS=[
+  'Passar o carro para o nome de João',
+  'Tirar passaporte (pessoal importante)',
+  'Revisão do GNV — R$350 (já vencida)',
+  'Recall do airbag na Osaka — agendar',
+  'Pastilha de freio nova — R$500',
+  'Trazer histórico de manutenção para organizar',
+  'Instalar insulfilm — R$400',
+  'Consertar parte elétrica e buzina — R$400',
+  'Fazer 2 chaves reserva — R$400'
+];
+var CONF_TASKS=[
+  'Conferir anuidade do cartão Itaú',
+  'Conferir status do seguro contratado',
+  'Conferir status da poupança'
+];
+
+var AGENDA_ITEMS=[
+  "Comprar fio dental e case pro kit de higiene bucal na loja",
+  "Colocar boletos do MEI em dia",
+  "Fazer orçamento dos manipulados receitados pelo endocrinologista",
+  "Atualizar grupo pessoal",
+  "Atualizar Telegram",
+  "Atualizar comunidade do Ritual de Sempre",
+  "Organizar WhatsApp e todas as mensagens em todas as redes",
+  "Questão Copasa — conta de R$6k",
+  "Questão Vivo/Embratel",
+  "Escrever texto \"Observador > Afetado\"",
+  "Escrever texto \"4 tipos de conversas\"",
+  "Finalizar receitas dos Blends (Work)",
+  "Atualizar planilha financeira do Seu Trem",
+  "Consultar CNPJ e plano Positivo com a Karla",
+  "Buscar patrocínios (Work)",
+  "Executar convites da publicação no feed",
+  "Padrão de lançamento de notas (Work)",
+  "Padrão de potes e áreas de trabalho",
+  "Padrão para as listas",
+  "Comprar tecidos novos para as mesas",
+  "Reforma elétrica",
+  "Novos uniformes",
+  "Novos cardápios",
+  "Releituras iFood",
+  "Reforma da casinha da janela de pedidos",
+  "Aulas de língua com a Ju",
+  "Comprar botijão de gás",
+  "Atualizar os quadros negros",
+  "GNV — urgente",
+  "Orçamento elétrico",
+  "Orçamento insulfilme",
+  "Orçamento estufa",
+  "Transferir o carro para o meu nome",
+  "Tirar o passaporte",
+  "Recall do volante",
+  "Pesquisar o bacalhau no Ceasa pro Mauro",
+  "Comprar pimenta jalapeño",
+  "Contactar as empresas veganas sugeridas",
+  "Reforçar a banca inox da cozinha",
+  "Comprar mangueira e válvula pro gás da loja",
+  "Fazer o seguro patrimonial",
+  "Concertar o ombrelone",
+  "Comprar a última lâmpada",
+  "Trabalhar no reparo das infiltrações",
+  "Reforma do banheiro da loja",
+  "Pesquisa de personalização de vidros",
+  "Escrever métodos de estudo de inglês com os canais do YouTube",
+  "Convidar família e família da Ju para um momento no ST",
+  "TCC da Ju e doutorado",
+  "Orçamento de adesivos para copos e bonés",
+  "Organizar a galeria do iPhone (Work)",
+  "Raio-X — Abílio Machado",
+  "Fazer limpeza",
+  "Remover cisto",
+  "Viagem OP",
+  "Viagem em família para a praia",
+  "Panfleto pro iFood: presentes de alto valor + campanha de fidelidade + cortesia fixa",
+  "Airfryer",
+  "Insta",
+  "WhatsApp",
+  "Pegar o livrinho com a Júlia e encapar junto com ela",
+  "Fazer contrato e documento garantidor",
+  "Organizar o Gmail com o Claude",
+  "Cachaça de jambu",
+  "Comprar terra e replantar",
+  "Comprar piercing",
+  "Reformar as mesas e comprar mais",
+  "Comprar luminárias + luzes infravermelhas para a loja + mudança dos dutos",
+  "Visitar loja de luminárias vintage",
+  "Comprar posca branca",
+  "Bico pro filtro de barro de casa",
+  "Papel crepom laranja pra capa do softbox",
+  "Escrever modelo dos dias 14 e 15 de abril (conversa sobre desenvolvimento criativo)",
+  "Pegar um galho bom pra planta",
+  "Comprar pastilha de freio",
+  "Resolver a questão do nome do Yuri",
+  "Dedetização com veneno novo"
+];
+
+var PB_QS_DEFAULT=[
+  'A área que mais preocupa esta semana — o problema é real e específico, ou é ansiedade sem forma?',
+  'Qual é o argumento mais forte CONTRA continuar usando este dashboard todos os dias? Ele se sustenta?',
+  'O que, se eu não fizer esta semana, vai custar mais caro fazer depois?'
+];
+
+/* ═══════════════ DATE HELPERS ═══════════════ */
+function todayISO(){
+  var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addDays(iso,n){
+  var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function weekISOs(wk){
+  var arr=[]; for(var i=0;i<7;i++)arr.push(addDays(wk.startISO,i)); return arr;
+}
+function currentWeek(){
+  var t=todayISO();
+  for(var i=0;i<WEEKS.length;i++){
+    var isos=weekISOs(WEEKS[i]);
+    if(isos.indexOf(t)>=0) return {wk:WEEKS[i], idx:isos.indexOf(t), isos:isos};
+  }
+  return {wk:WEEKS[0], idx:0, isos:weekISOs(WEEKS[0])};
+}
+function fmtDate(iso){
+  var d=new Date(iso+'T00:00:00');
+  var dias=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  var meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return dias[d.getDay()]+' · '+d.getDate()+' '+meses[d.getMonth()];
+}
+
+/* ═══════════════ STORAGE ═══════════════ */
+function lsGet(k,fb){ try{var v=localStorage.getItem(k); return v===null?fb:JSON.parse(v);}catch(e){return fb;} }
+function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+
+/* ═══════════════ SIDEBAR / NAV ═══════════════ */
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open');}
+function navTo(p){
+  document.querySelectorAll('.panel').forEach(function(x){x.classList.remove('active')});
+  document.querySelectorAll('.nav-item').forEach(function(x){x.classList.remove('active')});
+  document.getElementById('panel-'+p).classList.add('active');
+  var nav=document.getElementById('nav-'+p); if(nav)nav.classList.add('active');
+  closeSidebar();
+  window.scrollTo(0,0);
+  if(p==='home') setTimeout(drawAllCharts,60);
+}
+
+/* ═══════════════ ÂNCORA — 3 prioridades ═══════════════ */
+function ancKey(){return 'anc3_'+todayISO();}
+function loadAncoraRows(){
+  var data=lsGet(ancKey(),[{text:'',done:false},{text:'',done:false},{text:'',done:false}]);
+  var c=document.getElementById('anc-rows'); c.innerHTML='';
+  for(var i=0;i<3;i++){
+    var item=data[i]||{text:'',done:false};
+    var row=document.createElement('div'); row.className='anc-row';
+    row.innerHTML='<div class="anc-num'+(item.done?' done':'')+'" data-i="'+i+'">'+(item.done?'✓':(i+1))+'</div>'+
+      '<input class="anc-inp'+(item.done?' done':'')+'" data-i="'+i+'" value="'+esc(item.text)+'" placeholder="prioridade '+(i+1)+' de hoje">';
+    c.appendChild(row);
+  }
+  c.querySelectorAll('.anc-num').forEach(function(n){
+    n.addEventListener('click',function(){
+      var data=lsGet(ancKey(),[{text:'',done:false},{text:'',done:false},{text:'',done:false}]);
+      var i=parseInt(n.dataset.i); data[i].done=!data[i].done;
+      lsSet(ancKey(),data); loadAncoraRows();
+    });
+  });
+  c.querySelectorAll('.anc-inp').forEach(function(inp){
+    inp.addEventListener('input',function(){
+      var data=lsGet(ancKey(),[{text:'',done:false},{text:'',done:false},{text:'',done:false}]);
+      var i=parseInt(inp.dataset.i); data[i].text=inp.value;
+      lsSet(ancKey(),data);
+    });
+  });
+}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+/* ═══════════════ SCHEDULE GRID (Home) ═══════════════ */
+function buildSchedule(){
+  var cw=currentWeek(); var wk=cw.wk; var esc_=wk.esc;
+  var c=document.getElementById('sched-scroll'); c.innerHTML='';
+  wk.days.forEach(function(day,i){
+    var status=ESCALA_STATUS[esc_][day.d];
+    var uber=ESCALA_UBER[esc_][day.d];
+    var act=activitySuggestion(day.d,status);
+    var isToday=(cw.idx===i);
+    var div=document.createElement('div'); div.className='sched-card'+(isToday?' today':'');
+    div.innerHTML='<div class="sched-day">'+day.d.toUpperCase()+'</div>'+
+      '<div class="sched-date mono">'+day.n+'</div>'+
+      '<div class="sched-status st-'+status+'">'+status.toUpperCase()+'</div>'+
+      (uber?'<div class="sched-uber">🚗 '+uber+'</div>':'<div class="sched-uber">—</div>')+
+      '<div class="sched-act">'+act+'</div>';
+    c.appendChild(div);
+  });
+}
+
+/* ═══════════════ TRACKS (day-grid) ═══════════════ */
+function trkKey(wn,tid){return 'trk_w'+wn+'_'+tid;}
+function buildTrackCard(wk,trk){
+  var area=AREAS.find(function(a){return a.id===trk.area});
+  var state=lsGet(trkKey(wk.n,trk.id),Array(7).fill(false));
+  var todayISOv=todayISO(); var isos=weekISOs(wk);
+  var html='<div class="trk-card" style="--ac:'+area.color+'">'+
+    '<div class="trk-head"><span class="trk-icon">'+trk.icon+'</span><span class="trk-name">'+trk.name+'</span>'+
+    '<span class="trk-meta">'+state.filter(Boolean).length+'/'+trk.meta+'</span></div>'+
+    '<div class="dot-row">';
+  wk.days.forEach(function(day,i){
+    var isToday=isos[i]===todayISOv;
+    var on=state[i];
+    html+='<div class="dot-wrap"><span class="dot-day">'+day.d[0]+'</span>'+
+      '<div class="dot'+(on?' on':'')+(isToday?' today':'')+'" data-w="'+wk.n+'" data-t="'+trk.id+'" data-i="'+i+'">'+(on?'✓':'')+'</div></div>';
+  });
+  html+='</div></div>';
+  return html;
+}
+function toggleTrack(wn,tid,i){
+  var state=lsGet(trkKey(wn,tid),Array(7).fill(false));
+  state[i]=!state[i];
+  lsSet(trkKey(wn,tid),state);
+}
+
+/* ═══════════════ BILLS (na semana) ═══════════════ */
+function billKey(id){return 'bill_'+id;}
+function buildBillsCard(bills){
+  if(!bills.length) return '<div class="note-box">Sem contas específicas vencendo nesta semana. Boa janela para adiantar o ciclo seguinte.</div>';
+  var html='<div class="trk-card" style="--ac:var(--fin)">';
+  bills.forEach(function(b){
+    var paid=lsGet(billKey(b.id),false);
+    html+='<div class="bill-row"><div class="bill-cb'+(paid?' on':'')+'" data-id="'+b.id+'"><span class="bill-ck">✓</span></div>'+
+      '<div class="bill-info"><div class="bill-name'+(paid?' paid':'')+'">'+b.name+'</div><div class="bill-sub">'+b.sub+'</div></div>'+
+      '<div class="bill-val">'+b.val+'</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ═══════════════ WEEK PANEL BUILD ═══════════════ */
+function buildWeekContent(wk){
+  var pctNow=weekPct(wk.n);
+  var html='<div class="wk-head"><div class="wk-emoji">'+(wk.n===1?'①':wk.n===2?'②':'③')+'</div>'+
+    '<div><div class="wk-name">'+wk.label+'</div><div class="wk-dates">'+wk.range+' · livre conforme escala '+wk.esc+'</div></div>'+
+    '<div class="wk-badge"><div class="wk-esc">ESCALA '+wk.esc+'</div><div class="wk-pct2 mono">'+pctNow+'%</div></div></div>';
+
+  html+='<div class="sec">contas desta semana</div>';
+  var bills = wk.n===1?BILLS_W1 : wk.n===2?BILLS_W2 : BILLS_W3;
+  html+=buildBillsCard(bills);
+
+  html+='<div class="sec">cursos</div>';
+  TRACKS.filter(function(t){return t.area==='cur'}).forEach(function(t){html+=buildTrackCard(wk,t);});
+
+  html+='<div class="sec">projeto pessoal</div>';
+  TRACKS.filter(function(t){return t.area==='proj'}).forEach(function(t){html+=buildTrackCard(wk,t);});
+  var ep=lsGet('ep_w'+wk.n,0);
+  html+='<div class="trk-card" style="--ac:var(--proj)"><div class="trk-head"><span class="trk-icon">📌</span><span class="trk-name">Episódio do vlog publicado</span></div>'+
+    '<div class="cnt-row"><button class="cnt-btn" onclick="changeEp('+wk.n+',-1)">−</button><span class="cnt-val mono" id="ep-'+wk.n+'">'+ep+'/1</span><button class="cnt-btn" onclick="changeEp('+wk.n+',1)">+</button></div></div>';
+
+  html+='<div class="sec">leituras & estudos</div>';
+  TRACKS.filter(function(t){return t.area==='leit'}).forEach(function(t){html+=buildTrackCard(wk,t);});
+  var livro=lsGet('livro_w'+wk.n,'');
+  html+='<div class="trk-card" style="--ac:var(--leit)"><div class="trk-head"><span class="trk-icon">📑</span><span class="trk-name">Livro / PDF em foco</span></div>'+
+    '<input class="note-inp" id="livro-'+wk.n+'" value="'+esc(livro)+'" placeholder="ex: Saramago — Ensaio sobre a Lucidez" style="margin-top:0"></div>';
+
+  html+='<div class="sec">rituais & treinos</div>';
+  TRACKS.filter(function(t){return t.area==='rit'}).forEach(function(t){html+=buildTrackCard(wk,t);});
+
+  return html;
+}
+
+function refreshWeekPanel(n){
+  document.getElementById('content-w'+n).innerHTML=buildWeekContent(WEEKS[n-1]);
+  bindWeekEvents(n);
+}
+function bindWeekEvents(n){
+  var c=document.getElementById('content-w'+n);
+  c.querySelectorAll('.dot').forEach(function(dot){
+    dot.addEventListener('click',function(){
+      toggleTrack(parseInt(dot.dataset.w),dot.dataset.t,parseInt(dot.dataset.i));
+      refreshWeekPanel(n); renderAll();
+    });
+  });
+  c.querySelectorAll('.bill-cb').forEach(function(cb){
+    cb.addEventListener('click',function(){
+      lsSet(billKey(cb.dataset.id), !lsGet(billKey(cb.dataset.id),false));
+      refreshWeekPanel(n); buildFinChecklist();
+    });
+  });
+  var livroInp=c.querySelector('#livro-'+n);
+  if(livroInp) livroInp.addEventListener('input',function(){ lsSet('livro_w'+n, livroInp.value); });
+}
+function changeEp(n,d){
+  var v=lsGet('ep_w'+n,0); v=Math.max(0,Math.min(1,v+d));
+  lsSet('ep_w'+n,v); refreshWeekPanel(n); renderAll();
+}
+
+/* ═══════════════ SCORING ═══════════════ */
+function weekPct(wn){
+  var total=0, done=0;
+  TRACKS.forEach(function(t){
+    var state=lsGet(trkKey(wn,t.id),Array(7).fill(false));
+    total+=t.meta; done+=Math.min(state.filter(Boolean).length, t.meta);
+  });
+  total+=1; done+=lsGet('ep_w'+wn,0);
+  var bills= wn===1?BILLS_W1: wn===2?BILLS_W2: BILLS_W3;
+  bills.forEach(function(b){ total+=1; if(lsGet(billKey(b.id),false))done+=1; });
+  if(total===0)return 0;
+  return Math.round(done/total*100);
+}
+function areaPct(areaId,wn){
+  var total=0,done=0;
+  TRACKS.filter(function(t){return t.area===areaId}).forEach(function(t){
+    var state=lsGet(trkKey(wn,t.id),Array(7).fill(false));
+    total+=t.meta; done+=Math.min(state.filter(Boolean).length,t.meta);
+  });
+  if(areaId==='proj'){ total+=1; done+=lsGet('ep_w'+wn,0); }
+  if(areaId==='fin'){
+    var bills= wn===1?BILLS_W1: wn===2?BILLS_W2: BILLS_W3;
+    bills.forEach(function(b){ total+=1; if(lsGet(billKey(b.id),false))done+=1; });
+  }
+  if(areaId==='carro'){
+    total=CARRO_TASKS.length; done=0;
+    CARRO_TASKS.forEach(function(t,i){ if(lsGet('carro_'+i,false))done++; });
+  }
+  if(total===0)return 0;
+  return Math.round(done/total*100);
+}
+/* % do dia: fração de tracks marcados naquele dia específico da semana */
+function dayPct(wn,dayIdx){
+  var total=TRACKS.length, done=0;
+  TRACKS.forEach(function(t){
+    var state=lsGet(trkKey(wn,t.id),Array(7).fill(false));
+    if(state[dayIdx]) done++;
+  });
+  if(total===0)return 0;
+  return Math.round(done/total*100);
+}
+
+/* ═══════════════ DONUTS ═══════════════ */
+function donutSVG(pct,hex,size){
+  var r=size/2-4, cx=size/2, cy=size/2, circ=2*Math.PI*r;
+  var off=circ*(1-Math.min(100,Math.max(0,pct))/100);
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#2a2a36" stroke-width="5"/>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+hex+'" stroke-width="5" '+
+      'stroke-dasharray="'+circ+'" stroke-dashoffset="'+off+'" stroke-linecap="round" '+
+      'transform="rotate(-90 '+cx+' '+cy+')"/>'+
+    '<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#eaeaf2" font-family="JetBrains Mono,monospace">'+pct+'</text>'+
+    '</svg>';
+}
+function buildAreaDonuts(){
+  var c=document.getElementById('area-donuts'); c.innerHTML='';
+  AREAS.forEach(function(a){
+    var block=document.createElement('div'); block.className='area-block';
+    var row='<div class="area-block-head"><span class="area-block-emoji">'+a.emoji+'</span><span class="area-block-name">'+a.name+'</span></div><div class="donut-row">';
+    [1,2,3].forEach(function(n){
+      var pct=areaPct(a.id,n);
+      row+='<div class="donut-cell">'+donutSVG(pct,a.hex,58)+'<span class="donut-wk">S'+n+'</span></div>';
+    });
+    row+='</div>';
+    block.innerHTML=row;
+    c.appendChild(block);
+  });
+}
+
+/* ═══════════════ CANVAS DAY CHARTS ═══════════════ */
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+function drawDayChart(weekNum){
+  var canvas=document.getElementById('dchart-'+weekNum);
+  if(!canvas) return;
+  var W=canvas.parentElement?canvas.parentElement.offsetWidth-16:280;
+  if(!W||W<50){ setTimeout(function(){drawDayChart(weekNum)},250); return; }
+  var H=140, DPR=window.devicePixelRatio||1;
+  canvas.width=W*DPR; canvas.height=H*DPR; canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  var ctx=canvas.getContext('2d'); ctx.scale(DPR,DPR); ctx.clearRect(0,0,W,H);
+
+  var wk=WEEKS[weekNum-1]; var days=wk.days, n=days.length;
+  var PL=28,PR=8,PT=14,PB=20; var CW=W-PL-PR, CH=H-PT-PB;
+  function yOf(v){ return PT+(1-v/100)*CH; }
+  function xOf(i){ return PL+(i/(n-1))*CW; }
+
+  ctx.fillStyle='#15151c'; ctx.strokeStyle='#2a2a36'; ctx.lineWidth=1.2;
+  roundRect(ctx,PL,PT,CW,CH,8); ctx.fill(); ctx.stroke();
+
+  /* zonas vermelho/amarelo/verde */
+  ctx.fillStyle='rgba(248,113,113,.10)'; ctx.fillRect(PL,yOf(40),CW,yOf(0)-yOf(40));
+  ctx.fillStyle='rgba(251,191,36,.09)'; ctx.fillRect(PL,yOf(70),CW,yOf(40)-yOf(70));
+  ctx.fillStyle='rgba(74,222,128,.10)'; ctx.fillRect(PL,yOf(100),CW,yOf(70)-yOf(100));
+
+  /* eixo y */
+  ctx.save(); ctx.font='600 8px JetBrains Mono,monospace'; ctx.fillStyle='#54546b'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  [0,40,70,100].forEach(function(v){ ctx.fillText(v+'%',PL-5,yOf(v)); }); ctx.restore();
+
+  /* eixo x */
+  ctx.save(); ctx.font='700 8px JetBrains Mono,monospace'; ctx.fillStyle='#9595ab'; ctx.textAlign='center';
+  days.forEach(function(d,i){ ctx.fillText(d.d.substring(0,3).toUpperCase(),xOf(i),H-4); }); ctx.restore();
+
+  var todayISOv=todayISO(); var isos=weekISOs(wk);
+  var pts=days.map(function(d,i){ return {x:xOf(i),y:yOf(dayPct(weekNum,i)),v:dayPct(weekNum,i)}; });
+
+  /* linha */
+  ctx.save(); ctx.strokeStyle='#a78bfa'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach(function(p,i){ if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.stroke(); ctx.restore();
+
+  /* pontos + valor */
+  pts.forEach(function(p,i){
+    var isToday=isos[i]===todayISOv;
+    ctx.beginPath(); ctx.fillStyle=isToday?'#f9d65c':'#a78bfa';
+    ctx.arc(p.x,p.y,isToday?4:3,0,Math.PI*2); ctx.fill();
+    if(isToday){ ctx.save(); ctx.strokeStyle='rgba(249,214,92,.4)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(p.x,PT); ctx.lineTo(p.x,PT+CH); ctx.stroke(); ctx.restore(); }
+  });
+}
+function drawAllCharts(){ [1,2,3].forEach(drawDayChart); }
+
+/* ═══════════════ RENDER ALL (Home + sidebar) ═══════════════ */
+function renderAll(){
+  var cw=currentWeek();
+  document.getElementById('h-date').textContent=fmtDate(todayISO())+' · '+cw.wk.label+' · Escala '+cw.wk.esc;
+  document.getElementById('h-name').textContent='Hoje';
+  var statusHoje=ESCALA_STATUS[cw.wk.esc][cw.wk.days[cw.idx].d];
+  document.getElementById('h-msg').textContent='Restaurante hoje: '+statusHoje;
+  document.getElementById('h-pct').textContent=weekPct(cw.wk.n);
+
+  var chips=document.getElementById('h-chips');
+  chips.innerHTML='<span class="chip chip-c mono">ESCALA '+cw.wk.esc+'</span><span class="chip chip-r mono">'+cw.wk.label.toUpperCase()+'</span>';
+
+  [1,2,3].forEach(function(n){
+    document.getElementById('pct-'+n).textContent=weekPct(n)+'%';
+    document.getElementById('now-'+n).style.display = (cw.wk.n===n)?'inline-block':'none';
+  });
+
+  buildSchedule();
+  buildAreaDonuts();
+}
+
+/* ═══════════════ PENDÊNCIAS — checklists ═══════════════ */
+function buildCheckList(containerId,items,prefix,cbClass,ckClass){
+  cbClass = cbClass || 'pend-cb'; ckClass = ckClass || 'pend-ck';
+  var c=document.getElementById(containerId); c.innerHTML='';
+  items.forEach(function(txt,i){
+    var done=lsGet(prefix+i,false);
+    var row=document.createElement('div'); row.className='pend-item';
+    row.innerHTML='<div class="'+cbClass+(done?' on':'')+'" data-i="'+i+'"><span class="'+ckClass+'">✓</span></div>'+
+      '<div class="pend-txt'+(done?' done':'')+'">'+txt+'</div>';
+    c.appendChild(row);
+  });
+  c.querySelectorAll('.'+cbClass).forEach(function(cb){
+    cb.addEventListener('click',function(){
+      var i=cb.dataset.i; var v=!lsGet(prefix+i,false); lsSet(prefix+i,v);
+      buildCheckList(containerId,items,prefix,cbClass,ckClass);
+    });
+  });
+}
+function buildFinChecklist(){
+  var c=document.getElementById('fin-checklist'); c.innerHTML='';
+  ALL_BILLS.forEach(function(b){
+    var paid=lsGet(billKey(b.id),false);
+    var row=document.createElement('div'); row.className='bill-row';
+    row.innerHTML='<div class="bill-cb'+(paid?' on':'')+'" data-id="'+b.id+'"><span class="bill-ck">✓</span></div>'+
+      '<div class="bill-info"><div class="bill-name'+(paid?' paid':'')+'">'+b.name+'</div><div class="bill-sub">'+b.sub+'</div></div>'+
+      '<div class="bill-val">'+b.val+'</div>';
+    c.appendChild(row);
+  });
+  c.querySelectorAll('.bill-cb').forEach(function(cb){
+    cb.addEventListener('click',function(){
+      lsSet(billKey(cb.dataset.id), !lsGet(billKey(cb.dataset.id),false));
+      buildFinChecklist(); [1,2].forEach(refreshWeekPanel); renderAll();
+    });
+  });
+}
+
+/* ═══════════════ PLAYBOOK ═══════════════ */
+function pbQKey(){return 'pb_qs_v1';}
+function buildPbQ(){
+  var qs=lsGet(pbQKey(),PB_QS_DEFAULT);
+  var c=document.getElementById('pb-qs'); c.innerHTML='';
+  qs.forEach(function(q,i){
+    var div=document.createElement('div'); div.className='exq-edit';
+    div.innerHTML='<div class="exq-num mono">PERGUNTA '+(i+1)+'</div><textarea class="exq-textarea" data-i="'+i+'" rows="2">'+esc(q)+'</textarea>';
+    c.appendChild(div);
+  });
+  c.querySelectorAll('.exq-textarea').forEach(function(ta){
+    ta.addEventListener('input',function(){
+      var qs=lsGet(pbQKey(),PB_QS_DEFAULT.slice());
+      qs[parseInt(ta.dataset.i)]=ta.value;
+      lsSet(pbQKey(),qs);
+    });
+  });
+}
+function saveNote(){ lsSet('pb_note', document.getElementById('pb-note').value); }
+function loadNote(){ var v=lsGet('pb_note',''); if(v)document.getElementById('pb-note').value=v; }
+function buildRingDots(){
+  var c=document.getElementById('ring-dots'); var colors=['#a78bfa','#f87171','#fb923c','#fb7185','#94a3b8','#4ade80'];
+  for(var i=0;i<6;i++){
+    var ang=(i/6)*Math.PI*2 - Math.PI/2;
+    var x=60+48*Math.cos(ang), y=60+48*Math.sin(ang);
+    c.innerHTML+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="'+colors[i]+'"/>';
+  }
+}
+
+/* ═══════════════ INIT ═══════════════ */
+function init(){
+  document.getElementById('tb-sub').textContent=fmtDate(todayISO());
+  loadAncoraRows();
+  buildFinChecklist();
+  buildCheckList('carro-list',CARRO_TASKS,'carro_');
+  buildCheckList('conf-list',CONF_TASKS,'conf_');
+  buildCheckList('agenda-list',AGENDA_ITEMS,'agd_','agd-cb','agd-ck');
+  buildPbQ(); loadNote(); buildRingDots();
+  refreshWeekPanel(1); refreshWeekPanel(2); refreshWeekPanel(3);
+  renderAll();
+  setTimeout(drawAllCharts,80);
+  window.addEventListener('resize',function(){ drawAllCharts(); });
+}
+init();
+</script>
+</body>
+</html>

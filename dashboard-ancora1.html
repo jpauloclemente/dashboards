@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Âncora · A Luz do Ciclo</title>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&family=Lora:ital,wght@0,500;1,500;1,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fcfbf9;--s:#fff;--s2:#f3f2ef;
+  --tx:#202124;--tx2:#5f6368;--tx3:#9aa0a6;
+  --bd:#e6e3dc;--bd2:#dad6cc;
+  --saude:#1e8e3e;--saudeL:#e6f4ea;--saudeD:#0d652a;
+  --rosa:#d4537e;--rosaL:#fbeaf0;
+  --pessoal:#534ab7;--pessoalL:#eeedfe;--pessoalD:#3c3489;
+  --trem:#1a73e8;--tremL:#e8f0fe;--tremD:#174ea6;
+  --teal:#12827f;--tealL:#e4f7f6;
+  --amber:#e8a317;--amberL:#fef7e0;--amberD:#8c6a2f;
+  --gold:#c9971f;--goldL:#fbf3df;
+  --r:14px;--rs:10px;--sw:280px;
+  --sh:0 1px 2px rgba(60,64,67,.06),0 1px 3px rgba(60,64,67,.08);
+  --sh2:0 2px 6px rgba(60,64,67,.08),0 6px 16px rgba(201,151,31,.08);
+}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);font-family:'Roboto',sans-serif;color:var(--tx)}
+body{max-width:520px;margin:0 auto;min-height:100vh;position:relative}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:380px;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 50% at 30% 0%,rgba(201,151,31,.10),transparent 70%),
+             radial-gradient(ellipse 55% 45% at 80% 5%,rgba(83,74,183,.08),transparent 70%),
+             radial-gradient(ellipse 50% 40% at 50% 20%,rgba(18,130,127,.06),transparent 70%);}
+.gs{font-family:'Google Sans',sans-serif}
+.mono{font-family:'Roboto Mono',monospace}
+.serif{font-family:'Lora',serif}
+
+.overlay{position:fixed;inset:0;background:rgba(32,33,36,.45);z-index:90;opacity:0;pointer-events:none;transition:opacity .25s}
+.overlay.open{opacity:1;pointer-events:all}
+.sidebar{position:fixed;top:0;left:-300px;width:var(--sw);height:100vh;background:var(--s);z-index:100;transition:left .28s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:var(--sh2);display:flex;flex-direction:column}
+.sidebar.open{left:0}
+.sb-head{padding:20px 18px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--bd)}
+.sb-logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--pessoal),var(--trem));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.sb-title{font-size:15px;font-weight:700;color:var(--tx);line-height:1.2;font-family:'Google Sans',sans-serif}
+.sb-sub{font-size:10.5px;color:var(--tx2);margin-top:2px}
+.sb-close{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--s2);border:none;color:var(--tx2);font-size:14px;cursor:pointer}
+.sb-nav{padding:8px 10px;flex:1}
+.nav-lbl{font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;padding:14px 10px 6px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--tx2);margin-bottom:1px}
+.nav-item.active{background:var(--goldL);color:var(--goldD,#8c6a2f);font-weight:700}
+.nav-item .ni{font-size:17px;width:20px;text-align:center;flex-shrink:0}
+.nav-item .na{flex:1}
+.sb-foot{padding:14px 18px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3);line-height:1.5;font-style:italic;font-family:'Lora',serif}
+
+.topbar{position:sticky;top:0;z-index:50;background:rgba(252,251,249,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd);padding:12px 16px;display:flex;align-items:center;gap:12px}
+.tb-menu{width:36px;height:36px;border-radius:50%;background:var(--s2);border:none;color:var(--tx2);font-size:16px;cursor:pointer;flex-shrink:0}
+.tb-title{font-size:15px;font-weight:700;color:var(--tx);flex:1;font-family:'Google Sans',sans-serif}
+
+.panel{display:none;padding:14px 14px 90px;position:relative;z-index:1}
+.panel.active{display:block}
+
+.hero{border-radius:18px;padding:16px 18px;margin-bottom:16px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--sh2)}
+.hero::after{content:'';position:absolute;top:-30%;right:-15%;width:60%;height:160%;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 65%);pointer-events:none}
+.hero-name{font-size:15px;font-weight:700;font-family:'Google Sans',sans-serif;position:relative;z-index:1}
+.hero-msg{font-size:11px;opacity:.92;margin-top:2px;font-weight:500;position:relative;z-index:1}
+
+.pillar-hero{border-radius:20px;padding:20px;margin-bottom:16px;color:#fff;box-shadow:var(--sh2);position:relative;overflow:hidden}
+.pillar-hero::after{content:'';position:absolute;top:-40%;right:-20%;width:70%;height:180%;background:radial-gradient(circle,rgba(255,255,255,.2),transparent 65%)}
+.pillar-hero-name{font-size:20px;font-weight:700;font-family:'Google Sans',sans-serif;display:flex;align-items:center;gap:9px;position:relative;z-index:1}
+.pillar-hero-sub{font-size:12px;opacity:.92;margin-top:6px;position:relative;z-index:1}
+
+.week-hero{border-radius:20px;padding:20px;margin-bottom:16px;color:#fff;box-shadow:var(--sh2);position:relative;overflow:hidden}
+.week-hero::after{content:'';position:absolute;top:-40%;right:-20%;width:70%;height:180%;background:radial-gradient(circle,rgba(255,255,255,.2),transparent 65%)}
+.week-hero-top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+.week-hero-name{font-size:20px;font-weight:700;font-family:'Google Sans',sans-serif}
+.week-hero-dates{font-size:12px;opacity:.88;margin-top:3px}
+.week-hero-esc{font-family:'Roboto Mono',monospace;font-size:23px;font-weight:700;text-align:right}
+.week-hero-msg{font-size:12.5px;opacity:.96;margin-top:12px;line-height:1.55;border-top:1px solid rgba(255,255,255,.28);padding-top:11px;position:relative;z-index:1;font-family:'Lora',serif;font-style:italic}
+
+.sec{font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.7px;margin:24px 2px 10px;display:flex;align-items:center;gap:8px;font-family:'Google Sans',sans-serif}
+.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--gold),transparent)}
+
+/* ═══ GRADE DE HORÁRIOS ═══ */
+.gridweek-wrap{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);padding:14px 12px;margin-bottom:8px}
+.gridweek-label{font-size:11px;font-weight:700;color:var(--tx2);margin-bottom:10px;display:flex;align-items:center;gap:8px;font-family:'Google Sans',sans-serif}
+.gridweek-esc-pill{font-family:'Roboto Mono',monospace;font-size:10px;font-weight:700;padding:1.5px 8px;border-radius:8px}
+.gridweek-cols{display:flex;gap:4px}
+.gridweek-col{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.gridweek-day{font-size:9px;font-weight:700;color:var(--tx2);text-align:center;margin-bottom:2px;font-family:'Google Sans',sans-serif}
+.gridweek-day.today{color:var(--goldD,#8c6a2f)}
+.gridweek-daynum{font-size:7.5px;color:var(--tx3);font-weight:500}
+.gw-chip{font-size:7.5px;font-weight:700;text-align:center;padding:3.5px 1px;border-radius:5px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gw-pres{background:var(--rosaL);color:var(--rosa)}
+.gw-livre{background:var(--saudeL);color:var(--saudeD)}
+.gw-fechado{background:var(--s2);color:var(--tx3)}
+.gw-uber{background:#e3edfb;color:var(--tremD)}
+.gw-corr{background:var(--tealL);color:var(--teal)}
+.gw-acad{background:var(--pessoalL);color:var(--pessoalD)}
+/* chips temáticos — quadros de execução criativa (sem relação com escala/uber) */
+.gw-corpo{background:var(--saudeL);color:var(--saudeD)}
+.gw-mente{background:#ede7f6;color:#5e35b1}
+.gw-pausa{background:var(--goldL);color:var(--amberD)}
+.gw-ideia{background:var(--amberL);color:var(--amberD)}
+.gw-criar{background:var(--pessoalL);color:var(--pessoalD)}
+.gw-publ{background:var(--tealL);color:var(--teal)}
+.gw-gcc{background:var(--tremL);color:var(--tremD)}
+.gw-teste{background:var(--rosaL);color:var(--rosa)}
+.gw-funil{background:var(--tealL);color:var(--teal)}
+.philo-theme{font-size:11px;font-weight:700;font-family:'Lora',serif;font-style:italic;color:var(--tx2);margin:-2px 0 8px 2px}
+.gw-today{outline:1.5px solid var(--gold);outline-offset:1px;border-radius:6px}
+.gridweek-legend{display:flex;gap:9px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px dashed var(--bd)}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:8.5px;color:var(--tx2);font-weight:600}
+.leg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+.ov-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:14px;overflow:hidden}
+.ov-head{padding:13px 16px;color:#fff;display:flex;align-items:center;justify-content:space-between}
+.ov-head-name{font-size:14px;font-weight:700;font-family:'Google Sans',sans-serif}
+.ov-head-dates{font-size:10px;opacity:.85;margin-top:2px}
+.ov-head-esc{font-family:'Roboto Mono',monospace;font-size:17px;font-weight:700}
+.ov-head-carac{font-size:10.5px;opacity:.95;margin-top:6px;font-family:'Lora',serif;font-style:italic}
+.ov-body{padding:13px 14px}
+.ov-link{font-size:11px;font-weight:700;margin-top:10px;display:flex;align-items:center;gap:4px}
+
+.goalbar-wrap{margin:8px 0 4px}
+.goalbar-track{height:14px;border-radius:8px;background:var(--s2);position:relative;overflow:hidden}
+.goalbar-zone{position:absolute;top:0;height:100%;left:60%;width:20%}
+.goalbar-lbls{display:flex;justify-content:space-between;font-size:9px;color:var(--tx3);font-weight:700;margin-top:4px}
+
+.reflect-item{background:var(--s);border:1px solid var(--bd);border-left:4px solid var(--bd2);border-radius:var(--rs);padding:13px 15px;margin-bottom:9px;box-shadow:var(--sh)}
+.reflect-num{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.reflect-circ{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.reflect-title{font-size:12.5px;font-weight:700;font-family:'Google Sans',sans-serif}
+.reflect-time{font-size:9.5px;color:var(--tx3);font-weight:600}
+.reflect-txt{font-size:12.5px;color:var(--tx);line-height:1.62;font-family:'Lora',serif}
+
+.direct-list{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);padding:13px 15px}
+.direct-item{display:flex;gap:9px;padding:8px 0;border-bottom:1px dashed var(--bd)}
+.direct-item:last-child{border-bottom:none}
+.direct-ic{font-size:15px;flex-shrink:0;width:20px;text-align:center}
+.direct-txt{font-size:12.5px;color:var(--tx);line-height:1.5}
+.direct-txt b{font-weight:700}
+
+.insight-card{border-radius:var(--rs);padding:14px 16px;font-size:12.5px;line-height:1.6;font-style:italic;margin-top:4px;font-family:'Lora',serif}
+
+.norte-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:11px;overflow:hidden}
+.norte-head{padding:12px 16px;display:flex;align-items:center;gap:9px;background:linear-gradient(120deg,var(--gold)22,transparent)}
+.norte-head-ic{font-size:16px}
+.norte-head-txt{font-size:12px;font-weight:700;color:var(--amberD);text-transform:uppercase;letter-spacing:.4px;font-family:'Google Sans',sans-serif}
+.norte-body{padding:6px 16px 12px}
+.norte-row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px dashed var(--bd)}
+.norte-row:last-child{border-bottom:none}
+.norte-ic{font-size:15px;width:22px;text-align:center;flex-shrink:0;opacity:.7}
+.norte-txt{font-size:12.5px;color:var(--tx);font-weight:500}
+.norte-sub{font-size:10px;color:var(--tx3);margin-top:1px}
+.norte-empty{font-size:11.5px;color:var(--tx3);font-style:italic;padding:6px 0;font-family:'Lora',serif}
+
+/* ═══ EXPLORAR O DASHBOARD (conteúdo real de cada projeto, por semana) ═══ */
+.dashexp-card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:11px;overflow:hidden}
+.dashexp-head{padding:11px 15px;display:flex;align-items:center;gap:8px;background:var(--s2)}
+.dashexp-head-ic{font-size:14px}
+.dashexp-head-txt{font-size:11px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.4px;font-family:'Google Sans',sans-serif}
+.dashexp-body{padding:4px 0}
+.dashexp-row{display:flex;border-bottom:1px dashed var(--bd)}
+.dashexp-row:last-child{border-bottom:none}
+.dashexp-cell{flex:1;padding:11px 12px;border-right:1px dashed var(--bd);min-width:0}
+.dashexp-cell:last-child{border-right:none}
+.dashexp-cell-lbl{font-family:'Roboto Mono',monospace;font-size:8.5px;font-weight:700;color:var(--tx3);margin-bottom:4px;text-transform:uppercase}
+.dashexp-cell-txt{font-size:11px;color:var(--tx);line-height:1.5}
+.dashexp-cell-empty{font-size:10.5px;color:var(--tx3);font-style:italic;font-family:'Lora',serif}
+.refcard{padding:13px 15px}
+.refcard-grp{margin-bottom:10px}
+.refcard-grp:last-child{margin-bottom:0}
+.refcard-grp-lbl{font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px}
+.refcard-item{font-size:11.5px;color:var(--tx);line-height:1.65;padding:2px 0}
+.refcard-item b{font-weight:700}
+.dashexp-note{font-size:11px;color:var(--tx2);line-height:1.55;padding:11px 15px;font-style:italic;font-family:'Lora',serif;background:var(--s2)}
+
+.note{font-size:10.5px;color:var(--tx3);font-weight:500;line-height:1.5;text-align:center;padding:10px 8px;font-style:italic;font-family:'Lora',serif}
+.back-btn{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;font-size:12.5px;font-weight:700;color:var(--tx2);cursor:pointer;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sb-head">
+    <div class="sb-logo">☀️</div>
+    <div><div class="sb-title">Âncora</div><div class="sb-sub">A luz do ciclo · 17 jun—6 jul</div></div>
+    <button class="sb-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <nav class="sb-nav">
+    <div class="nav-lbl">Visão geral</div>
+    <div class="nav-item active" id="nav-home" onclick="navTo('home')"><span class="ni">☀️</span><span class="na">Painel</span></div>
+    <div class="nav-lbl">As 3 semanas</div>
+    <div class="nav-item" id="nav-sem1" onclick="navTo('sem1')"><span class="ni">①</span><span class="na">Semana 1</span></div>
+    <div class="nav-item" id="nav-sem2" onclick="navTo('sem2')"><span class="ni">②</span><span class="na">Semana 2</span></div>
+    <div class="nav-item" id="nav-sem3" onclick="navTo('sem3')"><span class="ni">③</span><span class="na">Semana 3</span></div>
+    <div class="nav-lbl">Os 3 pilares</div>
+    <div class="nav-item" id="nav-saude" onclick="navTo('saude')"><span class="ni">💚</span><span class="na">Saúde · João &amp; Julia</span></div>
+    <div class="nav-item" id="nav-pessoal" onclick="navTo('pessoal')"><span class="ni">🔮</span><span class="na">Pessoal &amp; Ritual</span></div>
+    <div class="nav-item" id="nav-trem" onclick="navTo('trem')"><span class="ni">🚂</span><span class="na">Seu Trem</span></div>
+  </nav>
+  <div class="sb-foot">"O que você não para para ver,<br>você não consegue refinar."</div>
+</aside>
+
+<header class="topbar">
+  <button class="tb-menu" onclick="openSidebar()">☰</button>
+  <div class="tb-title" id="tb-title">Painel</div>
+</header>
+
+<!-- ============ PAINEL ============ -->
+<div class="panel active" id="panel-home">
+  <div class="hero" id="hero-home">
+    <div class="hero-name" id="h-name">Hoje</div>
+    <div class="hero-msg" id="h-msg">carregando...</div>
+  </div>
+
+  <div class="sec" style="margin-top:6px">A grade das 3 semanas</div>
+  <div id="overview-weeks"></div>
+
+  <div class="sec">Seu norte</div>
+  <div id="norte-section"></div>
+
+  <div class="note">Toque em qualquer semana para abrir o banco de reflexões completo.</div>
+</div>
+
+<!-- ============ SEMANAS ============ -->
+<div class="panel" id="panel-sem1"><div id="sem-content-1"></div></div>
+<div class="panel" id="panel-sem2"><div id="sem-content-2"></div></div>
+<div class="panel" id="panel-sem3"><div id="sem-content-3"></div></div>
+
+<!-- ============ PILARES ============ -->
+<div class="panel" id="panel-saude"><div id="pillar-content-saude"></div></div>
+<div class="panel" id="panel-pessoal"><div id="pillar-content-pessoal"></div></div>
+<div class="panel" id="panel-trem"><div id="pillar-content-trem"></div></div>
+
+<script>
+/* ═══════════ ESCALA REAL (fonte: dashboard Pessoal) ═══════════ */
+var DAYORDER=['Ter','Qua','Qui','Sex','Sáb','Dom','Seg'];
+var WEEKS=[
+  {n:1,label:'Semana 1',esc:'C',start:'2026-06-16',range:'16–22 jun',
+   carac:'Pressão intermediária — 4 dias na loja (sexta a segunda), 2 dias livres no meio.',
+   ciclo1:'Fase Oferta (até dia 20) virando Remarketing no último dia.'},
+  {n:2,label:'Semana 2',esc:'A',start:'2026-06-23',range:'23–29 jun',
+   carac:'A mais leve das três — só 2 dias na loja (quarta e quinta). Sua janela de maior amplitude.',
+   ciclo1:'Fase Remarketing (até dia 27) virando Pesquisa no último dia.'},
+  {n:3,label:'Semana 3',esc:'B',start:'2026-06-30',range:'30 jun–6 jul',
+   carac:'A mais pesada das três — 5 dias na loja (quarta a domingo). Pede sobrevivência inteligente, não heroísmo.',
+   ciclo1:'Fase Pesquisa — fechamento do Ciclo 1 e véspera do Ciclo 2 no último dia.'}
+];
+var ESCALA_STATUS={
+  A:{Ter:'fechado',Qua:'presencial',Qui:'presencial',Sex:'livre',Sáb:'livre',Dom:'livre',Seg:'livre'},
+  B:{Ter:'fechado',Qua:'presencial',Qui:'presencial',Sex:'presencial',Sáb:'presencial',Dom:'presencial',Seg:'livre'},
+  C:{Ter:'fechado',Qua:'livre',Qui:'livre',Sex:'presencial',Sáb:'presencial',Dom:'presencial',Seg:'presencial'}
+};
+var ESCALA_UBER={
+  A:{Sex:'17–21h',Sáb:'14–18h',Dom:'14–18h',Seg:'17–21h',Ter:'17–21h'},
+  B:{Sex:'14–18h',Sáb:'14–18h',Dom:'14–18h',Seg:'17–21h',Ter:'17–21h'},
+  C:{Qua:'17–21h',Qui:'17–21h',Ter:'17–21h'}
+};
+
+function buildDays(){
+  var days=[];
+  WEEKS.forEach(function(wk){
+    var d0=new Date(wk.start+'T12:00:00');
+    DAYORDER.forEach(function(lbl,i){
+      var dt=new Date(d0); dt.setDate(d0.getDate()+i);
+      var m=('0'+(dt.getMonth()+1)).slice(-2),d=('0'+dt.getDate()).slice(-2);
+      days.push({iso:dt.getFullYear()+'-'+m+'-'+d,label:lbl,weekN:wk.n,esc:wk.esc,date:dt.getDate(),monthShort:['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][dt.getMonth()]});
+    });
+  });
+  return days;
+}
+var DAYS=buildDays();
+function todayISO(){var d=new Date();var m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+dd;}
+function findDay(iso){return DAYS.find(function(d){return d.iso===iso;});}
+
+function parseRange(str){
+  if(!str)return null;
+  var p=str.replace('h','').split('–');
+  return [parseInt(p[0])*60, parseInt(p[1])*60];
+}
+function fmtMin(m){var h=Math.floor(m/60),mm=m%60;return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm;}
+function dayCompute(d){
+  var status=ESCALA_STATUS[d.esc][d.label];
+  var uberStr=ESCALA_UBER[d.esc][d.label];
+  var uber=uberStr?parseRange(uberStr):null;
+  var presencial=status==='presencial'?[1110,1350]:null;
+  var busy=[];
+  if(uber)busy.push(uber);
+  if(presencial)busy.push(presencial);
+  busy.sort(function(a,b){return a[0]-b[0];});
+  var deepEnd=1020;
+  busy.forEach(function(b){if(b[0]>720&&b[0]<deepEnd)deepEnd=b[0];});
+  if(deepEnd<720)deepEnd=720;
+  var window=[630,1410];
+  var blocked=busy.concat([[720,deepEnd]]).sort(function(a,b){return a[0]-b[0];});
+  var free=[];var cursor=window[0];
+  blocked.forEach(function(b){
+    if(b[0]>cursor)free.push([cursor,Math.min(b[0],window[1])]);
+    cursor=Math.max(cursor,b[1]);
+  });
+  if(cursor<window[1])free.push([cursor,window[1]]);
+  free=free.filter(function(g){return g[1]-g[0]>=30;});
+  return {status:status,uberStr:uberStr,uber:uber,presencial:presencial,deepEnd:deepEnd,free:free,busy:busy};
+}
+function bestGap(free){
+  if(free.length===0)return null;
+  return free.slice().sort(function(a,b){return (b[1]-b[0])-(a[1]-a[0]);})[0];
+}
+function suggestRunGym(d){
+  var c=dayCompute(d);
+  var free=c.free.slice();
+  var runGap=null,gymGap=null;
+  if(c.status==='livre'&&free.length>0)runGap=bestGap(free);
+  var isWeekday=['Seg','Ter','Qua','Qui','Sex'].indexOf(d.label)!==-1;
+  if(isWeekday&&free.length>0){
+    var remaining=free.filter(function(g){return !(runGap&&g[0]===runGap[0]&&g[1]===runGap[1]);});
+    gymGap=remaining.length>0?bestGap(remaining):(c.status!=='livre'?bestGap(free):null);
+  }
+  return {run:runGap,gym:gymGap,isWeekday:isWeekday};
+}
+function gapLabel(g){
+  if(!g)return null;
+  if(g[0]<720)return 'manhã '+fmtMin(g[0])+'–'+fmtMin(Math.min(g[1],720));
+  if(g[0]>=1380)return 'noite '+fmtMin(g[0])+'–'+fmtMin(g[1]);
+  return 'tarde '+fmtMin(g[0])+'–'+fmtMin(g[1]);
+}
+
+/* ═══════════ NAV ═══════════ */
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open');}
+var TITLES={home:'Painel',sem1:'Semana 1',sem2:'Semana 2',sem3:'Semana 3',saude:'Saúde · João & Julia',pessoal:'Pessoal & Ritual',trem:'Seu Trem'};
+function navTo(id){
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('panel-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+  var el=document.getElementById('nav-'+id);if(el)el.classList.add('active');
+  document.getElementById('tb-title').textContent=TITLES[id]||'Âncora';
+  closeSidebar();window.scrollTo(0,0);
+}
+
+/* ═══════════ GRADE DE HORÁRIOS (componente visual central) ═══════════ */
+function gridWeek(weekN,colorHex){
+  var wk=WEEKS[weekN-1];
+  var t=todayISO();
+  var h='<div class="gridweek-wrap">';
+  h+='<div class="gridweek-label">'+wk.label+' · '+wk.range+
+     ' <span class="gridweek-esc-pill" style="background:'+colorHex+'1a;color:'+colorHex+'">ESCALA '+wk.esc+'</span></div>';
+  h+='<div class="gridweek-cols">';
+  DAYS.filter(function(d){return d.weekN===weekN;}).forEach(function(d){
+    var c=dayCompute(d);var s=suggestRunGym(d);
+    var isToday=d.iso===t;
+    h+='<div class="gridweek-col">';
+    h+='<div class="gridweek-day'+(isToday?' today':'')+'">'+d.label.toUpperCase()+'<div class="gridweek-daynum">'+d.date+'</div></div>';
+    h+='<div class="gw-chip gw-'+c.status+(isToday?' gw-today':'')+'">'+c.status.substring(0,4).toUpperCase()+'</div>';
+    if(c.uber)h+='<div class="gw-chip gw-uber">UBER '+c.uberStr.split('–')[0]+'h</div>';
+    if(s.run)h+='<div class="gw-chip gw-corr">CORR</div>';
+    if(s.gym&&s.isWeekday)h+='<div class="gw-chip gw-acad">ACAD</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<div class="gridweek-legend">'+
+    '<span class="leg-item"><span class="leg-dot" style="background:var(--rosa)"></span>presencial</span>'+
+    '<span class="leg-item"><span class="leg-dot" style="background:#aecbfa"></span>uber</span>'+
+    '<span class="leg-item"><span class="leg-dot" style="background:var(--saudeD)"></span>livre</span>'+
+    '<span class="leg-item"><span class="leg-dot" style="background:var(--teal)"></span>corrida</span>'+
+    '<span class="leg-item"><span class="leg-dot" style="background:var(--pessoal)"></span>academia</span>'+
+    '<span class="leg-item"><span class="leg-dot" style="background:var(--tx3)"></span>fechado</span>'+
+  '</div></div>';
+  return h;
+}
+
+/* ═══════════ PAINEL — visão macro ═══════════ */
+var WEEK_COLORS=['#1a73e8','#9334e6','#12827f'];
+function renderOverviewWeeks(){
+  var h='';
+  WEEKS.forEach(function(wk,i){
+    var col=WEEK_COLORS[i];
+    h+='<div class="ov-card">'+
+      '<div class="ov-head" style="background:linear-gradient(120deg,'+col+'cc,'+col+')" onclick="navTo(\'sem'+wk.n+'\')">'+
+        '<div><div class="ov-head-name">'+wk.label+'</div><div class="ov-head-dates">'+wk.range+'</div></div>'+
+        '<div class="ov-head-esc">'+wk.esc+'</div>'+
+      '</div>'+
+      '<div class="ov-body" style="padding-top:13px">'+
+        gridWeek(wk.n,col)+
+        '<div class="ov-link" style="color:'+col+';cursor:pointer" onclick="navTo(\'sem'+wk.n+'\')">Ver banco de reflexões →</div>'+
+      '</div></div>';
+  });
+  document.getElementById('overview-weeks').innerHTML=h;
+}
+
+/* ═══════════ NORTE (fonte: dashboard Ritual de Sempre) ═══════════ */
+var SONHOS=[
+  ['🏠','Casa própria'],['⏳','Independência financeira'],['🌍','Independência geográfica'],
+  ['❤️','Fazer gracinhas para as pessoas que amo'],['🌱','Monetizar o Circuito Vegano BH'],
+  ['🚂','Transformar o Seu Trem em franquia'],['➕','Abrir um segundo restaurante'],
+  ['⭐','Construir e monetizar o Ritual de Sempre'],['✍️','Escrever como colunista em portais']
+];
+var INEGOCIAVEIS=[
+  ['🌙','Dormir 02:30–03:30 · acordar 09:30–10:30',null],
+  ['💧','4L de água por dia',null],
+  ['⏰','Academia seg–sex · corrida 4×/semana','a grade real de cada semana ajusta este número — ver Semanas'],
+  ['🔔','Meditação 10–15 min diários',null],
+  ['📖','Leitura 1h30 diários',null],
+  ['📊','Tráfego pago 1h30/dia',null],
+  ['💬','Inglês + Espanhol 3×/semana',null],
+  ['🎨','Trabalhar de 1h a 3h por dia criativamente nos projetos','O Ponteiro: a sessão termina em execução, nunca só em planejamento']
+];
+function renderNorte(){
+  var h='';
+  h+='<div class="norte-card"><div class="norte-head"><span class="norte-head-ic">⭐</span><span class="norte-head-txt">Sonhos e ambições</span></div><div class="norte-body">';
+  SONHOS.forEach(function(s){h+='<div class="norte-row"><span class="norte-ic">'+s[0]+'</span><span class="norte-txt">'+s[1]+'</span></div>';});
+  h+='</div></div>';
+
+  h+='<div class="norte-card"><div class="norte-head"><span class="norte-head-ic">🔒</span><span class="norte-head-txt">Inegociáveis</span></div><div class="norte-body">';
+  INEGOCIAVEIS.forEach(function(it){
+    h+='<div class="norte-row"><span class="norte-ic">'+it[0]+'</span><div><div class="norte-txt">'+it[1]+'</div>'+(it[2]?'<div class="norte-sub">'+it[2]+'</div>':'')+'</div></div>';
+  });
+  h+='</div></div>';
+
+  h+='<div class="norte-card"><div class="norte-head"><span class="norte-head-ic">📌</span><span class="norte-head-txt">Pendências da agenda</span></div><div class="norte-body">'+
+    '<div class="norte-empty">Nenhuma pendência registrada — espelha em tempo real o seu Ritual de Sempre.</div></div></div>';
+
+  document.getElementById('norte-section').innerHTML=h;
+}
+
+/* ═══════════ BANCO DE REFLEXÕES — 4 partes + condução do dia ═══════════ */
+var REFLECT_PARTS=[
+  {ic:'🌅',title:'Abertura contemplativa',time:'10:30–12:00'},
+  {ic:'🎯',title:'Produção profunda',time:'12:00–17:00'},
+  {ic:'🏃',title:'Operação ou campo',time:'17:00–23:00'},
+  {ic:'🌙',title:'Fechamento e colheita',time:'23:00–01:00'},
+  {ic:'🧭',title:'Condução do dia',time:'transversal'}
+];
+var REFLECT_BANK=[
+  // Semana 1
+  ['Acordar entre 9h30 e 10h30 já é o primeiro ato de constância da semana. Com 4 dias presenciais (sex a seg), a manhã é o espaço mais estável que você tem — e por isso o melhor lugar para fixar meditação, hidratação e, nos dias presenciais, a academia. Quarta e quinta livres pedem o mesmo ritual, só com menos pressa.',
+   '12h às 17h estão livres todos os 7 dias esta semana — nenhum Uber corta o bloco antes da hora. É o espaço mais generoso de cabeça fria das 3 semanas: tráfego pago, leitura e o que a fase Oferta do Ciclo 1 estiver pedindo cabem aqui sem pressa.',
+   'Terça, quarta e quinta têm Uber das 17h às 21h; sexta a segunda é loja, das 18h30 às 22h30. As únicas duas corridas possíveis da semana — quarta e quinta — vivem na janela que sobra depois do Uber. O inegociável pede 4 corridas por semana; esta semana a realidade abre 2. Isso não é falha, é a régua se ajustando à loja.',
+   'Com a loja ocupando quatro noites, o fechamento vai exigir mais disciplina que inspiração — comer bem, anotar o que sobrou do dia, decidir a próxima âncora antes de deitar. Dormir entre 2h30 e 3h30 só funciona se o fechamento não escorregar.',
+   'Olhe os 3 dashboards na abertura, no fechamento, e mais 3 vezes ao longo do dia — sempre que uma demanda aleatória aparecer e ameaçar tirar você do eixo. A pergunta não é "fiz tudo?" — é "o que vi agora me ajuda a decidir o próximo passo?"'],
+  // Semana 2
+  ['Só dois dias de loja esta semana — quarta e quinta. Nos outros cinco, a manhã não compete com nada: é a sua melhor chance no ciclo de transformar o ritual de abertura em hábito sólido, não em exceção.',
+   'Sábado e domingo o bloco corta para 14h, porque o Uber começa mais cedo — dois dias de produção mais curta, compensados pelos outros cinco até as 17h. Use os dias longos para o que exige fôlego: cursos, fichas técnicas, o que ficou pendente da semana 1.',
+   'Quatro corridas possíveis — sexta, sábado, domingo, segunda. É a única das três semanas onde o inegociável de 4×/semana se cumpre sem esforço. Aproveite: o corpo guarda o que você planta aqui para atravessar a semana 3.',
+   'Com menos loja, o fechamento tem mais espaço para ser fechamento de verdade — não só atualizar dashboard, mas também conversa, leitura, o tempo com Julia que a semana 1 não teve.',
+   'Esta semana a tentação é tentar fazer tudo porque dá tempo. Resista. Use a folga para avançar o que trava nas semanas presenciais — não para inventar mais demanda do que a aleatoriedade normal já traz.'],
+  // Semana 3
+  ['Cinco dias de loja (quarta a domingo) — a manhã vira o único território seu de verdade quase todos os dias. Proteja-a com mais rigor que nas outras duas semanas: é o que resta.',
+   'Sexta, sábado e domingo o bloco corta para 14h. Só 2 horas de cabeça fria nesses três dias. Escolha bem o que entra ali — não há espaço para tarefa de baixo valor.',
+   'Só 1 corrida possível — segunda. O inegociável pede 4; a semana real entrega 1. Esta é a semana onde a régua de constância existe justamente para lembrar que sustentar o básico — água, sono, a única corrida — já é vitória, não covardia.',
+   'Com 5 noites de loja, o fechamento vai estar cansado quase todo dia. Está tudo bem. A meta aqui é manter o ritual mínimo — comer, anotar, dormir — não fazer um fechamento perfeito.',
+   'Esta é a semana de fechar o Ciclo 1. As decisões importantes — baseline, fiscal — pedem cabeça, não tempo extra. Reserve a segunda, único dia livre, para isso, e deixe o resto da semana só sustentar o mínimo com dignidade.']
+];
+function renderWeekPage(weekN){
+  var wk=WEEKS[weekN-1];
+  var col=WEEK_COLORS[weekN-1];
+  var h='<div class="week-hero" style="background:linear-gradient(120deg,'+col+'cc,'+col+')">'+
+    '<div class="week-hero-top"><div><div class="week-hero-name">'+wk.label+'</div><div class="week-hero-dates">'+wk.range+'</div></div>'+
+    '<div class="week-hero-esc">'+wk.esc+'</div></div>'+
+    '<div class="week-hero-msg">'+wk.carac+'<br><br><b style="font-style:normal">Ciclo 1:</b> '+wk.ciclo1+'</div>'+
+  '</div>';
+
+  h+='<div class="sec" style="margin-top:0">A grade da semana</div>';
+  h+=gridWeek(weekN,col);
+
+  h+='<div class="sec">Banco de reflexões</div>';
+  REFLECT_PARTS.forEach(function(part,i){
+    h+='<div class="reflect-item" style="border-left-color:'+col+'">'+
+      '<div class="reflect-num"><div class="reflect-circ" style="background:'+col+'">'+part.ic+'</div>'+
+      '<div><div class="reflect-title">'+part.title+'</div><div class="reflect-time">'+part.time+'</div></div></div>'+
+      '<div class="reflect-txt">'+REFLECT_BANK[weekN-1][i]+'</div>'+
+    '</div>';
+  });
+
+  document.getElementById('sem-content-'+weekN).innerHTML=h;
+}
+
+/* ═══════════ PILARES — direcionamento por meta ═══════════ */
+function goalBar(color){
+  return '<div class="goalbar-wrap"><div class="goalbar-track">'+
+    '<div class="goalbar-zone" style="background:'+color+'"></div></div>'+
+    '<div class="goalbar-lbls"><span>0%</span><span style="color:'+color+'">60–80%+ é a meta</span><span>100%</span></div></div>';
+}
+var PILLAR_CONTENT={
+  saude:{
+    ic:'💚',name:'Saúde · João & Julia',col:'#1e8e3e',colL:'#e6f4ea',
+    sub:'Hidratação, alimentação, academia, corrida, sono e tempo de casal.',
+    insight:'O ciclo de saúde não é uma linha reta — é resgatar a energia certa, no dia certo, sem culpa nos dias em que a loja exige mais.'
+  },
+  pessoal:{
+    ic:'🔮',name:'Pessoal & Ritual de Sempre',col:'#534ab7',colL:'#eeedfe',
+    sub:'Cursos, leitura, tráfego pago, idiomas e rituais de escrita.',
+    insight:'60–80% aqui significa reconhecer que a fase do Ciclo 1 já dita o que importa — a disciplina não é fazer tudo, é fazer o que a fase pede.'
+  },
+  trem:{
+    ic:'🚂',name:'Seu Trem',col:'#1a73e8',colL:'#e8f0fe',
+    sub:'Fornecedores, financeiro, as 21 demandas e o funil do Ciclo 1.',
+    insight:'60–80% no negócio não é fazer as 21 demandas — é mover as certas, na fase certa do funil.'
+  }
+};
+
+/* ═══ DADOS REAIS extraídos de cada dashboard (não inventados) ═══ */
+function dashexpSaude(col){
+  var premios=['🎯 5 treinos · ✨ semana perfeita (12 hábitos)','🎯 5 treinos · ✨ semana perfeita (12 hábitos)','🎯 5 treinos · ✨ semana perfeita · +bônus de mês: ✈️ viagem (2 sem. perfeitas) · 🌟 grande prêmio (4 sem. 80%+) · 💪 melhor frequência (20+ treinos)'];
+  var refs=['16–22 jun · Semana 2 no dashboard','23–29 jun · Semana 3 no dashboard','30 jun–6 jul · Semana 4 no dashboard'];
+  var h='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">🏆</span><span class="dashexp-head-txt">Prêmios por semana — direto do dashboard João &amp; Julia</span></div><div class="dashexp-body">';
+  WEEKS.forEach(function(wk,i){
+    h+='<div class="dashexp-row" style="flex-direction:column;border-bottom:'+(i<2?'1px dashed var(--bd)':'none')+'">'+
+      '<div class="dashexp-cell" style="border-right:none"><div class="dashexp-cell-lbl" style="color:'+col+'">'+wk.label+' · '+refs[i]+'</div>'+
+      '<div class="dashexp-cell-txt">'+premios[i]+'</div></div></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">📋</span><span class="dashexp-head-txt">Hábitos rastreados — metas constantes (não variam por semana)</span></div>'+
+    '<div class="refcard"><div class="refcard-grp"><div class="refcard-grp-lbl">Corpo</div>'+
+    '<div class="refcard-item">🏋️ <b>Academia</b> — 5×/semana</div>'+
+    '<div class="refcard-item">🏃 <b>Aeróbico</b> — 3×/semana</div>'+
+    '<div class="refcard-item">💧 <b>Hidratação</b> — 3–4L/dia (16 copos)</div>'+
+    '<div class="refcard-item">🥗 <b>Alimentação</b> — 4 refeições/dia</div>'+
+    '<div class="refcard-item">🧘 <b>Alongamento</b> — 15min, todos os dias</div>'+
+    '<div class="refcard-item">☀️ <b>Protetor solar</b> — 1×/dia</div></div>'+
+    '<div class="refcard-grp"><div class="refcard-grp-lbl">Mente</div>'+
+    '<div class="refcard-item">📚 <b>Estudo</b> — 1h30/dia</div>'+
+    '<div class="refcard-item">⚡ <b>Aplicação do estudo</b> — diária</div>'+
+    '<div class="refcard-item">📖 <b>Leitura</b> — 30min/dia</div>'+
+    '<div class="refcard-item">🌅 <b>Contemplação</b> — diária</div>'+
+    '<div class="refcard-item">✏️ <b>Criação</b> — diária</div>'+
+    '<div class="refcard-item">🔍 <b>Pesquisa intencional</b> — diária</div></div>'+
+    '<div class="refcard-grp"><div class="refcard-grp-lbl">Sono</div><div class="refcard-item">🌙 Meta configurada: <b>23:00–07:00</b> (ajustável no tracker de sono)</div></div></div></div>';
+  h+='<div class="dashexp-note">Marque corpo na abertura e no campo, mente na produção profunda — direto no dashboard João &amp; Julia.</div>';
+  return h;
+}
+function dashexpPessoal(col){
+  var fin=[
+    ['Aluguel — R$2.400 (devendo mai+jun)','Sócio torcedor Cruzeiro — R$100','Dívida com o pai — R$200','Spotify — R$18','Smartfit — R$145 (vence dia 20)','Paramount — R$40 (vence dia 19)'],
+    null,null
+  ];
+  var h='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">💰</span><span class="dashexp-head-txt">Financeiro da semana — direto do dashboard Pessoal</span></div><div class="dashexp-body">';
+  WEEKS.forEach(function(wk,i){
+    h+='<div class="dashexp-row" style="flex-direction:column;border-bottom:'+(i<2?'1px dashed var(--bd)':'none')+'">'+
+      '<div class="dashexp-cell" style="border-right:none"><div class="dashexp-cell-lbl" style="color:'+col+'">'+wk.label+' · '+wk.range+'</div>';
+    if(fin[i]){h+=fin[i].map(function(x){return '<div class="dashexp-cell-txt">• '+x+'</div>';}).join('');}
+    else{h+='<div class="dashexp-cell-empty">Nenhuma conta cadastrada ainda nesta semana.</div>';}
+    h+='</div></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">📋</span><span class="dashexp-head-txt">Metas constantes — não variam por semana</span></div>'+
+    '<div class="refcard"><div class="refcard-grp"><div class="refcard-grp-lbl">Cursos em desenvolvimento</div>'+
+    '<div class="refcard-item">📈 <b>Sobral de Tráfego</b> — 4×/semana</div>'+
+    '<div class="refcard-item">🤖 <b>Maestros da IA</b> — 4×/semana</div>'+
+    '<div class="refcard-item">🎤 <b>Comunicador de Elite</b> — 4×/semana</div>'+
+    '<div class="refcard-item" style="font-style:italic;color:var(--tx2)">Os 3 estão na fase de arranque: iniciar e desenvolver, não manter.</div></div>'+
+    '<div class="refcard-grp"><div class="refcard-grp-lbl">Projeto pessoal</div>'+
+    '<div class="refcard-item">🎥 <b>Vlog</b> — gravar/analisar/pesquisar, 3×/semana</div>'+
+    '<div class="refcard-item">📌 <b>Episódio publicado</b> — 1×/semana</div></div>'+
+    '<div class="refcard-grp"><div class="refcard-grp-lbl">Leituras &amp; estudos</div>'+
+    '<div class="refcard-item">📖 <b>Leitura diária</b> — 7×/semana</div>'+
+    '<div class="refcard-item">📑 <b>Livro/PDF em foco</b> — registro livre</div></div>'+
+    '<div class="refcard-grp"><div class="refcard-grp-lbl">Rituais &amp; treinos</div>'+
+    '<div class="refcard-item">✍️ <b>Escrita autobiográfica</b> — 3×/semana</div>'+
+    '<div class="refcard-item">🧘 <b>Ritual do corpo</b> (alongamento+assoalho+aparência+solar+meditação+oração) — 7×/semana</div>'+
+    '<div class="refcard-item">🏠 <b>Cuidados com a casa</b> — 5×/semana</div>'+
+    '<div class="refcard-item">🎸 <b>Treino &amp; idioma</b> (comunicação/violão/inglês/espanhol) — 3×/semana</div></div></div></div>';
+  h+='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">🚗</span><span class="dashexp-head-txt">Gestão de automóvel — pendências sem prazo fixo</span></div>'+
+    '<div class="refcard">'+
+    ['Passar o carro para o nome de João','Tirar passaporte','Revisão do GNV — R$350 (já vencida)','Recall do airbag na Osaka — agendar','Pastilha de freio nova — R$500','Trazer histórico de manutenção para organizar','Instalar insulfilm — R$400','Consertar parte elétrica e buzina — R$400','Fazer 2 chaves reserva — R$400'].map(function(x){return '<div class="refcard-item">• '+x+'</div>';}).join('')+
+    '</div></div>';
+  h+='<div class="dashexp-note">Encaixe o carro quando sobrar espaço no bloco de produção — não tem semana certa, só oportunidade.</div>';
+  return h;
+}
+function dashexpTrem(col){
+  var fases=['Oferta (até dia 20) → Remarketing inicia no fim','Remarketing (até dia 27) → Pesquisa inicia no fim','Pesquisa — fechamento do Ciclo 1'];
+  var demandas=['#10 cardápios/oferta · #14 marketing perpétuo','#5 contrato de sociedade · #15 fichas técnicas/CMV · #2 padronização de áreas','#6 fiscal em dia'];
+  var datasTrem=['16–21 jun','22–28 jun','29 jun–5 jul'];
+  var h='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">🎯</span><span class="dashexp-head-txt">Ciclo 1 — fase ativa (datas do próprio dashboard Seu Trem)</span></div><div class="dashexp-body">';
+  WEEKS.forEach(function(wk,i){
+    h+='<div class="dashexp-row" style="flex-direction:column;border-bottom:'+(i<2?'1px dashed var(--bd)':'none')+'">'+
+      '<div class="dashexp-cell" style="border-right:none"><div class="dashexp-cell-lbl" style="color:'+col+'">'+wk.label+' · '+datasTrem[i]+'</div>'+
+      '<div class="dashexp-cell-txt">'+fases[i]+'</div></div></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">📋</span><span class="dashexp-head-txt">Catálogo das 21 demandas — destaques da fase</span></div><div class="dashexp-body">';
+  WEEKS.forEach(function(wk,i){
+    h+='<div class="dashexp-row" style="flex-direction:column;border-bottom:'+(i<2?'1px dashed var(--bd)':'none')+'">'+
+      '<div class="dashexp-cell" style="border-right:none"><div class="dashexp-cell-lbl" style="color:'+col+'">'+wk.label+'</div>'+
+      '<div class="dashexp-cell-txt">'+demandas[i]+'</div></div></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="dashexp-card"><div class="dashexp-head"><span class="dashexp-head-ic">📦</span><span class="dashexp-head-txt">Fornecedores — marcar pedido toda semana</span></div>'+
+    '<div class="refcard">'+
+    ['Atelier — doces','Arigatou — cogumelos','DeMarchi — pães (2 caixas)','Verace — cerveja (5 caixas)'].map(function(x){return '<div class="refcard-item">• '+x+'</div>';}).join('')+
+    '</div></div>';
+  h+='<div class="dashexp-note">Revisar o card Financeiro todo domingo: dívidas de fornecedores, custos fixos e parte fiscal — os valores mudam conforme você for pagando, por isso vivem só lá.</div>';
+  return h;
+}
+/* ═══ QUADROS DE EXECUÇÃO CRIATIVA (filosofia das skills, sem escala/uber) ═══ */
+var PHILO_LEGEND={
+  saude:[['corpo','var(--saudeD)'],['mente','#5e35b1'],['pausa','var(--amberD)']],
+  pessoal:[['ideia','var(--amberD)'],['criar','var(--pessoalD)'],['publ','var(--teal)']],
+  trem:[['gcc','var(--tremD)'],['teste','var(--rosa)'],['funil','var(--teal)']]
+};
+var PHILO_DATA={
+  saude:[
+    {theme:'"Constância antes de intensidade." Semana de pressão média — corpo nos dias livres, mente nos presenciais, pausa na terça.',
+     days:[['pausa'],['corpo'],['mente'],['corpo'],['mente'],['pausa'],['corpo']]},
+    {theme:'"Depositar saúde no banco." A semana mais leve — aproveite para alongar corpo e mente, não para descansar demais.',
+     days:[['pausa'],['corpo'],['mente'],['corpo'],['mente'],['pausa'],['corpo']]},
+    {theme:'"Sobreviver com dignidade." A semana mais pesada — só o mínimo de corpo e mente, pausa generosa nos dias presenciais.',
+     days:[['pausa'],['corpo'],['mente'],['corpo'],['pausa'],['pausa'],['corpo']]}
+  ],
+  pessoal:[
+    {theme:'Fase Oferta · "Produzir e fechar." Os 2 dias livres carregam o bloco criativo de 1–3h; o resto é ideação leve e publicação.',
+     days:[['ideia'],['criar'],['criar'],['ideia'],['publ'],['publ'],['ideia']]},
+    {theme:'Fase Remarketing · "Provar e testar." Semana leve — ideação nos 2 presenciais, criação e publicação nos 4 dias livres.',
+     days:[['ideia'],['ideia'],['ideia'],['criar'],['criar'],['publ'],['publ']]},
+    {theme:'Fase Pesquisa · "Fechar e refletir." Semana pesada — só ideação leve quase todo dia; o único bloco grande é na segunda livre.',
+     days:[['ideia'],['ideia'],['ideia'],['ideia'],['ideia'],['publ'],['criar','publ']]}
+  ],
+  trem:[
+    {theme:'Fase Oferta · GCC nos 2 dias livres (Gancho-Corpo-CTA), funil revisado na abertura e no fechamento da semana.',
+     days:[['funil'],['gcc'],['gcc'],['teste'],['funil'],['teste'],['funil']]},
+    {theme:'Fase Remarketing · roteiro leve nos presenciais, GCC e teste A/B nos 4 dias livres.',
+     days:[['funil'],['gcc'],['gcc'],['gcc'],['teste'],['teste'],['funil']]},
+    {theme:'Fase Pesquisa · teste leve espalhado pela semana pesada; GCC e fechamento do funil concentrados na segunda livre.',
+     days:[['funil'],['teste'],['teste'],['teste'],['teste'],['teste'],['gcc','funil']]}
+  ]
+};
+function philoGridWeek(pillarId,weekN,col){
+  var wk=WEEKS[weekN-1];
+  var data=PHILO_DATA[pillarId][weekN-1];
+  var t=todayISO();
+  var h='<div class="gridweek-wrap">';
+  h+='<div class="gridweek-label">'+wk.label+' · '+wk.range+
+     ' <span class="gridweek-esc-pill" style="background:'+col+'1a;color:'+col+'">SUGESTÃO</span></div>';
+  h+='<div class="philo-theme">'+data.theme+'</div>';
+  h+='<div class="gridweek-cols">';
+  DAYS.filter(function(d){return d.weekN===weekN;}).forEach(function(d,i){
+    var isToday=d.iso===t;
+    h+='<div class="gridweek-col">';
+    h+='<div class="gridweek-day'+(isToday?' today':'')+'">'+d.label.toUpperCase()+'<div class="gridweek-daynum">'+d.date+'</div></div>';
+    data.days[i].forEach(function(chip){
+      h+='<div class="gw-chip gw-'+chip+(isToday?' gw-today':'')+'">'+chip.toUpperCase()+'</div>';
+    });
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<div class="gridweek-legend">';
+  PHILO_LEGEND[pillarId].forEach(function(l){
+    h+='<span class="leg-item"><span class="leg-dot" style="background:'+l[1]+'"></span>'+l[0]+'</span>';
+  });
+  h+='</div></div>';
+  return h;
+}
+function renderPillarPage(id){
+  var p=PILLAR_CONTENT[id];
+  var h='<div class="pillar-hero" style="background:linear-gradient(120deg,'+p.col+'cc,'+p.col+')">'+
+    '<div class="pillar-hero-name">'+p.ic+' '+p.name+'</div>'+
+    '<div class="pillar-hero-sub">'+p.sub+'</div></div>';
+  h+='<div class="sec" style="margin-top:0">Meta do ciclo</div>';
+  h+='<div class="direct-list"><div style="font-size:13px;font-weight:700;color:'+p.col+';margin-bottom:2px">60–80%+ de aproveitamento nas 3 semanas</div>'+goalBar(p.col)+'</div>';
+
+  h+='<div class="sec">Execução criativa — sugestão semanal</div>';
+  [1,2,3].forEach(function(wn){h+=philoGridWeek(id,wn,p.col);});
+
+  h+='<div class="sec">Explorando o dashboard</div>';
+  if(id==='saude')h+=dashexpSaude(p.col);
+  if(id==='pessoal')h+=dashexpPessoal(p.col);
+  if(id==='trem')h+=dashexpTrem(p.col);
+
+  h+='<div class="sec">Insight de fechamento</div>';
+  h+='<div class="insight-card" style="background:'+p.colL+';color:'+p.col+'">'+p.insight+'</div>';
+
+  document.getElementById('pillar-content-'+id).innerHTML=h;
+}
+
+/* ═══════════ RENDER ALL ═══════════ */
+function renderAll(){
+  var t=todayISO();
+  var d=findDay(t);
+  if(d){
+    var c=dayCompute(d);
+    var wk=WEEKS[d.weekN-1];
+    document.getElementById('h-name').textContent=d.label+' '+d.date+' '+d.monthShort+' · '+wk.label;
+    document.getElementById('h-msg').textContent='Escala '+d.esc+' · Restaurante '+c.status+(c.uber?' · Uber '+c.uberStr:'');
+  }
+  document.getElementById('hero-home').style.background='linear-gradient(120deg,#c9971f 0%,#534ab7 55%,#1a73e8 100%)';
+  renderOverviewWeeks();
+  renderNorte();
+  [1,2,3].forEach(renderWeekPage);
+  ['saude','pessoal','trem'].forEach(renderPillarPage);
+}
+renderAll();
+</script>
+</body>
+</html>
