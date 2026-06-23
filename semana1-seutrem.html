@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semana 1 · Seu Trem · Ritual de Sempre</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0D1F14; font-family: 'Georgia', serif; color: #F5F0E8; min-height: 100vh; overflow-x: hidden; }
+
+  .canvas { position: relative; width: 100%; min-height: 700px; }
+
+  .center-node {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 180px; height: 180px; border-radius: 50%;
+    background: #1A3C2A; border: 3px solid #C8A84B;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; cursor: default; z-index: 10;
+    box-shadow: 0 0 40px rgba(200,168,75,0.25);
+  }
+  .center-node .emoji { font-size: 28px; margin-bottom: 6px; }
+  .center-node .title { font-size: 13px; font-weight: bold; color: #C8A84B; letter-spacing: 0.5px; line-height: 1.3; }
+  .center-node .sub { font-size: 10px; color: #9CB8A0; margin-top: 4px; }
+
+  .branch {
+    position: absolute; cursor: pointer; z-index: 5;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .branch:hover { transform: scale(1.06); }
+  .branch-box {
+    border-radius: 10px; padding: 10px 13px; text-align: center;
+    border: 2px solid transparent; min-width: 130px; max-width: 155px;
+  }
+  .branch-box .day { font-size: 9px; letter-spacing: 1px; margin-bottom: 3px; opacity: 0.75; font-family: 'Helvetica Neue', sans-serif; }
+  .branch-box .name { font-size: 11px; font-weight: bold; line-height: 1.3; }
+  .branch-box .tag { font-size: 9px; margin-top: 4px; padding: 2px 6px; border-radius: 10px; display: inline-block; font-family: 'Helvetica Neue', sans-serif; }
+
+  .b1 .branch-box { background: #1A3C2A; border-color: #4A8C5C; }
+  .b1 .branch-box .name { color: #7DC49A; }
+  .b1 .tag { background: #2D5A3D; color: #9DD4B0; }
+
+  .b2 .branch-box { background: #1A2A3C; border-color: #4A7C8C; }
+  .b2 .branch-box .name { color: #7DC4D4; }
+  .b2 .tag { background: #1A3A4A; color: #9DD4E0; }
+
+  .b3 .branch-box { background: #3C1A1A; border-color: #8C4A4A; }
+  .b3 .branch-box .name { color: #D49A7A; }
+  .b3 .tag { background: #5A2A1A; color: #E0B09A; }
+
+  .b4 .branch-box { background: #2A1A3C; border-color: #6B4E9B; }
+  .b4 .branch-box .name { color: #B09AD4; }
+  .b4 .tag { background: #3D2B5A; color: #C8B8E8; }
+
+  .b5 .branch-box { background: #3C2A1A; border-color: #D4870A; }
+  .b5 .branch-box .name { color: #E8B870; }
+  .b5 .tag { background: #5A3A10; color: #F0CC90; }
+
+  .b6 .branch-box { background: #1A3C30; border-color: #4A8C7A; }
+  .b6 .branch-box .name { color: #7DC4B4; }
+  .b6 .tag { background: #1A5A44; color: #9DD4C4; }
+
+  .b7 .branch-box { background: #3A3C1A; border-color: #8C8C4A; }
+  .b7 .branch-box .name { color: #D4D490; }
+  .b7 .tag { background: #4A4A1A; color: #E0E0A0; }
+
+  svg.lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+
+  .panel {
+    display: none; position: fixed; right: 0; top: 0; bottom: 0; width: 360px;
+    background: #0D1F14; border-left: 2px solid #C8A84B;
+    overflow-y: auto; z-index: 100; padding: 24px 20px;
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .panel.open { display: block; }
+  .panel-close {
+    position: absolute; top: 14px; right: 14px; background: #1A3C2A;
+    border: 1px solid #C8A84B; color: #C8A84B; border-radius: 50%;
+    width: 28px; height: 28px; cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .panel-day { font-size: 9px; letter-spacing: 1.5px; color: #9CB8A0; margin-bottom: 4px; font-family: 'Helvetica Neue', sans-serif; }
+  .panel-title { font-size: 18px; color: #C8A84B; margin-bottom: 16px; line-height: 1.3; }
+  .panel-section { margin-bottom: 16px; }
+  .panel-section-label {
+    font-size: 9px; letter-spacing: 1.5px; color: #9CB8A0; margin-bottom: 6px;
+    font-family: 'Helvetica Neue', sans-serif; text-transform: uppercase;
+    padding-bottom: 4px; border-bottom: 1px solid #1A3C2A;
+  }
+  .uo-item { background: #3D2B5A; border-left: 3px solid #6B4E9B; padding: 7px 10px; border-radius: 0 6px 6px 0; margin-bottom: 5px; }
+  .uo-item p { font-size: 11px; line-height: 1.5; color: #DDD0F0; font-style: italic; }
+  .si-item { background: #1A3C1A; border-left: 3px solid #D4870A; padding: 7px 10px; border-radius: 0 6px 6px 0; margin-bottom: 5px; }
+  .si-item p { font-size: 11px; line-height: 1.5; color: #E0D8B0; }
+  .el-item { background: #1A2A3C; border-left: 3px solid #4A8C9C; padding: 7px 10px; border-radius: 0 6px 6px 0; margin-bottom: 5px; }
+  .el-item p { font-size: 11px; line-height: 1.5; color: #B8D8E8; }
+  .copy-block { background: #0A1A0D; border: 1px solid #2D5A3D; border-radius: 8px; padding: 12px; margin-top: 6px; }
+  .copy-label { font-size: 9px; letter-spacing: 1px; color: #C8A84B; margin-bottom: 6px; font-family: 'Helvetica Neue', sans-serif; }
+  .copy-text { font-size: 11px; line-height: 1.7; color: #D8D0C0; font-style: italic; }
+  .badge-a { display: inline-block; background: #2D5A3D; color: #9DD4B0; font-size: 8px; padding: 2px 7px; border-radius: 10px; margin-bottom: 4px; font-family: 'Helvetica Neue', sans-serif; }
+  .badge-b { display: inline-block; background: #3D2B5A; color: #C8B8E8; font-size: 8px; padding: 2px 7px; border-radius: 10px; margin-bottom: 4px; font-family: 'Helvetica Neue', sans-serif; }
+
+  .legend {
+    position: absolute; bottom: 16px; left: 16px; display: flex; gap: 12px; z-index: 20; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #9CB8A0; font-family: 'Helvetica Neue', sans-serif; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .fase-badge {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    background: #C8A84B; color: #0D1F14; font-size: 10px; font-weight: bold;
+    letter-spacing: 1.5px; padding: 5px 16px; border-radius: 20px;
+    font-family: 'Helvetica Neue', sans-serif; z-index: 20; white-space: nowrap;
+  }
+  .hint {
+    position: absolute; bottom: 16px; right: 16px; font-size: 9px; color: #4A6A54;
+    font-family: 'Helvetica Neue', sans-serif; font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<div class="canvas" id="canvas">
+  <svg class="lines" id="svg-lines"></svg>
+  <div class="fase-badge">SEMANA 1 · FASE DE DESCOBERTA · 22–28/jun</div>
+
+  <div class="center-node" id="center">
+    <div class="emoji">🌱</div>
+    <div class="title">SEU TREM<br>Ritual de Sempre</div>
+    <div class="sub">Semana 1 · Ciclo 1</div>
+  </div>
+
+  <div class="branch b1" id="b1" onclick="openPanel('b1')">
+    <div class="branch-box">
+      <div class="day">22/JUN · SEG</div>
+      <div class="name">Carrossel de Abertura</div>
+      <div class="tag">Feed Instagram</div>
+    </div>
+  </div>
+
+  <div class="branch b2" id="b2" onclick="openPanel('b2')">
+    <div class="branch-box">
+      <div class="day">23/JUN · TER</div>
+      <div class="name">Reels — O Holandês</div>
+      <div class="tag">Feed + Discover</div>
+    </div>
+  </div>
+
+  <div class="branch b3" id="b3" onclick="openPanel('b3')">
+    <div class="branch-box">
+      <div class="day">24/JUN · QUA</div>
+      <div class="name">Stories Copa + DM</div>
+      <div class="tag">Stories · Direct</div>
+    </div>
+  </div>
+
+  <div class="branch b4" id="b4" onclick="openPanel('b4')">
+    <div class="branch-box">
+      <div class="day">25/JUN · QUI</div>
+      <div class="name">WhatsApp Listas</div>
+      <div class="tag">WA Business</div>
+    </div>
+  </div>
+
+  <div class="branch b5" id="b5" onclick="openPanel('b5')">
+    <div class="branch-box">
+      <div class="day">25/JUN · QUI</div>
+      <div class="name">Meta Ads Linhas 1+2</div>
+      <div class="tag">Tráfego Pago</div>
+    </div>
+  </div>
+
+  <div class="branch b6" id="b6" onclick="openPanel('b6')">
+    <div class="branch-box">
+      <div class="day">26–27/JUN</div>
+      <div class="name">Comunidades + Influencers</div>
+      <div class="tag">WA · DM</div>
+    </div>
+  </div>
+
+  <div class="branch b7" id="b7" onclick="openPanel('b7')">
+    <div class="branch-box">
+      <div class="day">CICLO · ÂNCORA</div>
+      <div class="name">Amsterdam + Airbnb</div>
+      <div class="tag">Experiência · iFood</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#6B4E9B"></div>Urgências Ocultas</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#D4870A"></div>Situações de Identificação</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4A8C9C"></div>Elemento Literário</div>
+  </div>
+  <div class="hint">clique em qualquer nó para expandir</div>
+</div>
+
+<!-- PANELS -->
+<div class="panel" id="panel-b1">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">22/JUN · SEG · FEED INSTAGRAM</div>
+  <div class="panel-title">Carrossel de Abertura da Semana</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas</div>
+    <div class="uo-item"><p>U1 — "Quero sair pra comer sem precisar explicar minha escolha pra ninguém na mesa."</p></div>
+    <div class="uo-item"><p>U2 — "Toda vez que falo 'sou vegano' num restaurante comum, já sei que vou ter que negociar o cardápio igual advogado."</p></div>
+    <div class="uo-item"><p>U3 — "Quero uma noite que valha a história — não só a comida."</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Situações de Identificação</div>
+    <div class="si-item"><p>S1 — Quarta, 20h30, grupo do zap decidindo onde jantar. Alguém pergunta se tem opção vegana. O silêncio dura três segundos a mais do que deveria.</p></div>
+    <div class="si-item"><p>S2 — Você abre o HappyCow num bairro desconhecido de outra cidade e sente um alívio desproporcional quando aparece um pin vermelho.</p></div>
+    <div class="si-item"><p>S3 — Domingo, mesa de família. Você come o que tem, agradece, e guarda pra você a sensação de que aquela refeição não foi inteiramente sua.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Elemento Literário · Apelo ao Cotidiano</div>
+    <div class="el-item"><p>Ap.1 — Abertura: "o grupo do zap decidindo onde ir" — nomeia a fricção silenciosa que todo vegano vive antes mesmo de chegar ao restaurante.</p></div>
+    <div class="el-item"><p>Ap.2 — Meio: "o HappyCow num país estranho" — o mesmo movimento do holandês. Curiosidade que atravessa fronteiras.</p></div>
+    <div class="el-item"><p>Ap.3 — Fechamento: "guardar pra você aquela sensação" — planta a pergunta: e se existisse um lugar onde você não precisasse guardar nada?</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Opção A — Desejo / Narrativo</div>
+    <div class="copy-block">
+      <div class="badge-a">SLIDE 1</div>
+      <div class="copy-text">"Tem um lugar em BH onde ninguém precisa negociar o cardápio."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-a">SLIDE 3</div>
+      <div class="copy-text">"Não existe nada de errado com adaptar, ceder, improvisar. Mas existe uma diferença entre uma refeição que você escolheu e uma refeição que você sobreviveu."</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Opção B — Tensão / Provocativo</div>
+    <div class="copy-block">
+      <div class="badge-b">SLIDE 1</div>
+      <div class="copy-text">"Quantas vezes você já comeu onde os outros quiseram?"</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">SLIDE 3</div>
+      <div class="copy-text">"O problema não é a comida. É a energia gasta fingindo que não importa."</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-b2">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">23/JUN · TER · REELS</div>
+  <div class="panel-title">O Holandês — Semeando Amsterdam</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas</div>
+    <div class="uo-item"><p>U1 — "Às vezes quero uma noite que não seja só mais uma noite — mas não sei nomear o que estou procurando."</p></div>
+    <div class="uo-item"><p>U2 — "Já fui a lugares 'diferentes' que eram diferentes só no Instagram. A experiência era a mesma."</p></div>
+    <div class="uo-item"><p>U3 — "Queria encontrar algo em BH que eu contasse pra quem mora em SP sem precisar minimizar."</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Situações de Identificação</div>
+    <div class="si-item"><p>S1 — Você está num bar em outra cidade, numa mesa com pessoas que não conhecia três horas atrás, e pensa: "por que isso não acontece em BH?"</p></div>
+    <div class="si-item"><p>S2 — Você vê um vídeo de experiência gastronômica em Tóquio e fecha o app com aquela mistura de admiração e vontade de estar lá.</p></div>
+    <div class="si-item"><p>S3 — Uma amiga volta de viagem e conta de um bar em Lisboa onde a noite toda foi ao redor de uma única pergunta escrita num papel. Você pensa nisso por três dias.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Elemento Literário · Apelo ao Cotidiano</div>
+    <div class="el-item"><p>Ap.1 — Abertura: você num bar de cidade estranha, mesa com desconhecidos — replica exatamente o que Amsterdam vai ser, mas aqui.</p></div>
+    <div class="el-item"><p>Ap.2 — Meio: vídeo de experiência em Tóquio que você fecha com vontade de estar lá — mesmo movimento do holandês via HappyCow.</p></div>
+    <div class="el-item"><p>Ap.3 — Fechamento: "a pergunta do bar de Lisboa que você pensa por três dias" — experiências assim existem. Uma está vindo para BH.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Estrutura Narrativa do Reels</div>
+    <div class="copy-block">
+      <div class="badge-a">0–5s</div>
+      <div class="copy-text">"O que acontece em bares depois da meia-noite?"</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-a">30–45s</div>
+      <div class="copy-text">"Um cara de Amsterdam chegou aqui pelo HappyCow. Ficou. Voltou. Contou. Contou de um bar lá que ele sentia falta."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">OPÇÃO B · 0–4s</div>
+      <div class="copy-text">"Por que a gente não conta as noites de BH como conta as de fora?"</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">OPÇÃO B · 12–25s</div>
+      <div class="copy-text">Amsterdam · mesa de estranhos · carta filosófica / Tóquio · bar que fecha quando o dono decide / Berlim · começa quando os outros já foram</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-b3">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">24/JUN · QUA · STORIES + DM</div>
+  <div class="panel-title">Copa do Brasil + Ativação de Quarta</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas</div>
+    <div class="uo-item"><p>U1 — "Gosto de futebol mas odeio a comida de bar de jogo — é sempre a mesma coisa, gordurosa, sem opção."</p></div>
+    <div class="uo-item"><p>U2 — "Queria assistir partida num lugar que tivesse a minha cara sem precisar comer mal pra participar da festa."</p></div>
+    <div class="uo-item"><p>U3 — "Já fui em 'bar vegano pra jogo' que parecia forçado. Parecia que a causa tentava ser cool."</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Situações de Identificação</div>
+    <div class="si-item"><p>S1 — 21h45, cardápio de bar lotado no dia de jogo: batata frita, calabresa, frango. Você pede algo e come sem muita convicção enquanto torce.</p></div>
+    <div class="si-item"><p>S2 — Você assiste o jogo em casa porque vai comer melhor — e fica com aquela leve sensação de que perdeu o ritual coletivo.</p></div>
+    <div class="si-item"><p>S3 — Alguém manda "vai ter jogo hoje, vamos sair?" e você calcula mentalmente se vai valer a pena ir ou ficar.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Elemento Literário · Apelo ao Cotidiano</div>
+    <div class="el-item"><p>Ap.1 — Abertura: "cardápio de bar de jogo que você já sabe de cor" — nomeia a fadiga com a repetição. O Seu Trem interrompe esse loop.</p></div>
+    <div class="el-item"><p>Ap.2 — Meio: "assistir em casa pra comer melhor" — falso dilema que o Seu Trem dissolve sem forçar.</p></div>
+    <div class="el-item"><p>Ap.3 — Fechamento: "calcular se vale a pena sair" — porta de entrada natural pro CTA de presença, sem vender.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Opção A — Desejo / Narrativo</div>
+    <div class="copy-block">
+      <div class="badge-a">FRAME 1</div>
+      <div class="copy-text">"Dia de jogo em BH tem cheiro de fritura e som de buzina três quarteirões antes do apito final. Tem algo bonito nisso."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-a">FRAME 2</div>
+      <div class="copy-text">"Também tem aquela coisa de escolher entre torcer junto ou comer o que você quer. Como se os dois não pudessem estar na mesma noite."</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Opção B — Tensão / Provocativo</div>
+    <div class="copy-block">
+      <div class="badge-b">FRAME 1</div>
+      <div class="copy-text">"Você vai assistir em casa de novo?"</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">FRAME 2</div>
+      <div class="copy-text">"Nada contra. Casa é ótima. Mas existe uma chance de você estar fazendo isso porque bar de jogo nunca teve nada pra você."</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-b4">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">25/JUN · QUI · WHATSAPP BUSINESS</div>
+  <div class="panel-title">Listas de Transmissão — Tom JP Pessoa Física</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas</div>
+    <div class="uo-item"><p>U1 — "Odeio mensagem de restaurante que parece disparo automático. Dá pra sentir quando alguém não escreveu."</p></div>
+    <div class="uo-item"><p>U2 — "Quando recebo mensagem de alguém que conheço falando de um lugar, confio diferente."</p></div>
+    <div class="uo-item"><p>U3 — "Quero ser o primeiro a saber — não receber a mesma mensagem que todo mundo."</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Regras Absolutas do Canal</div>
+    <div class="el-item"><p>Texto puro — sem HTML, sem markdown, sem emoji excessivo.</p></div>
+    <div class="el-item"><p>Tom de JP escrevendo pra alguém que ele conhece — não de marca comunicando.</p></div>
+    <div class="el-item"><p>Lista 1 (base histórica): íntimo, pessoal. Lista 2 (Comunidade Seu Trem): coletivo, pertencimento.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Elemento Literário · Apelo ao Cotidiano</div>
+    <div class="el-item"><p>Ap.1 — Abertura com observação do dia de JP — algo que ele "notou" antes de contar o que vem.</p></div>
+    <div class="el-item"><p>Ap.2 — Referenciar hora específica do dia como âncora ("eram 11h quando eu comecei a pensar nisso").</p></div>
+    <div class="el-item"><p>Ap.3 — Detalhe físico do restaurante no momento da escrita como prova de presença real.</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Objetivo da mensagem</div>
+    <div class="copy-block">
+      <div class="copy-text">Apresenta o Reels de hoje. Planta o que vem em julho. Anuncia a quarta (Copa + prato exclusivo). Não vende diretamente — convida a acompanhar.</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-b5">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">25/JUN · QUI · META ADS</div>
+  <div class="panel-title">Linhas 1 e 2 — Público Frio</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Linha 1 — Apresentação Seu Trem (frio)</div>
+    <div class="copy-block">
+      <div class="badge-a">OPÇÃO A · Headline</div>
+      <div class="copy-text">"Tem um restaurante vegano em BH onde ninguém precisou convencer ninguém de nada."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">OPÇÃO B · Headline</div>
+      <div class="copy-text">"Vegano em BH: você já encontrou o lugar certo, ou ainda está adaptando o que tem?"</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Linha 2 — Amsterdam / Curiosidade (frio)</div>
+    <div class="el-item"><p>Semeia o desejo sem entregar tudo. Menciona os 4 lugares, a pesquisa, as duas noites em julho. Formato: vídeo 30s ou imagem estática com copy longa.</p></div>
+    <div class="copy-block">
+      <div class="badge-a">OPÇÃO A · Headline</div>
+      <div class="copy-text">"Em Amsterdam, Tóquio, Berlim e Pequim tem noites que as pessoas nunca esquecem. A gente pesquisou o que elas têm em comum."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">OPÇÃO B · Headline</div>
+      <div class="copy-text">"Você já viveu uma noite que contou pra várias pessoas nos dias seguintes? A gente está construindo uma dessas. Em BH. Em julho."</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas · Linha 2</div>
+    <div class="uo-item"><p>U1 — "Quero viver algo que não parece do meu cotidiano — sem precisar viajar pra isso."</p></div>
+    <div class="uo-item"><p>U2 — "Tenho medo de pagar por uma 'experiência' e sair com a sensação de ter assistido a um espetáculo montado."</p></div>
+    <div class="uo-item"><p>U3 — "Quero algo que mexa comigo — não só algo que eu possa postar."</p></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-b6">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">26–27/JUN · COMUNIDADES + INFLUENCERS</div>
+  <div class="panel-title">Circuito Gastronômico + Seu Trem + DMs</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Comunidade Circuito Gastronômico Vegano (500)</div>
+    <div class="el-item"><p>Tom de curador, não de vendedor. JP fala como dono da comunidade que descobriu algo relevante para o grupo.</p></div>
+    <div class="copy-block">
+      <div class="badge-a">OPÇÃO A</div>
+      <div class="copy-text">"Pessoal, quarta-feira tem Copa do Brasil e tem [NOME DO PRATO] no Seu Trem. Quem quiser assistir o jogo diferente — a mesa está posta. Entrada gratuita."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">OPÇÃO B</div>
+      <div class="copy-text">"Lembrete pra quem sempre abre mão do ritual coletivo por não ter cardápio: quarta no Seu Trem tem jogo na tela e menu inteiro disponível. Sem escolher entre os dois."</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">DM para Influenciadores Nano/Micro BH</div>
+    <div class="el-item"><p>Personalizado, sem forçar. Reconhece o trabalho da pessoa antes de qualquer convite. Não oferece jabá — oferece experiência.</p></div>
+    <div class="copy-block">
+      <div class="badge-a">OPÇÃO A · DM</div>
+      <div class="copy-text">"Oi [NOME], acompanho o que você faz e faz sentido você conhecer o Seu Trem antes que a gente anuncie o que vem em julho. Se quiser vir na quarta pra Copa + prato novo, sem protocolo — fica o convite."</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas · Influencers</div>
+    <div class="uo-item"><p>U1 — "Quero indicar um lugar que eu realmente curto — não um que me pagou pra ir."</p></div>
+    <div class="uo-item"><p>U2 — "Tenho medo de criar conteúdo sobre um lugar e meus seguidores irem lá e se decepcionar."</p></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-b7">
+  <button class="panel-close" onclick="closePanel()">×</button>
+  <div class="panel-day">ÂNCORA DO CICLO · JULHO</div>
+  <div class="panel-title">Uma Noite em Amsterdam + Panfleto iFood + Airbnb</div>
+  <div class="panel-section">
+    <div class="panel-section-label">Experiência Amsterdam — Elementos-chave</div>
+    <div class="el-item"><p>12 e 26/jul · 00h30 início · 04h bar fecha</p></div>
+    <div class="el-item"><p>5 cartas filosóficas: gratidão → transformação → generosidade → visão → compromisso</p></div>
+    <div class="el-item"><p>Mecânica do copo: cada pessoa desenha e leva pra casa</p></div>
+    <div class="el-item"><p>DJ + cantora ao vivo com instrumentos indianos em 4 momentos de chá</p></div>
+    <div class="el-item"><p>Retorno: voltar com o mesmo copo = 1 drink 1L + aperitivo por conta da casa</p></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Panfleto iFood (frente/verso)</div>
+    <div class="copy-block">
+      <div class="badge-a">FRENTE · OPÇÃO A</div>
+      <div class="copy-text">"Em julho, o Seu Trem vai ficar acordado depois da meia-noite. Por uma razão que você ainda não sabe."</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">FRENTE · OPÇÃO B</div>
+      <div class="copy-text">"Tem uma noite em julho no Seu Trem que vai começar quando a maioria das pessoas já foi embora."</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Airbnb Experiences — Título e Ângulo</div>
+    <div class="copy-block">
+      <div class="badge-a">TÍTULO A</div>
+      <div class="copy-text">"Uma Noite em Amsterdam — dentro de um restaurante vegano em Belo Horizonte"</div>
+    </div>
+    <div class="copy-block">
+      <div class="badge-b">TÍTULO B</div>
+      <div class="copy-text">"A noite que um holandês trouxe de Amsterdam para BH — e que acontece só duas vezes"</div>
+    </div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-label">Urgências Ocultas · Amsterdam</div>
+    <div class="uo-item"><p>U1 — "Quero viver algo que vira história — não só memória."</p></div>
+    <div class="uo-item"><p>U2 — "Tenho medo de ir num evento 'experiência' e sair com sensação de ter assistido a um espetáculo encenado."</p></div>
+    <div class="uo-item"><p>U3 — "Quero conhecer pessoas novas mas não consigo ir em eventos pensados para isso — parece forçado."</p></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const svgEl = document.getElementById('svg-lines');
+const branches = ['b1','b2','b3','b4','b5','b6','b7'];
+const angles = [-90, -38, 18, 74, 130, 180, -144];
+
+function positionBranches() {
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  const radius = Math.min(W, H) * 0.34;
+  const centerX = W * 0.5;
+  const centerY = H * 0.5;
+
+  svgEl.innerHTML = '';
+
+  branches.forEach((id, i) => {
+    const el = document.getElementById(id);
+    const angle = (angles[i] * Math.PI) / 180;
+    const bx = centerX + Math.cos(angle) * radius;
+    const by = centerY + Math.sin(angle) * radius;
+    const box = el.querySelector('.branch-box');
+    const bw = box.offsetWidth || 140;
+    const bh = box.offsetHeight || 60;
+    el.style.left = (bx - bw/2) + 'px';
+    el.style.top = (by - bh/2) + 'px';
+
+    const x1 = centerX, y1 = centerY;
+    const x2 = bx, y2 = by;
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+
+    const colors = ['#4A8C5C','#4A7C8C','#8C4A4A','#6B4E9B','#D4870A','#4A8C7A','#8C8C4A'];
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`);
+    path.setAttribute('stroke', colors[i]);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('opacity', '0.5');
+    svgEl.appendChild(path);
+
+    const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('cx', x2); dot.setAttribute('cy', y2);
+    dot.setAttribute('r', '5'); dot.setAttribute('fill', colors[i]);
+    dot.setAttribute('opacity', '0.7');
+    svgEl.appendChild(dot);
+  });
+}
+
+let currentPanel = null;
+function openPanel(id) {
+  if (currentPanel) {
+    document.getElementById('panel-' + currentPanel).classList.remove('open');
+  }
+  currentPanel = id;
+  document.getElementById('panel-' + id).classList.add('open');
+}
+function closePanel() {
+  if (currentPanel) {
+    document.getElementById('panel-' + currentPanel).classList.remove('open');
+    currentPanel = null;
+  }
+}
+
+function setHeight() {
+  const W = canvas.offsetWidth;
+  canvas.style.height = Math.max(600, W * 0.65) + 'px';
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${canvas.offsetHeight}`);
+  setTimeout(positionBranches, 50);
+}
+
+window.addEventListener('resize', setHeight);
+window.addEventListener('load', setHeight);
+setHeight();
+</script>
+</body>
+</html>
