@@ -356,8 +356,26 @@
   function seats(plan){ return $$('.seat' + (plan ? '[data-plan="'+plan+'"]' : '')); }
   function occ(plan){ return seats(plan).filter(s => s.classList.contains('oc')); }
 
+  const STORAGE_KEY = 'seutrem_reservas_copa29jun';
+
+  function saveState(){
+    const occupied = seats().filter(s=>s.classList.contains('oc')).map(s=>s.dataset.name);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(occupied));
+  }
+
+  function loadState(){
+    try{
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+      if(!Array.isArray(saved)) return;
+      seats().forEach(s=>{
+        if(saved.includes(s.dataset.name)) s.classList.add('oc');
+      });
+    }catch(e){}
+  }
+
   function toggleSeat(el){
     el.classList.toggle('oc');
+    saveState();
     updateUI();
   }
 
@@ -381,6 +399,7 @@
   function resetAll(){
     if(occ().length && !confirm('Liberar TODOS os lugares das duas áreas?')) return;
     seats().forEach(s => s.classList.remove('oc'));
+    localStorage.removeItem(STORAGE_KEY);
     updateUI();
   }
 
@@ -418,6 +437,7 @@
     document.body.removeChild(ta);
   }
 
+  loadState();
   updateUI();
 </script>
 </body>
