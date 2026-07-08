@@ -56,8 +56,9 @@ body{max-width:520px;margin:0 auto;min-height:100vh}
 /* ═══════════ TOPBAR ═══════════ */
 .topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1.5px solid var(--bd);padding:12px 16px;display:flex;align-items:center;gap:12px}
 .tb-menu{width:38px;height:38px;border-radius:12px;background:var(--al);border:none;color:var(--add);font-size:17px;cursor:pointer;flex-shrink:0}
-.tb-title{font-size:17px;font-weight:900;color:var(--add);flex:1}
+.tb-title{font-size:17px;font-weight:900;color:var(--add);flex:1;line-height:1.2}
 .tb-title em{color:var(--pk);font-style:normal}
+.tb-cycle{font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.2px}
 
 /* ═══════════ PANELS ═══════════ */
 .panel{display:none;padding:16px 14px 90px;position:relative;z-index:1}
@@ -360,7 +361,7 @@ textarea.wish-input{min-height:54px;resize:none;line-height:1.4}
 <!-- ═══════════ TOPBAR ═══════════ -->
 <div class="topbar">
   <button class="tb-menu" onclick="openSidebar()">☰</button>
-  <div class="tb-title">João ama <em>JuJu</em></div>
+  <div class="tb-title">João ama <em>JuJu</em><div class="tb-cycle">Ciclo 2 - 6/7 a 2/8</div></div>
 </div>
 
 <!-- ═══════════ HOME ═══════════ -->
@@ -428,8 +429,8 @@ var WKEYS=['seg','ter','qua','qui','sex','sab','dom'];
 var HABITS=[
   {id:'academia',  icon:'🏋️',name:'Academia',          sub:'Meta: 5×/semana · 🍕',     meta:5, type:'dots', grp:'corpo', clr:'#43a047', bg:'#e8f5e9'},
   {id:'aerobico',  icon:'🏃',name:'Aeróbico',           sub:'Meta: 3×/semana · 🍬',     meta:3, type:'counter', grp:'corpo', clr:'#26a69a', bg:'#e0f2f1'},
-  {id:'agua',      icon:'💧',name:'Hidratação',         sub:'3–4L por dia · 16 copos',  meta:16,type:'water', grp:'corpo', clr:'#00acc1', bg:'#e0f7fa'},
-  {id:'alimentacao',icon:'🥗',name:'Alimentação',       sub:'4 refeições por dia',      meta:4, type:'meal', grp:'corpo', clr:'#ec407a', bg:'#fce4ec'},
+  {id:'agua',      icon:'💧',name:'Hidratação',         sub:'3–4L por dia · 16 copos',  meta:112,type:'water', grp:'corpo', clr:'#00acc1', bg:'#e0f7fa'},
+  {id:'alimentacao',icon:'🥗',name:'Alimentação',       sub:'4 refeições + 2 suplementos por dia', meta:42, type:'meal', grp:'corpo', clr:'#ec407a', bg:'#fce4ec'},
   {id:'along',     icon:'🧘',name:'Alongamento',        sub:'15 min · todos os dias',   meta:7, type:'dots', grp:'corpo', clr:'#7e57c2', bg:'#ede7f6'},
   {id:'solar',     icon:'☀️',name:'Protetor Solar',     sub:'1× por dia',               meta:7, type:'dots', grp:'corpo', clr:'#f9a825', bg:'#fff8e1'},
   {id:'estudo',    icon:'📚',name:'Estudo',             sub:'1h30 por dia',             meta:7, type:'dots', grp:'mente', clr:'#43a047', bg:'#e8f5e9'},
@@ -438,12 +439,14 @@ var HABITS=[
   {id:'contempl',  icon:'🌅',name:'Contemplação',       sub:'Reflexão diária',          meta:7, type:'dots', grp:'mente', clr:'#7e57c2', bg:'#ede7f6'}
 ];
 var DONUT_IDS=['academia','aerobico','agua','alimentacao','along','solar'];
+var MEAL_ICONS=['☀️','🌤️','🌅','🌙','💊','💊'];
 var MIND_IDS=['estudo','execucao','leitura','contempl'];
 var MIND_META={estudo:'Estudo',execucao:'Execução',leitura:'Leitura',contempl:'Contemp.'};
 
 var SPEC_CATS=[
-  {id:'sonhos',label:'🌟 Sonhos e ambições pessoais'},
-  {id:'inegociaveis',label:'🔒 Inegociáveis e demandas do ciclo'}
+  {id:'inegociaveis',label:'🔒 Inegociáveis'},
+  {id:'demandas',label:'📌 Demandas do ciclo'},
+  {id:'sonhos',label:'🌟 Sonhos e ambições'}
 ];
 
 /* ═══════════════ DADOS DE REFERÊNCIA — CICLO ANTERIOR (9 jun–5 jul/2026) ═══════════════
@@ -562,6 +565,7 @@ function refreshAfterEUChange(){
   loadCPFields();
   loadSleepFields();
   renderAllPrio();
+  updateWishSummaries();
   renderAll();
   drawAllSleepCharts();
 }
@@ -691,12 +695,11 @@ function habitCount(wn,h){
   var v=ST['w'+wn][h.id];
   if(h.type==='counter') return v;
   if(h.type==='water'){
-    var days=Object.keys(v); if(!days.length)return 0;
-    var sum=0; days.forEach(function(k){sum+=v[k];}); return Math.round(sum/days.length);
+    var sum=0; Object.keys(v).forEach(function(k){sum+=v[k];}); return sum;
   }
   if(h.type==='meal'){
-    var full=0; Object.keys(v).forEach(function(k){if(v[k].length>=4)full++;});
-    return full;
+    var total=0; Object.keys(v).forEach(function(k){total+=v[k].length;});
+    return total;
   }
   if(h.type==='exec'){
     var c=0; Object.keys(v).forEach(function(k){ if(v[k]>0)c++; });
@@ -705,16 +708,6 @@ function habitCount(wn,h){
   return v.length;
 }
 function habitDone(wn,h){
-  var v=ST['w'+wn][h.id];
-  if(h.type==='water'){
-    var days=Object.keys(v); if(!days.length)return false;
-    var ok=0; days.forEach(function(k){if(v[k]>=12)ok++;});
-    return ok>=Math.ceil(days.length/2);
-  }
-  if(h.type==='meal'){
-    var full=0; Object.keys(v).forEach(function(k){if(v[k].length>=4)full++;});
-    return full>=5;
-  }
   var c=habitCount(wn,h);
   return c>=h.meta;
 }
@@ -814,7 +807,8 @@ function buildWeekContent(wk){
     '<div class="hero-frog">'+wk.emoji+'</div>'+
     '<div class="hero-info"><div class="hero-name">'+wk.label+'</div>'+
     '<div class="hero-msg">'+wk.dates+'</div>'+
-    '<div class="prio-summary" id="prio-summary-'+wn+'"></div></div>'+
+    '<div class="prio-summary" id="prio-summary-'+wn+'"></div>'+
+    '<div class="prio-summary" id="wish-summary-'+wn+'"></div></div>'+
     '<div class="hero-score"><div class="hero-pct"><span id="sp-'+wn+'">0</span><small>/'+HABITS.length+'</small></div>'+
     '<div class="hero-week-lbl">hábitos completos</div></div></div>';
 
@@ -942,12 +936,12 @@ function buildHabitCard(wk,h){
     });
     inner+='<div class="water-note">🎯 Meta diária: mínimo 12 copos (3L) · ideal 16 (4L)</div></div>';
   } else if(h.type==='meal'){
-    inner+='<div class="meal-sec"><div class="meal-lbl">Marque as refeições de cada dia 🥗</div>';
+    inner+='<div class="meal-sec"><div class="meal-lbl">Marque as refeições e suplementos de cada dia 🥗💊</div>';
     wk.days.forEach(function(dd,di){
       inner+='<div class="meal-day" id="mday-'+wn+'-'+di+'">'+
         '<span class="meal-day-lbl">'+dd.d+' <small>'+dd.n+'</small></span>'+
         '<div class="meal-dots">';
-      ['☀️','🌤️','🌅','🌙'].forEach(function(e,mi){
+      MEAL_ICONS.forEach(function(e,mi){
         inner+='<div class="meal-dot" id="meal-'+wn+'-'+di+'-'+mi+'" onclick="toggleMealDay('+wn+','+di+','+mi+')">'+e+'</div>';
       });
       inner+='</div></div>';
@@ -1066,10 +1060,26 @@ function renderWishList(){
 }
 function toggleWish(id){
   var w=null; for(var i=0;i<WISHES.length;i++){ if(WISHES[i].id===id) w=WISHES[i]; }
-  if(w){ w.done=!w.done; saveWishes(); renderWishList(); if(w.done) confetti(); }
+  if(w){ w.done=!w.done; saveWishes(); renderWishList(); updateWishSummaries(); if(w.done) confetti(); }
+}
+function wishesDoneInWeek(wk){
+  var cnt=0;
+  WISHES.forEach(function(w){
+    if(w.done&&w.date&&w.date>=wk.start&&w.date<=wk.end) cnt++;
+  });
+  return cnt;
+}
+function updateWishSummaries(){
+  WEEKS.forEach(function(wk){
+    var el=document.getElementById('wish-summary-'+wk.n);
+    if(!el) return;
+    var n=wishesDoneInWeek(wk);
+    el.textContent=n>0?('💫 Desejos realizados nesta semana: '+n):'';
+  });
 }
 function deleteWish(id){
   WISHES=WISHES.filter(function(x){return x.id!==id});
+  updateWishSummaries();
   saveWishes(); renderWishList();
 }
 
@@ -1109,7 +1119,8 @@ function renderSpecLists(){
       } else {
         html+='<div class="spec-item"><div class="wish-chk'+(it.done?' on':'')+'" style="width:22px;height:22px" onclick="toggleSpecDone(\''+cat.id+'\','+idx+')"></div>'+
           '<div class="spec-txt'+(it.done?' done':'')+'">'+it.txt+'</div>'+
-          '<button class="prio-correct" onclick="startSpecEdit(\''+cat.id+'\','+idx+')">Corrigir</button></div>';
+          '<button class="prio-correct" onclick="startSpecEdit(\''+cat.id+'\','+idx+')">Corrigir</button>'+
+          '<button class="wish-del" onclick="deleteSpec(\''+cat.id+'\','+idx+')" title="Excluir">✕</button></div>';
       }
     });
     if(!items.length) html='<div class="spec-empty">Nenhum item ainda (até 10).</div>';
@@ -1123,6 +1134,11 @@ function toggleSpecDone(catId,idx){
   if(SPEC[catId][idx].done) confetti();
 }
 function startSpecEdit(catId,idx){ SPEC[catId][idx].editing=true; renderSpecLists(); }
+function deleteSpec(catId,idx){
+  SPEC[catId].splice(idx,1);
+  saveSpec(); renderSpecLists(); renderSpecSummary();
+  toast('↩️ Item removido');
+}
 function saveSpecEdit(catId,idx){
   var el=document.getElementById('spec-edit-'+catId+'-'+idx);
   var v=el?el.value.trim():'';
@@ -1240,7 +1256,7 @@ function renderAll(){
     var wn=wk.n;
     HABITS.forEach(function(h){
       var count=habitCount(wn,h), done=habitDone(wn,h);
-      var meta=h.type==='water'?12:(h.type==='meal'?5:h.meta);
+      var meta=h.meta;
       var pct=Math.min(100,Math.round(count/meta*100));
       var pbf=document.getElementById('pbf-'+wn+'-'+h.id);
       if(pbf) pbf.style.width=pct+'%';
@@ -1298,8 +1314,8 @@ function renderAll(){
         wk.days.forEach(function(_,di){
           var dayMeals=mealObj[di]||[];
           var mdayEl=document.getElementById('mday-'+wn+'-'+di);
-          if(mdayEl) mdayEl.style.background=dayMeals.length>=4?'var(--al)':'';
-          ['☀️','🌤️','🌅','🌙'].forEach(function(_,mi){
+          if(mdayEl) mdayEl.style.background=dayMeals.length>=MEAL_ICONS.length?'var(--al)':'';
+          MEAL_ICONS.forEach(function(_,mi){
             var md=document.getElementById('meal-'+wn+'-'+di+'-'+mi);
             if(md) md.classList.toggle('on',dayMeals.indexOf(mi)!==-1);
           });
@@ -1376,24 +1392,49 @@ function renderAll(){
 }
 
 function renderInsights(){
-  var items=[], cw=currentWeekN();
-  var streak=sleepStreak();
-  if(streak>=3) items.push({i:'🌙',t:streak+' noites no ciclo!',d:'Você está respeitando seu sono por <b>'+streak+' noites consecutivas</b>. Isso impacta diretamente energia e humor.'});
-  var best=1, bestPct=0;
-  WEEKS.forEach(function(w){ var p=weekPct(w.n); if(p>bestPct){bestPct=p;best=w.n;} });
-  if(bestPct>0) items.push({i:'⭐',t:'Semana '+best+' é seu destaque',d:'Você atingiu <b>'+bestPct+'%</b> dos hábitos na Semana '+best+'. Esse é o padrão a manter.'});
-  var wkNow=WEEKS[cw-1], tIdx=todayIdx(wkNow);
-  var aguaHoje=(ST['w'+cw].agua||{})[tIdx]||0;
-  if(tIdx>=0&&aguaHoje<12) items.push({i:'💧',t:'Hidratação de hoje: '+aguaHoje+' copos',d:'Faltam <b>'+(12-aguaHoje)+' copos</b> para atingir a meta mínima de 3L hoje.'});
-  var treinos=ST['w'+cw].academia.length;
-  if(treinos>=5) items.push({i:'🏋️',t:'Meta de treinos da semana atingida!',d:'<b>'+treinos+' treinos</b> nesta semana. Pizza no horizonte 🍕'});
-
-  if(!items.length) return document.getElementById('insights').innerHTML='';
+  var cw=currentWeekN();
   var html='<div class="sec">💡 Insights</div>';
-  items.slice(0,2).forEach(function(it){
-    html+='<div class="insight"><div class="in-i">'+it.i+'</div><div>'+
-      '<div class="in-t">'+it.t+'</div><div class="in-d">'+it.d+'</div></div></div>';
+
+  /* CAIXA 1 — resumo das prioridades da semana atual */
+  var prios=(PR['w'+cw]||[]).filter(function(p){return p.confirmed;});
+  var doneP=prios.filter(function(p){return p.done;}).length;
+  var prioBody;
+  if(!prios.length){
+    prioBody='Nenhuma prioridade confirmada ainda para a Semana '+cw+'. Vá em "Semana '+cw+'" e cadastre até 3.';
+  } else {
+    prioBody=prios.map(function(p){
+      return (p.done?'✅ ':'⬜ ')+p.p+(p.r?' <span style="color:var(--tx3)">(🎁 '+p.r+')</span>':'');
+    }).join('<br>');
+  }
+  html+='<div class="insight"><div class="in-i">🎯</div><div>'+
+    '<div class="in-t">Prioridades da Semana '+cw+' — '+doneP+'/'+prios.length+' concluídas</div>'+
+    '<div class="in-d">'+prioBody+'</div></div></div>';
+
+  /* CAIXA 2 — quadro de avisos dinâmico (bons resultados x áreas de atenção) */
+  var good=[], attention=[];
+  HABITS.forEach(function(h){
+    var count=habitCount(cw,h);
+    var pct=Math.min(100,Math.round(count/h.meta*100));
+    if(pct>=80) good.push(h.icon+' '+h.name+' ('+pct+'%)');
+    else if(pct<40) attention.push(h.icon+' '+h.name+' ('+pct+'%)');
   });
+  var log=ST['w'+cw].sleep_log||{}, felizN=0, tristeN=0, anyN=0;
+  Object.keys(log).forEach(function(k){
+    var o=sleepDayOverall(log[k]);
+    if(o){ anyN++; if(o==='feliz')felizN++; if(o==='triste')tristeN++; }
+  });
+  if(anyN>=2&&felizN/anyN>=0.6) good.push('🌙 Sono ('+felizN+'/'+anyN+' noites feliz)');
+  else if(anyN>=2&&tristeN/anyN>=0.5) attention.push('🌙 Sono ('+tristeN+'/'+anyN+' noites triste)');
+
+  var noticeBody='';
+  if(good.length) noticeBody+='<b>🌟 Indo bem:</b> '+good.join(' · ');
+  if(attention.length) noticeBody+=(noticeBody?'<br><br>':'')+'<b>⚠️ Precisa de atenção:</b> '+attention.join(' · ');
+  if(!noticeBody) noticeBody='Ainda sem dados suficientes esta semana — comece a registrar seus hábitos! 🌱';
+
+  html+='<div class="insight"><div class="in-i">📋</div><div>'+
+    '<div class="in-t">Quadro de avisos — Semana '+cw+'</div>'+
+    '<div class="in-d">'+noticeBody+'</div></div></div>';
+
   document.getElementById('insights').innerHTML=html;
 }
 /* ═══════════════ SLEEP CHART CANVAS ═══════════════ */
@@ -1684,6 +1725,7 @@ buildEspecificidades();
 loadCPFields();
 loadSleepFields();
 renderAllPrio();
+updateWishSummaries();
 renderAll();
 drawAllSleepCharts();
 
