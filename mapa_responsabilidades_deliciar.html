@@ -1,0 +1,620 @@
+<title>Mapa de Responsabilidades — Deliciar</title>
+<style>
+  :root {
+    --paper: #E8EBE7;
+    --paper-raised: #F3F5F1;
+    --ink: #1C2321;
+    --ink-soft: #4B5551;
+    --line: #C9D0CB;
+    --line-strong: #A8B1AB;
+    --fran: #1E4E8C;
+    --fran-tint: rgba(30, 78, 140, 0.10);
+    --yuri: #A83A2E;
+    --yuri-tint: rgba(168, 58, 46, 0.10);
+    --jp: #3F6E44;
+    --jp-tint: rgba(63, 110, 68, 0.10);
+    --shadow: 0 1px 2px rgba(28,35,33,0.06), 0 8px 24px rgba(28,35,33,0.06);
+    --font-display: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-body: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14181A;
+      --paper-raised: #1B211F;
+      --ink: #ECEFEC;
+      --ink-soft: #A9B3AE;
+      --line: #2B332F;
+      --line-strong: #3A433E;
+      --fran: #5C9FE8;
+      --fran-tint: rgba(92, 159, 232, 0.14);
+      --yuri: #E2685A;
+      --yuri-tint: rgba(226, 104, 90, 0.14);
+      --jp: #6FBB6F;
+      --jp-tint: rgba(111, 187, 111, 0.14);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14181A;
+    --paper-raised: #1B211F;
+    --ink: #ECEFEC;
+    --ink-soft: #A9B3AE;
+    --line: #2B332F;
+    --line-strong: #3A433E;
+    --fran: #5C9FE8;
+    --fran-tint: rgba(92, 159, 232, 0.14);
+    --yuri: #E2685A;
+    --yuri-tint: rgba(226, 104, 90, 0.14);
+    --jp: #6FBB6F;
+    --jp-tint: rgba(111, 187, 111, 0.14);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.3);
+  }
+  :root[data-theme="light"] {
+    --paper: #E8EBE7;
+    --paper-raised: #F3F5F1;
+    --ink: #1C2321;
+    --ink-soft: #4B5551;
+    --line: #C9D0CB;
+    --line-strong: #A8B1AB;
+    --fran: #1E4E8C;
+    --fran-tint: rgba(30, 78, 140, 0.10);
+    --yuri: #A83A2E;
+    --yuri-tint: rgba(168, 58, 46, 0.10);
+    --jp: #3F6E44;
+    --jp-tint: rgba(63, 110, 68, 0.10);
+    --shadow: 0 1px 2px rgba(28,35,33,0.06), 0 8px 24px rgba(28,35,33,0.06);
+  }
+
+  * { box-sizing: border-box; }
+  html { font-size: 16px; }
+  body {
+    margin: 0;
+    background: var(--paper-outer, #d8dcd6);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #0b0d0c; } }
+  :root[data-theme="dark"] body { background: #0b0d0c; }
+  :root[data-theme="light"] body { background: #d8dcd6; }
+
+  /* ---------- Page: fixed to real A3 dimensions, always exactly one page ---------- */
+  .viewport {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+  }
+  .page {
+    position: relative;
+    width: 297mm;
+    height: 420mm;
+    flex-shrink: 0;
+    background: var(--paper);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .content {
+    position: absolute;
+    top: 12mm;
+    left: 12mm;
+    right: 12mm;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    transform-origin: top center;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0 1rem 2.5rem;
+    flex-wrap: wrap;
+  }
+  .toolbar-note {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- Header ---------- */
+  .header { display: flex; flex-direction: column; gap: 0.9rem; }
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(1.7rem, 4.2vw, 2.6rem);
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    line-height: 1.05;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .keybar {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .key {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .key + .key { border-left: 1px solid var(--line-strong); }
+  .key .swatch { width: 0.65rem; height: 0.65rem; border-radius: 50%; flex-shrink: 0; }
+  .key.fran { background: var(--fran-tint); color: var(--fran); }
+  .key.yuri { background: var(--yuri-tint); color: var(--yuri); }
+  .key.jp   { background: var(--jp-tint); color: var(--jp); }
+  .key .swatch.fran { background: var(--fran); }
+  .key .swatch.yuri { background: var(--yuri); }
+  .key .swatch.jp   { background: var(--jp); }
+  .key .who { color: var(--ink-soft); font-weight: 400; }
+
+  /* ---------- Map ---------- */
+  .map-wrap {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.25rem 1.25rem 1rem;
+    box-shadow: var(--shadow);
+  }
+  .map-label {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 0.85rem;
+  }
+  .map {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 130px 88px;
+    column-gap: 0;
+    min-height: 10px;
+  }
+  .wires { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+  .lane {
+    grid-column: 2;
+    position: relative;
+    z-index: 1;
+  }
+
+  .tasks { grid-column: 1; display: flex; flex-direction: column; position: relative; z-index: 2; }
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.14rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .task-row:last-child { border-bottom: none; }
+  .dot-group { display: flex; gap: 3px; width: 34px; flex-shrink: 0; justify-content: flex-start; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .task-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    width: 1.3rem;
+    flex-shrink: 0;
+  }
+  .task-label { font-size: 0.82rem; line-height: 1.1; flex: 1; }
+  .task-tags {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+
+  .people {
+    grid-column: 3;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+  }
+  .person { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+  .badge {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--paper-raised);
+    border: 3px solid var(--ink);
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 1.5rem;
+  }
+  .person[data-id="fran"] .badge { border-color: var(--fran); color: var(--fran); }
+  .person[data-id="yuri"] .badge { border-color: var(--yuri); color: var(--yuri); }
+  .person[data-id="jp"] .badge   { border-color: var(--jp); color: var(--jp); }
+  .person-name {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .legend-note {
+    margin-top: 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- Cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .card-tab { height: 6px; }
+  .card[data-id="fran"] .card-tab { background: var(--fran); }
+  .card[data-id="yuri"] .card-tab { background: var(--yuri); }
+  .card[data-id="jp"] .card-tab   { background: var(--jp); }
+  .card-head {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.9rem 1rem 0.6rem;
+  }
+  .card-badge {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 900; font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .card[data-id="fran"] .card-badge { background: var(--fran-tint); color: var(--fran); }
+  .card[data-id="yuri"] .card-badge { background: var(--yuri-tint); color: var(--yuri); }
+  .card[data-id="jp"] .card-badge   { background: var(--jp-tint); color: var(--jp); }
+  .card-name { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; text-transform: uppercase; }
+  .card-list { list-style: none; margin: 0; padding: 0 1rem 0.75rem; flex: 1; }
+  .card-list li {
+    display: flex; gap: 0.5rem;
+    font-size: 0.76rem; line-height: 1.15;
+    padding: 0.16rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .card-list li:first-child { border-top: none; }
+  .card-list .n { font-family: var(--font-mono); color: var(--ink-soft); flex-shrink: 0; }
+  .card-focus {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 0.6rem 1rem;
+  }
+  .card[data-id="fran"] .card-focus { background: var(--fran-tint); color: var(--fran); }
+  .card[data-id="yuri"] .card-focus { background: var(--yuri-tint); color: var(--yuri); }
+  .card[data-id="jp"] .card-focus   { background: var(--jp-tint); color: var(--jp); }
+
+  .closing {
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 0.5rem 0 0;
+  }
+
+  .print-btn {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 5px;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+  }
+  .print-btn:focus-visible, a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--fran);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .page { animation: rise 0.4s ease-out; }
+    @keyframes rise { from { opacity: 0; } to { opacity: 1; } }
+  }
+
+  @media print {
+    :root, :root[data-theme="dark"], :root[data-theme="light"] {
+      --paper: #FFFFFF;
+      --paper-raised: #FFFFFF;
+      --ink: #14181A;
+      --ink-soft: #45504B;
+      --line: #CBD2CC;
+      --line-strong: #9AA59E;
+      --fran: #1E4E8C;
+      --fran-tint: rgba(30, 78, 140, 0.08);
+      --yuri: #A83A2E;
+      --yuri-tint: rgba(168, 58, 46, 0.08);
+      --jp: #3F6E44;
+      --jp-tint: rgba(63, 110, 68, 0.08);
+      --shadow: none;
+    }
+    @page { size: A3 portrait; margin: 0; }
+    body { background: #fff; }
+    .viewport { padding: 0; overflow: visible; }
+    .page { box-shadow: none; animation: none; transform: none !important; margin: 0 !important; }
+    .toolbar { display: none; }
+  }
+</style>
+
+<div class="viewport" id="viewport">
+<div class="page" id="page">
+<div class="content" id="content">
+
+  <div class="header">
+    <p class="kicker">Deliciar · Cozinha · Referência de parede</p>
+    <h1>Mapa de Responsabilidades</h1>
+    <div class="keybar">
+      <div class="key fran"><span class="swatch fran"></span>FRAN <span class="who">— pessoas &amp; padrões</span></div>
+      <div class="key yuri"><span class="swatch yuri"></span>YURI <span class="who">— operação</span></div>
+      <div class="key jp"><span class="swatch jp"></span>JP <span class="who">— estratégia</span></div>
+    </div>
+  </div>
+
+  <div class="map-wrap">
+    <p class="map-label">Quem cuida do quê — cada linha liga a tarefa ao(s) responsável(is)</p>
+    <div class="map" id="map">
+      <svg class="wires" id="wires"></svg>
+      <div class="tasks" id="tasks"></div>
+      <div class="lane"></div>
+      <div class="people" id="people">
+        <div class="person" data-id="fran"><div class="badge">F</div><div class="person-name">Fran</div></div>
+        <div class="person" data-id="yuri"><div class="badge">Y</div><div class="person-name">Yuri</div></div>
+        <div class="person" data-id="jp"><div class="badge">J</div><div class="person-name">JP</div></div>
+      </div>
+    </div>
+    <p class="legend-note">Mais de um ponto colorido ou mais de uma letra = responsabilidade dividida entre pessoas.</p>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <p class="closing">Clareza gera foco. Foco gera resultados.</p>
+
+</div>
+</div>
+</div>
+
+<div class="toolbar">
+  <button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
+  <span class="toolbar-note">Papel A3 · Retrato · Margens: nenhuma (já incluídas no design)</span>
+</div>
+
+<script>
+  const PEOPLE = [
+    { id: 'fran', name: 'Fran', letter: 'F', focus: 'Foco: pessoas, padrões e experiência' },
+    { id: 'yuri', name: 'Yuri', letter: 'Y', focus: 'Foco: operação, processos e resultados' },
+    { id: 'jp',   name: 'JP',   letter: 'J', focus: 'Foco: estratégia, crescimento e visão de futuro' }
+  ];
+
+  const TASKS = [
+    { n: 1,  label: 'Faxina/alvará', targets: ['fran','yuri'] },
+    { n: 2,  label: 'Refinamentos/padrões (abertura, plantão, fechamento)', targets: ['fran','yuri'] },
+    { n: 3,  label: 'Gestão equipe/treinamentos', targets: ['fran','yuri'] },
+    { n: 4,  label: 'Gastos/Dívidas', targets: ['fran','jp'] },
+    { n: 5,  label: 'Repasse/salários', targets: ['fran','jp'] },
+    { n: 6,  label: 'Eventos/lançamentos', targets: ['fran','jp'] },
+    { n: 7,  label: 'Lab/Podcast/camisa/conteúdo', targets: ['fran','jp'] },
+    { n: 8,  label: 'Pedidos/fornecedores', targets: ['fran','yuri','jp'] },
+    { n: 9,  label: 'NFC', targets: ['fran','jp'] },
+    { n: 10, label: 'Escala', targets: ['fran','jp'] },
+    { n: 11, label: 'Dedetização', targets: ['yuri'] },
+    { n: 12, label: 'Ficha técnica/prep', targets: ['yuri'] },
+    { n: 13, label: 'Tarefas/gestão de estoque', targets: ['yuri'] },
+    { n: 14, label: 'Criatividade (iFood)', targets: ['yuri','jp'] },
+    { n: 15, label: 'Gestão lista/Relatórios', targets: ['yuri','jp'] },
+    { n: 16, label: 'Estoque, ideias/oportunidades', targets: ['yuri','jp'] },
+    { n: 17, label: 'Vendas/promoções', targets: ['jp'] },
+    { n: 18, label: 'Reuniões', targets: ['jp'] },
+    { n: 19, label: 'Reparos/manutenções/orçamentos', targets: ['jp'] },
+    { n: 20, label: 'Parte fiscal', targets: ['jp'] },
+    { n: 21, label: 'iFood/Anúncios', targets: ['jp'] },
+    { n: 22, label: 'Cardápio + visuais loja', targets: ['jp'] },
+    { n: 23, label: 'NUU/ST/Circ.', targets: ['jp'] },
+    { n: 24, label: 'Liderança/responsabilidade geral sobre todas as áreas', targets: ['jp'] },
+    { n: 25, label: 'Documento garantidor do cumprimento do contrato social', targets: ['jp'] }
+  ];
+
+  const tasksEl = document.getElementById('tasks');
+  const cardsEl = document.getElementById('cards');
+
+  TASKS.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'task-row';
+    row.dataset.id = 't' + t.n;
+
+    const dotGroup = document.createElement('div');
+    dotGroup.className = 'dot-group';
+    t.targets.forEach(id => {
+      const d = document.createElement('span');
+      d.className = 'dot';
+      d.style.background = `var(--${id})`;
+      dotGroup.appendChild(d);
+    });
+
+    const num = document.createElement('span');
+    num.className = 'task-num';
+    num.textContent = String(t.n).padStart(2, '0');
+
+    const label = document.createElement('span');
+    label.className = 'task-label';
+    label.textContent = t.label;
+
+    const tags = document.createElement('span');
+    tags.className = 'task-tags';
+    tags.textContent = t.targets.map(id => PEOPLE.find(p => p.id === id).letter).join(' ');
+
+    row.append(num, label, tags, dotGroup);
+    tasksEl.appendChild(row);
+  });
+
+  PEOPLE.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = p.id;
+
+    const items = TASKS.filter(t => t.targets.includes(p.id))
+      .map(t => `<li><span class="n">${String(t.n).padStart(2,'0')}</span><span>${t.label}</span></li>`)
+      .join('');
+
+    card.innerHTML = `
+      <div class="card-tab"></div>
+      <div class="card-head">
+        <div class="card-badge">${p.letter}</div>
+        <div class="card-name">${p.name}</div>
+      </div>
+      <ul class="card-list">${items}</ul>
+      <div class="card-focus">${p.focus}</div>
+    `;
+    cardsEl.appendChild(card);
+  });
+
+  function colorFor(id) {
+    return getComputedStyle(document.documentElement).getPropertyValue('--' + id).trim();
+  }
+
+  function drawWires() {
+    const map = document.getElementById('map');
+    const svg = document.getElementById('wires');
+    const mapRect = map.getBoundingClientRect();
+    svg.setAttribute('width', mapRect.width);
+    svg.setAttribute('height', mapRect.height);
+    svg.setAttribute('viewBox', `0 0 ${mapRect.width} ${mapRect.height}`);
+    svg.innerHTML = '';
+
+    const colors = { fran: colorFor('fran'), yuri: colorFor('yuri'), jp: colorFor('jp') };
+
+    const personCenters = {};
+    PEOPLE.forEach(p => {
+      const el = document.querySelector(`.person[data-id="${p.id}"] .badge`);
+      const r = el.getBoundingClientRect();
+      personCenters[p.id] = {
+        x: r.left - mapRect.left,
+        y: r.top - mapRect.top + r.height / 2
+      };
+    });
+
+    TASKS.forEach(t => {
+      const rowEl = document.querySelector(`.task-row[data-id="t${t.n}"]`);
+      const dotsEl = rowEl.querySelectorAll('.dot');
+      const n = t.targets.length;
+      t.targets.forEach((id, i) => {
+        const dotRect = dotsEl[i].getBoundingClientRect();
+        const x1 = dotRect.left - mapRect.left + dotRect.width / 2;
+        const stagger = (i - (n - 1) / 2) * 3.2;
+        const y1 = dotRect.top - mapRect.top + dotRect.height / 2 + stagger;
+        const target = personCenters[id];
+        const x2 = target.x;
+        const y2 = target.y;
+        const midX = x1 + (x2 - x1) * 0.55;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', colors[id]);
+        path.setAttribute('stroke-width', '1.4');
+        path.setAttribute('stroke-opacity', '0.8');
+        path.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(path);
+      });
+    });
+  }
+
+  function scheduleDraw() { requestAnimationFrame(() => requestAnimationFrame(drawWires)); }
+
+  function mmToPx(mm) { return mm * 96 / 25.4; }
+
+  // The page box is fixed at exactly 297x420mm with overflow hidden, so it can
+  // never spill onto a second sheet. This just shrinks the content to fill that
+  // fixed box cleanly instead of relying on guessed font sizes.
+  function fitContentToPage() {
+    const content = document.getElementById('content');
+    content.style.transform = 'none';
+    void content.offsetHeight;
+    // Row/list spacing is tuned so real content fits here with scale staying at 1
+    // (no transform applied → no rasterization, full print quality). This factor is
+    // only a safety net for Chrome's "headers and footers" print option and for
+    // future content growth, not something the current data should ever need.
+    const available = mmToPx(420 - 24) * 0.9;
+    const natural = content.getBoundingClientRect().height;
+    const scale = Math.min(1, available / natural);
+    content.style.transform = scale < 1 ? `scale(${scale})` : 'none';
+  }
+
+  // Cosmetic only: shrinks the true-size A3 page so it's fully visible on a normal
+  // screen. Reset to 1:1 before printing so the physical output matches A3 exactly.
+  function fitPreviewToScreen() {
+    const page = document.getElementById('page');
+    const viewport = document.getElementById('viewport');
+    page.style.transform = 'none';
+    page.style.marginBottom = '0px';
+    const naturalWidth = page.getBoundingClientRect().width;
+    const naturalHeight = page.getBoundingClientRect().height;
+    const availableWidth = viewport.clientWidth - 32;
+    const scale = Math.min(1, availableWidth / naturalWidth);
+    if (scale < 1) {
+      page.style.transformOrigin = 'top center';
+      page.style.transform = `scale(${scale})`;
+      page.style.marginBottom = `${-(naturalHeight * (1 - scale))}px`;
+    }
+  }
+
+  function layoutAll() {
+    fitContentToPage();
+    fitPreviewToScreen();
+    scheduleDraw();
+  }
+
+  window.addEventListener('load', layoutAll);
+  window.addEventListener('resize', layoutAll);
+  window.addEventListener('beforeprint', () => {
+    const page = document.getElementById('page');
+    page.style.transform = 'none';
+    page.style.marginBottom = '0px';
+    scheduleDraw();
+  });
+  window.addEventListener('afterprint', layoutAll);
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(layoutAll); }
+  new MutationObserver(scheduleDraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', scheduleDraw);
+  }
+  layoutAll();
+</script>
