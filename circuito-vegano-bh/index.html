@@ -20,8 +20,9 @@
 <style>
 /* Fonte: _fonte (não imprimir)/app-circuito.template.html. Gere o app com "node gerar-app.js" (embute logos e códigos). */
 :root{
-  --bg:#f8fafd;--surface:#ffffff;--surface-2:#f0f4f9;--surface-3:#e3e8ef;
-  --text:#1f1f1f;--muted:#5f6368;--outline:#c4c7c5;--outline-soft:#e1e3e1;
+  --bg:#fbf8f1;--surface:#ffffff;--surface-2:#f4f0e7;--surface-3:#e8e2d5;
+  --text:#1f1f1f;--muted:#5f6368;--outline:#cfc9bd;--outline-soft:#ebe5d8;
+  --hero:#0f5223;--on-hero:#fbf8f1;--hero-soft:rgba(251,248,241,.16);
   --primary:#188038;--on-primary:#ffffff;--primary-cont:#c4eed0;--on-primary-cont:#072711;
   --g-blue:#1a73e8;--g-red:#d93025;--g-yellow:#f9ab00;--g-green:#1e8e3e;
   --green:#188038;--green-cont:#c4eed0;--on-green-cont:#072711;
@@ -94,9 +95,35 @@ main{max-width:1100px;margin:0 auto;padding:8px 16px 96px}
 .page-head p{margin:0;color:var(--muted)}
 
 /* ---------- início ---------- */
-.hero{display:flex;align-items:center;gap:20px;margin:24px 4px 24px}
-.hero-com{position:relative;flex:none;display:block;border-radius:50%}
-.hero img{width:104px;height:104px;border-radius:50%;display:block;box-shadow:var(--shadow-1);background:#fff}
+/* cartão de abertura (inspirado na capa) */
+.hero{display:flex;align-items:center;gap:24px;margin:16px 0 20px;padding:24px;border-radius:28px;background:var(--hero);color:var(--on-hero);position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;border:2px dashed var(--hero-soft);pointer-events:none}
+.hero-com{position:relative;flex:none;display:block;border-radius:50%;z-index:1}
+.hero img{width:112px;height:112px;border-radius:50%;display:block;box-shadow:0 0 0 4px var(--hero-soft);background:#fff}
+.hero-txt{position:relative;z-index:1;min-width:0}
+.hero-eye{font-size:12px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;opacity:.8;margin-bottom:6px}
+.hero .hero-status{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:4px 12px;border-radius:14px;background:var(--hero-soft);font-size:13px;font-weight:500}
+.hero-status::before{content:"";width:8px;height:8px;border-radius:50%;background:#81c995}
+.hero-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 18px;border-radius:20px;font-size:14px;font-weight:500;text-decoration:none;cursor:pointer;border:1.5px solid var(--on-hero)}
+.pill .ms{font-size:18px}
+.pill-solid{background:var(--on-hero);color:var(--hero)}
+.pill-line{background:transparent;color:var(--on-hero)}
+/* capa de abertura: 3 s e revela o app */
+.splash{position:fixed;inset:0;z-index:1000;background:var(--hero);color:var(--on-hero);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;transition:opacity .6s ease,transform .6s ease;cursor:pointer}
+.splash.out{opacity:0;transform:scale(1.04);pointer-events:none}
+.splash-in{display:flex;flex-direction:column;align-items:center}
+.splash-ring{position:relative;width:min(56vw,240px);aspect-ratio:1;margin-bottom:28px;animation:splashPop .7s cubic-bezier(.2,.8,.2,1) both}
+.splash-ring img{position:absolute;inset:14%;width:72%;height:72%;border-radius:50%;background:#fff;object-fit:cover}
+.splash-dot{position:absolute;left:50%;top:50%;width:9%;aspect-ratio:1;margin:-4.5% 0 0 -4.5%;border-radius:50%;border:2px solid var(--on-hero);opacity:.35;transition:background .3s,opacity .3s}
+.splash-dot.on{background:var(--on-hero);opacity:1}
+.splash-eye{font-size:13px;letter-spacing:2px;text-transform:uppercase;opacity:.85;animation:splashUp .6s .25s both}
+.splash-title{font-size:clamp(40px,12vw,64px);font-weight:700;line-height:1;margin:6px 0 10px;animation:splashUp .6s .35s both}
+.splash-title span{font-weight:400}
+.splash-sub{font-size:15px;opacity:.85;animation:splashUp .6s .45s both}
+.splash-tap{position:absolute;bottom:32px;left:0;right:0;font-size:12px;letter-spacing:1px;text-transform:uppercase;opacity:.6}
+@keyframes splashPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
+@keyframes splashUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .hero-badge{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;background:#25d366;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;box-shadow:var(--shadow-1)}
 .hero-badge .ms{font-size:14px}
 .brand-link{display:block;border-radius:50%;flex:none}
@@ -113,17 +140,18 @@ main{max-width:1100px;margin:0 auto;padding:8px 16px 96px}
 .file-btn{position:relative;overflow:hidden}
 .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .visits img.foto{width:40px;height:40px;border-radius:8px;object-fit:cover;flex:none}
-.hero h1{font-size:clamp(26px,5vw,38px);font-weight:400;margin:0 0 6px;letter-spacing:-.4px;line-height:1.15}
-.hero h1 b{font-weight:500}
-.hero p{margin:0;color:var(--muted);font-size:15px}
+.hero h1{font-size:clamp(24px,5vw,36px);font-weight:400;margin:0 0 6px;letter-spacing:-.4px;line-height:1.15}
+.hero h1 b{font-weight:700}
+.hero p{margin:0;opacity:.85;font-size:15px}
 .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-.card-btn{display:flex;flex-direction:column;align-items:flex-start;gap:12px;text-align:left;background:var(--surface);border:1px solid var(--outline-soft);border-radius:24px;padding:22px;cursor:pointer;transition:box-shadow .2s,transform .2s;min-height:180px;position:relative}
+.card-btn{display:flex;flex-direction:column;align-items:flex-start;gap:12px;text-align:left;background:var(--surface);border:1px solid var(--outline-soft);border-radius:28px;padding:22px;cursor:pointer;transition:box-shadow .2s,transform .2s;min-height:180px;position:relative;box-shadow:0 1px 2px rgba(60,50,30,.06)}
 .card-btn:hover{box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .card-ico{width:56px;height:56px;border-radius:16px;display:grid;place-items:center}
 .card-ico .ms{font-size:30px}
 .card-btn h2{margin:0;font-size:22px;font-weight:400}
 .card-btn p{margin:0;color:var(--muted);font-size:14px}
-.card-btn .go{position:absolute;right:20px;top:22px;color:var(--muted)}
+.card-btn .go{position:absolute;right:18px;top:20px;width:40px;height:40px;border-radius:50%;background:var(--surface-2);color:var(--text);display:grid;place-items:center;font-size:20px;transition:background .2s,color .2s}
+.card-btn:hover .go{background:var(--primary);color:var(--on-primary)}
 .ico-blue{background:var(--blue-cont);color:var(--on-blue-cont)}
 .ico-red{background:var(--red-cont);color:var(--on-red-cont)}
 .ico-yellow{background:var(--yellow-cont);color:var(--on-yellow-cont)}
@@ -312,7 +340,8 @@ textarea:focus,.field input:focus{border-color:var(--primary);box-shadow:0 0 0 1
 @media (max-width:520px){
   .brand-sub{display:none}
   .page-head h1{font-size:24px}
-  .hero img{width:80px;height:80px}
+  .hero{flex-direction:column;align-items:flex-start;gap:16px;padding:22px}
+  .hero img{width:88px;height:88px}
   .card-btn{min-height:0;padding:20px}
   .rule{flex-direction:column;gap:10px;padding:16px}
   .dlg{padding:0 18px 20px}
@@ -327,6 +356,15 @@ textarea:focus,.field input:focus{border-color:var(--primary);box-shadow:0 0 0 1
 </head>
 <body>
 
+<div class="splash" id="splash" role="presentation">
+  <div class="splash-in">
+    <div class="splash-ring" id="splash-ring"><img id="splash-logo" alt=""></div>
+    <div class="splash-eye">Circuito Gastronômico</div>
+    <div class="splash-title">Vegano <span>BH</span></div>
+    <div class="splash-sub">5/11 a 17/12 · 2026 · 9 casas</div>
+  </div>
+  <div class="splash-tap">Toque para entrar</div>
+</div>
 <div class="test-band" id="test-band" hidden><span class="ms">science</span>MODO TESTE: nada aqui conta no circuito.<button id="test-reset">Zerar teste</button></div>
 <header class="appbar" id="appbar">
   <button class="icon-btn" id="back" aria-label="Voltar" hidden><span class="ms">arrow_back</span></button>
@@ -346,11 +384,16 @@ textarea:focus,.field input:focus{border-color:var(--primary);box-shadow:0 0 0 1
     <div class="hero">
       <a class="hero-com" id="hero-com" target="_blank" rel="noopener" aria-label="Entrar na comunidade do circuito no WhatsApp">
         <img id="hero-logo" alt="Circuito Vegano">
-        <span class="hero-badge"><span class="ms">forum</span>Comunidade</span>
       </a>
-      <div>
+      <div class="hero-txt">
+        <div class="hero-eye">Edição 2026 · 9 casas</div>
         <h1>Circuito Gastronômico <b>Vegano</b> de BH</h1>
-        <p>De 5 de novembro a 17 de dezembro de 2026 · 9 casas</p>
+        <p>De 5 de novembro a 17 de dezembro</p>
+        <span class="hero-status" id="hero-status"></span>
+        <div class="hero-acts">
+          <button class="pill pill-solid" data-go="rota"><span class="ms">route</span>Ver a rota</button>
+          <a class="pill pill-line" id="hero-com2" target="_blank" rel="noopener"><span class="ms">forum</span>Comunidade</a>
+        </div>
       </div>
     </div>
     <div class="install" id="install" hidden>
@@ -1267,6 +1310,36 @@ $("#brand-logo").src = logo("circuito");
 $("#hero-logo").src = logo("circuito");
 $("#brand-com").href = CFG.comunidade;
 $("#hero-com").href = CFG.comunidade;
+$("#hero-com2").href = CFG.comunidade;
+
+/* ---------- status do circuito no cartão de abertura ---------- */
+(function () {
+  const dia = 864e5, agora = Date.now(), total = Math.round((CFG.fim - CFG.inicio) / dia);
+  const el = $("#hero-status");
+  if (agora < CFG.inicio) { const n = Math.ceil((CFG.inicio - agora) / dia); el.textContent = n === 1 ? "Começa amanhã" : `Começa em ${n} dias`; }
+  else if (agora <= CFG.fim) el.textContent = `Acontecendo agora · dia ${Math.floor((agora - CFG.inicio) / dia) + 1} de ${total}`;
+  else el.textContent = "Edição 2026 encerrada";
+})();
+
+/* ---------- capa de abertura: 3 s, depois revela o app (toque para pular) ---------- */
+(function () {
+  const sp = $("#splash"), ring = $("#splash-ring");
+  $("#splash-logo").src = logo("circuito");
+  const R = 520; // raio em % do tamanho do pontinho (≈ 47% do anel): as 9 casas do tabuleiro em volta da logo
+  const dots = Array.from({ length: N }, (_, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / N, d = document.createElement("span");
+    d.className = "splash-dot";
+    d.style.transform = `translate(${R * Math.cos(a)}%, ${R * Math.sin(a)}%)`;
+    ring.appendChild(d); return d;
+  });
+  const reduz = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const tempo = reduz ? 1200 : 3000;
+  dots.forEach((d, i) => setTimeout(() => d.classList.add("on"), 300 + i * ((tempo - 700) / N)));
+  let saiu = false;
+  const sair = () => { if (saiu) return; saiu = true; sp.classList.add("out"); setTimeout(() => sp.remove(), 650); };
+  setTimeout(sair, tempo);
+  sp.addEventListener("click", sair);
+})();
 
 /* ---------- botão provisório de zerar (só enquanto testamos) ---------- */
 if (CFG.botaoZerarProvisorio && !TESTE) {
