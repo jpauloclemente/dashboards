@@ -634,7 +634,7 @@ const CFG = {
   // Código alternativo de check-in (enviado pelo WhatsApp), só para clientes, só check-in (nunca resgate).
   // Sem servidor, o app não soma usos entre celulares: vale 1 vez por celular, até a data "ate",
   // e todo check-in feito com ele aparece marcado no relatório (a organização conta na planilha; limite: "usos").
-  alt: { umbigo: { hash: "umbigo_alt", usos: 10, ate: new Date(2026, 10, 7, 23, 59, 59).getTime() } }, // 07/11/2026
+  alt: { umbigo: { hash: "umbigo_alt", usos: 10, ate: new Date(2026, 10, 9, 23, 59, 59).getTime() } }, // 3 dias: 07 a 09/11/2026
 };
 // Quebra de linha ("\n") vira linha nova no app. Benefício progressivo (modelo do Seu Trem), usado por quem aderiu:
 const BEN_PROG = "Sozinho(a): 50% de desconto\nLevando +1 pessoa que consome: prato grátis\nLevando +2 pessoas que consomem: prato grátis + drink";
@@ -697,7 +697,7 @@ const CASAS = [
     endereco: "Rua Ouro Fino, 452 · Cruzeiro\nMercado Distrital do Cruzeiro · 1 hora de estacionamento grátis",
     horario: "Domingo e segunda: 11h às 14h30\nTerça a sábado: 11h às 15h",
     prato: "Menu do Circuito · R$ 55,50\n• Prato principal: tempeh com ravioli de cogumelos ao pesto e salada\n• Sobremesa: torta de banana",
-    premio: null, resgate: null,
+    premio: "1 sobremesa especial da casa", resgate: null,
     beneficio: "50% de desconto no Menu do Circuito\nTrazendo 1 acompanhante: 1 Menu do Circuito grátis",
     google: "https://www.google.com/search?q=Formoso+Cozinha+Natural+Belo+Horizonte", instagram: "restauranteformoso" },
 ];
