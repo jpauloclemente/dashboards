@@ -709,7 +709,7 @@ const CFG = {
   par: ["seutrem", "ladob"], // mesmo endereço: check-ins próximos não geram alerta
   qrCasas: ["ladob"],        // delivery: check-in por QR code (enviado no WhatsApp) + foto do pedido
   fotoMaxMin: 60,            // foto do pedido mais antiga que isso, em relação ao check-in, gera alerta
-  botaoZerarProvisorio: true, // SÓ PARA TESTES: tirar (false) na versão final
+  botaoZerarProvisorio: false, // versão final (07/11/2026): sem o botão de zerar
   // Código alternativo de check-in (enviado pelo WhatsApp), só para clientes, só check-in (nunca resgate).
   // Sem servidor, o app não soma usos entre celulares: vale 1 vez por celular, até a data "ate",
   // e todo check-in feito com ele aparece marcado no relatório (a organização conta na planilha; limite: "usos").
