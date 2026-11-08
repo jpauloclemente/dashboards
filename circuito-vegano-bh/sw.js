@@ -3,13 +3,13 @@
 // Página: rede primeiro (quem está online recebe sempre a versão nova); sem internet ou com sinal
 // muito fraco (mais de 3,5 s), abre a cópia guardada. Ícones, manifest e fontes: cópia guardada,
 // atualizada em segundo plano.
-const CACHE = "cvbh26-v1";
+const CACHE = "cvbh26-v2"; // v2 (08/11): a página sempre confere a versão nova, sem o cache de 10 min do GitHub
 const TIMEOUT = 3500;
 const PAGINA = new URL("./", self.registration.scope).href;
 
 self.addEventListener("install", e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./manifest.webmanifest", "./icon-192.png", "./apple-touch-icon.png"]).catch(() => {})));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./manifest.webmanifest", "./icon-192.png", "./apple-touch-icon.png"].map(u => new Request(u, { cache: "no-cache" }))).catch(() => {})));
 });
 
 self.addEventListener("activate", e => {
@@ -29,7 +29,8 @@ self.addEventListener("fetch", e => {
 
 async function pagina(r) {
   const c = await caches.open(CACHE);
-  const rede = fetch(r).then(resp => { if (resp.ok) c.put(PAGINA, resp.clone()); return resp; });
+  // "no-cache": pergunta sempre ao GitHub se há versão nova (o navegador guardaria a página por 10 min)
+  const rede = fetch(r, { cache: "no-cache" }).then(resp => { if (resp.ok) c.put(PAGINA, resp.clone()); return resp; });
   const copia = await c.match(PAGINA);
   if (!copia) return rede;
   return Promise.race([rede.catch(() => copia), new Promise(ok => setTimeout(() => ok(copia), TIMEOUT))]);
