@@ -23,7 +23,8 @@ self.addEventListener("fetch", e => {
   if (r.method !== "GET") return;
   const u = new URL(r.url);
   if (r.mode === "navigate") { e.respondWith(pagina(r)); return; }
-  if (u.origin === location.origin || /^fonts\.(googleapis|gstatic)\.com$/.test(u.hostname)) e.respondWith(guardada(r));
+  // leitor de QR (jsQR, no cdn.jsdelivr.net) também fica guardado: no iPhone ele é o leitor do check-in por QR
+  if (u.origin === location.origin || /^fonts\.(googleapis|gstatic)\.com$/.test(u.hostname) || u.hostname === "cdn.jsdelivr.net") e.respondWith(guardada(r));
 });
 
 async function pagina(r) {
