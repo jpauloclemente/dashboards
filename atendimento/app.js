@@ -273,6 +273,11 @@ async function checarIP(q) {
 // ================= equipe e acesso =================
 // Acesso total: gerente e sócio (os poderes de cada um serão refinados depois, a pedido de JP em 23/11)
 const ACESSO_TOTAL = ['gerente', 'socio'];
+// Hierarquia da equipe (JP, 23/11): sócio > gerente > chefe de chapa e chefe de fritura (painel da cozinha) > gerente de mesas (app do garçom)
+const PAPEIS = [['socio', 'Sócio (acesso total)'], ['gerente', 'Gerente (acesso total)'], ['cozinha', 'Chefe de chapa (cozinha)'], ['fritura', 'Chefe de fritura (cozinha)'], ['garcom', 'Gerente de mesas (garçom)']];
+const PAPEIS_COZINHA = ['cozinha', 'fritura'];
+const ordemPapel = p => { const i = PAPEIS.findIndex(x => x[0] === p); return i < 0 ? 99 : i; };
+function equipeOrdenada() { return (cfg().pessoas || []).slice().sort((a, b) => ordemPapel(a.papel) - ordemPapel(b.papel) || a.nome.localeCompare(b.nome, 'pt-BR')); }
 // O código pessoal nunca fica gravado em texto: guarda-se só a impressão (SHA-256).
 async function hashPin(pin) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('seutrem:' + LOJA + ':' + String(pin).trim()));
@@ -1413,9 +1418,9 @@ function telaEquipe() {
   const c = cfg();
   return `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))"><div class="card"><h2>Equipe</h2>
     <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco).</p>
-    <table class="tab"><tr><th>Nome</th><th>Função</th><th>Código</th><th></th></tr>${(c.pessoas || []).map(p => `<tr><td>${esc(p.nome)}</td><td><select class="inp" style="min-height:34px;padding:4px 8px;width:auto" data-ch="papelPessoa" data-id="${p.id}">${[['socio', 'Sócio (acesso total)'], ['gerente', 'Gerente (acesso total)'], ['garcom', 'Garçom'], ['cozinha', 'Cozinha']].map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td>••••</td><td class="n"><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}">${ic('delete')}</button></td></tr>`).join('')}</table>
+    <table class="tab"><tr><th>Nome</th><th>Função</th><th>Código</th><th></th></tr>${equipeOrdenada().map(p => `<tr><td>${esc(p.nome)}</td><td><select class="inp" style="min-height:34px;padding:4px 8px;width:auto" data-ch="papelPessoa" data-id="${p.id}">${PAPEIS.map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td>••••</td><td class="n"><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}">${ic('delete')}</button></td></tr>`).join('')}</table>
     <div class="secao-t">Acrescentar</div>${campo('Nome', 'pNome', 'Nome')}${campo('Código (4 números)', 'pPin', '', 'numeric')}
-    <div class="chips" style="margin-bottom:10px">${[['garcom', 'Garçom'], ['gerente', 'Gerente'], ['socio', 'Sócio'], ['cozinha', 'Cozinha']].map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
+    <div class="chips" style="margin-bottom:10px">${[['socio', 'Sócio'], ['gerente', 'Gerente'], ['cozinha', 'Chefe de chapa'], ['fritura', 'Chefe de fritura'], ['garcom', 'Gerente de mesas']].map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
     <button class="bt pri" data-a="addPessoa">${ic('person_add')} Acrescentar</button></div>
     <div class="card"><h2>Loja</h2>
     ${['lWa', 'lEnd', 'lPix', 'lPixNome', 'lPixCid', 'lTag', 'lMesas', 'lMin'].map(k => { if (F[k] == null) F[k] = { lWa: c.whatsapp, lEnd: c.endereco, lPix: (c.pix || {}).chave, lPixNome: (c.pix || {}).nome, lPixCid: (c.pix || {}).cidade, lTag: c.infiniteTag, lMesas: c.mesas, lMin: c.minPrato }[k]; return ''; }).join('')}
@@ -1503,7 +1508,7 @@ TELAS.garcom = () => {
 TELAS.cozinha = () => {
   if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
   if (!S.cfg) return '<div class="vazio">O sistema ainda não foi configurado na base.</div>';
-  if (!S.eu) return telaLogin('Painel da cozinha', ['cozinha'].concat(ACESSO_TOTAL));
+  if (!S.eu) return telaLogin('Painel da cozinha', PAPEIS_COZINHA.concat(ACESSO_TOTAL));
   return `<div class="tv">${telaFilaCozinha(false)}</div>`;
 };
 
