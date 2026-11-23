@@ -462,8 +462,16 @@ function modalItem(p, onAdd, opts) {
     render() {
       const falta = faltaMI(MI);
       const it = falta.length ? null : montarItem(MI);
-      let h = `<div class="entre"><h2><span class="cod">${p.cod}</span> ${esc(p.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>`;
-      if (p.desc) h += `<p class="sub">${esc(p.desc)}</p>`;
+      let h;
+      if (opts.cliente) {
+        const k = CATS_PEDIDO[p.cat] || {}; const inc = inclusosDe(p);
+        h = `<div class="md-hero" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}<button class="bt-ic md-x" data-a="fecharModal">${ic('close')}</button>${p.selo ? `<span class="selo">${esc(p.selo)}</span>` : ''}</div>
+          <h2 style="margin-top:14px">${esc(p.nome)}</h2>${p.desc ? `<p class="md-desc">${esc(p.desc)}</p>` : ''}
+          ${inc ? htmlInclusos(inc, true) : ''}${p.economia ? `<div class="pc-eco" style="margin:6px 0 4px">${esc(p.economia)}</div>` : ''}`;
+      } else {
+        h = `<div class="entre"><h2><span class="cod">${p.cod}</span> ${esc(p.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>`;
+        if (p.desc) h += `<p class="sub">${esc(p.desc)}</p>`;
+      }
       const chipsAdds = (i, espeto, burg) => {
         const lista = ADICIONAIS.filter(a => burg || (a.cod !== 72 && a.cod !== 73));
         return `<div class="sub" style="margin:8px 0 6px">Adicionais ${espeto ? '(no espeto: 3 por R$ 10)' : '(2 por R$ 10 · 3 por R$ 12)'}</div><div class="chips">` +
@@ -473,10 +481,10 @@ function modalItem(p, onAdd, opts) {
       const escolheBurg = (i) => `<div class="chips">` + BURGUERS.filter(b => !(p.semPremium && C.ACRESCIMO_COMBO_MESA[b.cod])).map(b => `<button class="chip ${MI.sel[i].burg === b.cod ? 'on' : ''}" data-a="miBurg" data-i="${i}" data-c="${b.cod}"><b>${b.cod}</b> ${esc(b.nome)}${opts.comboMesa && C.ACRESCIMO_COMBO_MESA[b.cod] ? ' <span class="sub">+' + C.ACRESCIMO_COMBO_MESA[b.cod] + '</span>' : ''}</button>`).join('') + '</div>';
       if (p.tipo === 'burguer' || p.tipo === 'comboBurguer') {
         if (p.tipo === 'comboBurguer') h += `<div class="passo ${MI.sel[0].burg ? '' : 'falta'}"><div class="pt">${ic('lunch_dining')} Qual burguer?</div>${escolheBurg(0)}</div>`;
-        if (MI.sel[0].burg) h += `<div class="passo"><div class="pt">${ic('add_circle')} ${esc(P[MI.sel[0].burg].nome)}: do jeito do cliente</div>${chipsAdds(0, false, true)}</div>`;
         if (p.tipo === 'burguer') {
-          h += `<div class="passo"><div class="pt">${ic('fastfood')} Completar com o combo?</div><div class="chips">` +
-            [[null, 'Sem combo'], [30, 'Suco/refri +28'], [31, 'Soda +30'], [32, 'Cerveja +36'], [33, 'Drink +37']].map(([c, l]) => `<button class="chip ${MI.combo === c ? 'on' : ''}" data-a="miCombo" data-c="${c === null ? '' : c}">${l}</button>`).join('') + '</div></div>';
+          h += `<div class="passo"><div class="pt">${ic('fastfood')} Completar com o combo?</div><div class="combo-ops">
+            <button class="combo-op ${MI.combo === null ? 'on' : ''}" data-a="miCombo" data-c=""><b>Só o burguer</b><small>sem combo</small></button>` +
+            [30, 31, 32, 33].map(c => { const pc = P[c]; return `<button class="combo-op ${MI.combo === c ? 'on' : ''}" data-a="miCombo" data-c="${c}"><b>+ ${R(pc.preco)}</b>${htmlInclusos(inclusoCombo(pc))}${pc.economia ? `<small class="eco">${esc(pc.economia.split('·').pop().trim())}</small>` : ''}</button>`; }).join('') + '</div></div>';
         }
         if (MI.combo) {
           const c = P[MI.combo];
@@ -485,6 +493,7 @@ function modalItem(p, onAdd, opts) {
             ${c.bebida === 'sucoRefri' ? `<div class="sub" style="margin:10px 0 6px">Bebida</div><div class="chips">${['Suco 500 ml', 'Refrigerante 600 ml'].map(d => `<button class="chip ${MI.bebTipo === d ? 'on' : ''}" data-a="miBeb" data-c="${d}">${d}</button>`).join('')}</div>` : ''}
             <input id="saborMI" class="inp" style="margin-top:8px" placeholder="${c.bebida === 'drink' ? 'Qual drink?' : c.bebida === 'cerveja' ? 'Qual cerveja?' : 'Sabor'}" data-f="saborMI" value="${esc(MI.sabor)}"></div>`;
         }
+        if (MI.sel[0].burg) h += `<div class="passo"><div class="pt">${ic('add_circle')} ${esc(P[MI.sel[0].burg].nome)}: ${opts.cliente ? 'do seu jeito' : 'do jeito do cliente'}</div>${chipsAdds(0, false, true)}</div>`;
       } else if (p.tipo === 'comboMesa') {
         p.partes.forEach((d, i) => {
           const ok = d.t === 'burguer' ? MI.sel[i].burg : d.t === 'quesadilla' ? MI.sel[i].quesa : true;
@@ -1492,34 +1501,113 @@ A.cliEntrar = async () => {
 // --- página de pedido (delivery do WhatsApp) ---
 let CARRINHO = LS.get('st-carrinho', []);
 function salvarCarrinho() { LS.set('st-carrinho', CARRINHO); }
-TELAS.pedido = () => {
-  const topo = `<div class="cli-topo"><div class="n">${esc(NOME_CURTO)}</div><div class="frase">${esc(FRASE)}</div></div>`;
-  if (S.cfg === undefined) return topo + '<div class="carregando">Carregando…</div>';
-  if (S.ui.pedidoFeito) return topo + telaPedidoFeito();
-  if (S.ui.checkout) return topo + telaCheckout();
-  const cats = []; C.itens.filter(p => p.tipo !== 'adicional' && !(p.tipo === 'comboMesa' && p.partes.length === 1)).forEach(p => { let c = cats.find(x => x.n === p.cat); if (!c) cats.push(c = { n: p.cat, i: [] }); c.i.push(p); });
-  const tot = subtotal(CARRINHO);
-  return topo + `<div class="pag-estreita" style="padding-bottom:100px"><p class="sub">Monte o seu pedido. No fim você escolhe retirada (Uber Flash) ou entrega (moto) e como pagar.</p>
-    ${cats.map(c => `<div class="cat-t">${esc(c.n)}</div>${c.i.map(p => `<div class="prod" data-a="cliProd" data-c="${p.cod}"><div style="flex:1"><div class="nm">${esc(p.nome)}</div>${p.desc ? `<div class="ds">${esc(p.desc)}</div>` : ''}</div><b>${p.precoLivre ? '17 a 30' : R(p.preco)}</b>${ic('add_circle')}</div>`).join('')}`).join('')}</div>
-    ${CARRINHO.length ? `<div class="carrinho-bar"><button class="bt pri grande bloco" data-a="irCheckout">${ic('shopping_bag')} Ver pedido (${CARRINHO.length}) · ${R(tot)}</button></div>` : ''}`;
+// Visual da página de pedido: categorias com ícone e cor (estética Google, R43; vitrine inspirada nos apps de delivery)
+const CATS_PEDIDO = {
+  'Circuito 2026': { ic: 'emoji_events', cor: '#b06000', bg: '#fef7e0', titulo: 'Circuito 2026 · lançamento' },
+  'Burguers': { ic: 'lunch_dining', cor: '#c5221f', bg: '#fce8e6', sub: 'Todos no pão brioche artesanal. Versão sem trigo: pão sem glúten +R$ 5.' },
+  'Combo do burguer': { ic: 'fastfood', cor: '#9334e6', bg: '#f3e8fd', titulo: 'Complete com o combo', sub: 'Na compra de qualquer burguer: fritas + brownie ou alfajor + bebida.' },
+  'Aperitivos': { ic: 'tapas', cor: '#188038', bg: '#e6f4ea', titulo: 'Aperitivos para começar ou dividir' },
+  'Combos da mesa': { ic: 'dinner_dining', cor: '#1a73e8', bg: '#e8f0fe', titulo: 'Combos para dividir' },
+  'Acompanhamentos e sobremesas': { ic: 'icecream', cor: '#d01884', bg: '#fde7f3', titulo: 'Acompanhamentos e doces' },
+  'Bebidas': { ic: 'local_bar', cor: '#007b83', bg: '#e4f7fb' }
 };
-A.cliProd = d => { const p = P[+d.c]; const add = it => { CARRINHO.push(it); salvarCarrinho(); toast(it.nome + ' no pedido'); render(); }; if (!precisaModal(p)) add(montarItem(novoMI(p))); else modalItem(p, add, { botao: 'Pôr no pedido' }); };
+const ORDEM_CATS = ['Circuito 2026', 'Burguers', 'Combo do burguer', 'Aperitivos', 'Combos da mesa', 'Acompanhamentos e sobremesas', 'Bebidas'];
+function icProd(p) {
+  if (!p) return 'restaurant';
+  if (p.tipo === 'burguer') return 'lunch_dining';
+  if (p.tipo === 'comboBurguer') return 'fastfood';
+  if (p.chapa === 'quesadilla') return 'local_pizza';
+  if (p.espeto) return 'kebab_dining';
+  if ([21, 24, 51].includes(p.cod)) return 'eco';
+  if ([22, 23, 25, 81, 82].includes(p.cod)) return 'fastfood';
+  if (p.cod === 83) return 'cake'; if (p.cod === 84) return 'cookie'; if (p.cod === 53) return 'icecream';
+  if (p.cod === 41 || p.cod === 42) return 'dinner_dining'; if (p.cod === 43) return 'groups'; if (p.cod === 50) return 'emoji_events';
+  return { 91: 'local_drink', 92: 'water_full', 93: 'sports_bar', 94: 'glass_cup', 95: 'local_bar' }[p.cod] || 'restaurant';
+}
+function inclusoCombo(c) {
+  const beb = { sucoRefri: ['local_drink', 'Suco ou refri'], soda: ['glass_cup', 'Soda italiana'], cerveja: ['sports_bar', 'Cerveja'], drink: ['local_bar', 'Drink da casa'] }[c.bebida];
+  return [['fastfood', 'Fritas'], ['cake', 'Brownie ou alfajor'], beb];
+}
+function htmlInclusos(lista, grande) { return `<div class="inclusos ${grande ? 'g' : ''}">` + lista.map(([i, t]) => `<span class="incl">${ic(i)}<small>${esc(t)}</small></span>`).join('<span class="mais">+</span>') + '</div>'; }
+function inclusosDe(p) {
+  if (p.tipo === 'comboBurguer') return [['lunch_dining', 'Burguer']].concat(inclusoCombo(p));
+  if (p.cod === 41) return [['lunch_dining', 'Burguer'], ['local_pizza', 'Quesadilla']];
+  if (p.cod === 42) return [['lunch_dining', 'Burguer'], ['local_pizza', 'Quesadilla'], ['kebab_dining', 'Espeto']];
+  if (p.cod === 43) return [['lunch_dining', '2 burguers'], ['local_pizza', '2 quesadillas'], ['kebab_dining', '2 espetos'], ['icecream', 'Sobremesa']];
+  if (p.cod === 50) return [['eco', 'Filezinhos'], ['lunch_dining', 'Burguer'], ['icecream', 'Sobremesa']];
+  return null;
+}
+function precoCard(p) {
+  if (p.precoLivre) return 'R$ 17 a 30';
+  if (p.tipo === 'comboBurguer') return '+ ' + R(p.preco);
+  if (p.cod === 41 || p.cod === 42) return 'a partir de ' + R(p.preco);
+  return R(p.preco);
+}
+function cardProduto(p) {
+  const k = CATS_PEDIDO[p.cat] || {}; const inc = inclusosDe(p);
+  const n = CARRINHO.filter(i => i.cod === p.cod).length;
+  return `<button class="pc" data-a="cliProd" data-c="${p.cod}">
+    <div class="pc-img" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}${p.selo ? `<span class="selo">${esc(p.selo)}</span>` : ''}${n ? `<span class="qtd">${n}</span>` : ''}</div>
+    <div class="pc-corpo"><div class="pc-nome">${esc(p.nome)}</div>
+    ${inc ? htmlInclusos(inc) : (p.desc ? `<div class="pc-desc">${esc(p.desc)}</div>` : '')}
+    ${p.economia ? `<div class="pc-eco">${esc(p.economia.split('·').pop().trim())}</div>` : ''}
+    <div class="pc-pe"><b>${precoCard(p)}</b><span class="pc-add">${ic('add')}</span></div></div></button>`;
+}
+function topoPedido(compacto) {
+  if (compacto) return `<div class="cli-topo"><div class="n">${esc(NOME_CURTO)}</div></div>`;
+  return `<div class="hero"><div class="hero-in"><div class="hero-logo">ST</div><div><div class="hero-n">${esc(NOME_CURTO)}</div><div class="hero-s">Plant-based · um trem feito procê desde 2020</div></div></div>
+    <div class="hero-chips"><span>${ic('hail')} Retirada pelo Uber Flash</span><span>${ic('two_wheeler')} Entrega por moto</span><span>${ic('payments')} PIX ou cartão</span><span>${ic('eco')} 100% vegano</span></div></div>`;
+}
+TELAS.pedido = () => {
+  if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
+  if (S.ui.pedidoFeito) return topoPedido(true) + telaPedidoFeito();
+  if (S.ui.checkout) return topoPedido(true) + telaCheckout();
+  const lista = C.itens.filter(p => p.tipo !== 'adicional' && !(p.tipo === 'comboMesa' && p.partes.length === 1));
+  const q = norm(F.buscaCli || '');
+  const filtra = p => !q || norm(p.nome + ' ' + (p.desc || '')).includes(q);
+  const cats = ORDEM_CATS.map(n => ({ n, i: lista.filter(p => p.cat === n && filtra(p)) })).filter(c => c.i.length);
+  const tot = subtotal(CARRINHO);
+  let h = topoPedido(false);
+  h += `<div class="cats-nav">${cats.map(c => `<button class="cat-chip" data-a="irCat" data-c="${esc(c.n)}">${ic(CATS_PEDIDO[c.n].ic)} ${esc(c.n)}</button>`).join('')}</div>`;
+  h += `<div class="pag-estreita pedido" style="padding-bottom:110px">
+    <div class="busca" style="margin:4px 0 14px">${ic('search')}<input id="buscaCli" data-f="buscaCli" data-vivo placeholder="Buscar no cardápio" value="${esc(F.buscaCli || '')}" autocomplete="off"></div>`;
+  if (!q) h += `<div class="sec-t">Destaques da casa</div><div class="destaques">${[P[50], P[30], P[43]].map(p => { const k = CATS_PEDIDO[p.cat]; return `<button class="dq" data-a="cliProd" data-c="${p.cod}" style="background:${k.bg}"><div class="dq-ic" style="color:${k.cor}">${ic(icProd(p))}</div>${p.selo ? `<span class="selo-in">${esc(p.selo)}</span>` : ''}<b class="dq-n">${esc(p.cod === 30 ? 'Combo do burguer' : p.nome)}</b>${htmlInclusos(inclusosDe(p))}${p.economia ? `<div class="pc-eco">${esc(p.economia)}</div>` : ''}<div class="dq-p">${precoCard(p)}</div></button>`; }).join('')}</div>`;
+  cats.forEach(c => {
+    const k = CATS_PEDIDO[c.n];
+    h += `<div class="sec" id="cat-${norm(c.n).replace(/\W+/g, '-')}"><div class="sec-t"><span class="sec-ic" style="background:${k.bg};color:${k.cor}">${ic(k.ic)}</span>${esc(k.titulo || c.n)}</div>${k.sub ? `<div class="sec-sub">${esc(k.sub)}</div>` : ''}<div class="grade-p">${c.i.map(cardProduto).join('')}</div></div>`;
+  });
+  if (!cats.length) h += '<div class="vazio">Nada encontrado.</div>';
+  h += `<p class="sub" style="text-align:center;margin-top:28px">${esc(FRASE)}</p></div>`;
+  if (CARRINHO.length) h += `<div class="carrinho-bar"><button class="bt-sacola" data-a="irCheckout"><span class="sac-n">${CARRINHO.length}</span><span>Ver sacola</span><b>${R(tot)}</b></button></div>`;
+  return h;
+};
+A.irCat = d => { const el = document.getElementById('cat-' + norm(d.c).replace(/\W+/g, '-')); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 64, behavior: 'smooth' }); };
+A.cliProd = d => { const p = P[+d.c]; modalItem(p, it => { CARRINHO.push(it); salvarCarrinho(); toast(it.nome + ' na sacola'); render(); }, { botao: 'Pôr na sacola', cliente: true }); };
 A.irCheckout = () => { S.ui.checkout = true; window.scrollTo(0, 0); render(); };
 A.voltarCardapio = () => { S.ui.checkout = false; render(); };
 A.tirarCarrinho = d => { CARRINHO.splice(+d.i, 1); salvarCarrinho(); render(); };
+A.repetirItem = d => { const it = clone(CARRINHO[+d.i]); it.uid = uid(); CARRINHO.splice(+d.i + 1, 0, it); salvarCarrinho(); render(); };
+function opcao(a, v, atual, i, t, s) { return `<button class="opcao ${atual === v ? 'on' : ''}" data-a="${a}" data-c="${v}">${ic(i)}<span><b>${t}</b><small>${s}</small></span>${ic(atual === v ? 'radio_button_checked' : 'radio_button_unchecked')}</button>`; }
 function telaCheckout() {
   const tot = subtotal(CARRINHO); const ent = F.entrega || 'retirada'; const pg = F.pgto || 'pix';
   if (F.pNomeC == null) { const u = LS.get('st-cliente', {}); F.pNomeC = u.nome || ''; F.pTelC = u.tel || ''; }
-  return `<div class="pag-estreita" style="padding-bottom:40px"><button class="bt txt" data-a="voltarCardapio">${ic('arrow_back')} Cardápio</button>
-    <h2>Seu pedido</h2><div class="itens">${CARRINHO.map((it, i) => `<div class="item"><div class="corpo"><div class="nm">${esc(it.nome)}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}</div><div class="pr">${R(precoItem(it))}</div><button class="bt-ic" data-a="tirarCarrinho" data-i="${i}">${ic('close')}</button></div>`).join('') || '<div class="vazio">Vazio</div>'}</div>
-    <div class="total-linha forte"><span>Itens</span><span>${R(tot)}</span></div>
-    <div class="secao-t">Você</div>${campo('Nome', 'pNomeC', '')}${campo('WhatsApp (com DDD)', 'pTelC', '31 9…', 'tel', 'tel')}
-    <div class="secao-t">Como recebe</div><div class="chips"><button class="chip ${ent === 'retirada' ? 'on' : ''}" data-a="cliEnt" data-c="retirada">${ic('hail')} Retirada (você chama o Uber Flash)</button><button class="chip ${ent === 'moto' ? 'on' : ''}" data-a="cliEnt" data-c="moto">${ic('two_wheeler')} Entrega (a casa chama a moto)</button></div>
-    ${ent === 'moto' ? `<div style="margin-top:10px">${campo('Rua', 'eRua', '')}<div class="linha"><div style="flex:1">${campo('Número', 'eNum', '', 'numeric')}</div><div style="flex:2">${campo('Complemento', 'eCompl', 'apto, bloco')}</div></div>${campo('Bairro', 'eBairro', '')}${campo('Ponto de referência', 'eRef', '')}<p class="sub">O frete depende do endereço: calculamos e mandamos o total no WhatsApp.</p></div>` : ''}
-    <div class="secao-t">Como paga</div><div class="chips"><button class="chip ${pg === 'pix' ? 'on' : ''}" data-a="cliPg" data-c="pix">PIX</button><button class="chip ${pg === 'cartao' ? 'on' : ''}" data-a="cliPg" data-c="cartao">Cartão de crédito ou débito (link)</button></div>
-    ${campo('Observação para a cozinha (opcional)', 'pObs', '')}
-    <label class="sub" style="display:flex;gap:8px;align-items:flex-start;margin:10px 0 14px"><input type="checkbox" data-f="pLgpd" ${F.pLgpd ? 'checked' : ''} style="margin-top:3px"> ${esc(LGPD)}</label>
-    <button class="bt verde grande bloco" data-a="finalizarPedido" ${CARRINHO.length ? '' : 'disabled'}>${ic('check')} Finalizar pedido</button></div>`;
+  const tem = re => CARRINHO.some(i => (i.partes || []).some(p => re.test(p.nome)));
+  const sug = [].concat(tem(/fritas|onion/i) ? [] : [P[81]], tem(/suco|refri|cerveja|soda|drink/i) ? [] : [P[91], P[92]], tem(/brownie|alfajor|sobremesa/i) ? [] : [P[83], P[84]]).slice(0, 4);
+  return `<div class="pag-estreita pedido" style="padding-bottom:40px"><button class="bt txt" data-a="voltarCardapio">${ic('arrow_back')} Voltar ao cardápio</button>
+    <div class="etapa"><div class="etapa-t"><span class="etapa-n">1</span> Sua sacola</div>
+      <div class="itens">${CARRINHO.map((it, i) => { const p = P[it.cod] || {}; const k = CATS_PEDIDO[p.cat] || {}; return `<div class="item"><span class="it-ic" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}</span><div class="corpo"><div class="nm">${esc(it.nome)}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}</div><div class="pr">${R(precoItem(it))}<div class="qtd-bt"><button class="bt-ic" data-a="tirarCarrinho" data-i="${i}" title="Tirar">${ic('remove_circle_outline')}</button><button class="bt-ic" data-a="repetirItem" data-i="${i}" title="Mais um igual">${ic('add_circle_outline')}</button></div></div></div>`; }).join('') || '<div class="vazio">Sua sacola está vazia.</div>'}</div>
+      ${sug.length && CARRINHO.length ? `<div class="sub" style="margin:14px 0 8px">Peça também</div><div class="sugs">${sug.map(p => `<button class="sug" data-a="cliProd" data-c="${p.cod}"><span class="sug-ic" style="background:${CATS_PEDIDO[p.cat].bg};color:${CATS_PEDIDO[p.cat].cor}">${ic(icProd(p))}</span><span class="sug-n">${esc(p.nome.replace(' (acompanha)', ''))}</span><b>${R(p.preco)}</b></button>`).join('')}</div>` : ''}</div>
+    <div class="etapa"><div class="etapa-t"><span class="etapa-n">2</span> Você</div>${campo('Nome', 'pNomeC', '')}${campo('WhatsApp (com DDD)', 'pTelC', '31 9…', 'tel', 'tel')}</div>
+    <div class="etapa"><div class="etapa-t"><span class="etapa-n">3</span> Como recebe</div>
+      <div class="opcoes">${opcao('cliEnt', 'retirada', ent, 'hail', 'Retirada', 'Você chama o Uber Flash quando avisarmos que está pronto')}${opcao('cliEnt', 'moto', ent, 'two_wheeler', 'Entrega por moto', 'A casa chama a moto; o frete vem pelo WhatsApp')}</div>
+      ${ent === 'moto' ? `<div style="margin-top:12px">${campo('Rua', 'eRua', '')}<div class="linha"><div style="flex:1">${campo('Número', 'eNum', '', 'numeric')}</div><div style="flex:2">${campo('Complemento', 'eCompl', 'apto, bloco')}</div></div>${campo('Bairro', 'eBairro', '')}${campo('Ponto de referência', 'eRef', '')}</div>` : ''}</div>
+    <div class="etapa"><div class="etapa-t"><span class="etapa-n">4</span> Como paga</div>
+      <div class="opcoes">${opcao('cliPg', 'pix', pg, 'pix', 'PIX', 'Código copia e cola na hora, com o valor certinho')}${opcao('cliPg', 'cartao', pg, 'credit_card', 'Cartão', 'Crédito ou débito no link seguro da InfinitePay')}</div>
+      <div style="margin-top:12px">${campo('Observação para a cozinha (opcional)', 'pObs', 'ex.: sem cebola')}</div></div>
+    <div class="etapa"><div class="total-linha"><span>Itens</span><span>${R(tot)}</span></div><div class="total-linha"><span>${ent === 'moto' ? 'Frete' : 'Retirada'}</span><span>${ent === 'moto' ? 'calculado no WhatsApp' : 'sem taxa'}</span></div>
+      <div class="total-linha forte"><span>Total</span><span>${R(tot)}${ent === 'moto' ? ' + frete' : ''}</span></div>
+      <label class="sub" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0 14px"><input type="checkbox" data-f="pLgpd" ${F.pLgpd ? 'checked' : ''} style="margin-top:3px"> ${esc(LGPD)}</label>
+      <button class="bt verde grande bloco" data-a="finalizarPedido" ${CARRINHO.length ? '' : 'disabled'}>${ic('check')} Finalizar pedido · ${R(tot)}</button></div></div>`;
 }
 A.cliEnt = d => { F.entrega = d.c; render(); };
 A.cliPg = d => { F.pgto = d.c; render(); };
