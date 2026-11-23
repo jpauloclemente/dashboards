@@ -1,0 +1,10 @@
+rules_version = '2';
+// Regras do banco do Sistema de atendimento (cole em Firestore Database > Regras > Publicar).
+// Só quem abre o sistema (login anônimo automático) lê e grava, e só dentro de lojas/{loja}.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /lojas/{loja}/{colecao}/{id} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
