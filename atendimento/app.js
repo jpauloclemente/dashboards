@@ -271,6 +271,8 @@ async function checarIP(q) {
 }
 
 // ================= equipe e acesso =================
+// Acesso total: gerente e sócio (os poderes de cada um serão refinados depois, a pedido de JP em 23/11)
+const ACESSO_TOTAL = ['gerente', 'socio'];
 // O código pessoal nunca fica gravado em texto: guarda-se só a impressão (SHA-256).
 async function hashPin(pin) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('seutrem:' + LOJA + ':' + String(pin).trim()));
@@ -432,7 +434,7 @@ function pedirPIN(titulo, papeis, cb) {
   });
 }
 // Pede o código do gerente/sócio e um motivo (antifraude)
-const MOTIVOS = ['Cliente desistiu', 'Lançado errado', 'Saiu errado da cozinha', 'Cortesia da casa', 'Outro'];
+const MOTIVOS = ['Cliente desistiu', 'Lançado errado', 'Aberta por engano', 'Saiu errado da cozinha', 'Cortesia da casa', 'Outro'];
 function pedirAutorizacao(titulo, cb) {
   F.pinM = ''; F.motivoM = ''; let motivo = null;
   abrirModal({
@@ -446,7 +448,7 @@ function pedirAutorizacao(titulo, cb) {
     async okA() {
       const m = motivo === 'Outro' ? (F.motivoM || '').trim() : motivo;
       if (!m) { toast('Escolha o motivo'); return; }
-      const p = await pessoaPorPin(F.pinM, ['gerente']);
+      const p = await pessoaPorPin(F.pinM, ACESSO_TOTAL);
       if (!p) { toast('Código não confere'); return; }
       fecharModal(); cb(p, m);
     }
@@ -721,7 +723,7 @@ function telaMesa(id) {
   const tot = subtotal(m.itens); const pago = (m.pagamentos || []).reduce((s, p) => s + p.valor, 0);
   h += `<div class="card" style="margin-top:16px"><div class="total-linha"><span>Subtotal</span><b>${R(tot)}</b></div>
     ${pago ? `<div class="total-linha"><span>Já recebido</span><span>${R(pago)}</span></div>` : ''}
-    <div class="linha" style="margin-top:10px"><button class="bt" data-a="conta" data-id="${id}">${ic('receipt_long')} Conta</button><button class="bt pri" data-a="receber" data-id="${id}">${ic('payments')} Receber</button></div></div>`;
+    <div class="linha" style="margin-top:10px"><button class="bt" data-a="conta" data-id="${id}">${ic('receipt_long')} Conta</button><button class="bt pri" data-a="receber" data-id="${id}">${ic('payments')} Receber</button><span style="flex:1"></span><button class="bt txt verm" data-a="zerarMesa" data-id="${id}" title="Só gerente ou sócio">${ic('restart_alt')} Zerar mesa</button></div></div>`;
   h += `<details style="margin-top:14px"><summary class="sub">Histórico da mesa (${(m.log || []).length})</summary>${(m.log || []).slice().reverse().map(l => `<div class="sub">${hora(l.t)} · ${esc(l.quem)}: ${esc(l.o)}</div>`).join('')}</details>`;
   return h;
 }
@@ -778,6 +780,30 @@ A.cancelarItem = d => {
     await DB.mutate('mesas', d.id, mm => { const x = mm.itens.find(i => i.uid === d.u); x.cancelado = { pediu: quem(), autorizou: p.nome, motivo, ts: agora(), valor: precoItem(x) }; mm.log.push({ t: agora(), quem: quem(), o: 'cancelou ' + x.nome + ' (já enviado) · autorizado por ' + p.nome + ' · ' + motivo }); return mm; });
     for (const cid of (it.cards || [])) await DB.mutate('cards', cid, c => { if (!c) return undefined; c.blocos = c.blocos.filter(b => b.item !== it.uid); return c.blocos.length ? c : null; });
     toast('Cancelado por ' + p.nome);
+  });
+};
+// Zerar mesa (aberta por engano ou lançada errada): só acesso total, com motivo; fica registrado para a conferência
+A.zerarMesa = d => {
+  const id = d.id; const m0 = S.mesas[id]; if (!m0) return;
+  const rot = m0.label || rotuloMesa(id);
+  pedirAutorizacao('Zerar a ' + rot + '? Ela volta a ficar livre.', async (p, motivo) => {
+    const m = S.mesas[id]; if (!m) return;
+    const t = agora();
+    const enviados = itensValidos(m.itens).filter(i => i.enviado);
+    const reg = {
+      id: 'z' + id + '-' + t, noiteId: noiteId(), canal: 'salao', marca: 'st', ref: rot + ' (ZERADA)', cancelado: true, zerada: true, nomes: m.nomes || [],
+      itens: [], cancelados: enviados.map(i => ({ nome: i.nome, valor: precoItem(i), pediu: quem(), autorizou: p.nome, motivo, ts: t })),
+      estornos: (m.pagamentos || []).map(x => Object.assign({}, x, { tiradoPor: quem(), autorizou: p.nome, motivo, tiradoEm: t })),
+      garcons: [...new Set((m.itens || []).map(i => i.por).concat([m.por]))].filter(Boolean),
+      subtotal: 0, dez: 0, frete: 0, total: 0, pagamentos: [], abertaEm: m.abertaEm, fechadaEm: t, por: quem(),
+      log: (m.log || []).concat({ t, quem: quem(), o: 'zerou a mesa · autorizado por ' + p.nome + ' · ' + motivo })
+    };
+    await DB.set('vendas', reg.id, reg);
+    const ops = [{ op: 'del', c: 'mesas', id }];
+    S.cards.filter(c => c.refId === id && c.origem === 'salao' && c.status !== 'feito').forEach(c => ops.push({ op: 'del', c: 'cards', id: c.id }));
+    await DB.batch(ops);
+    S.ui.mesa = null; render();
+    toast(rot + ' zerada por ' + p.nome);
   });
 };
 A.editarNomes = d => {
@@ -1276,7 +1302,7 @@ function telaNoite() {
     <div class="entre nao-imprimir" style="margin:20px 0 10px"><h2 style="margin:0">Relatório da noite</h2><div class="linha">
       <select class="inp" style="width:auto" data-ch="verNoite">${[n.id].concat((cfg().noites || []).map(x => x.id)).map(id => `<option ${id === S.ui.noiteVer ? 'selected' : ''} value="${id}">${id === n.id ? 'Noite atual' : id}</option>`).join('')}</select>
       <button class="bt" data-a="imprimir">${ic('print')} Imprimir / PDF</button><button class="bt" data-a="csv">${ic('download')} Planilha (CSV)</button></div></div>
-    <div class="kpis"><div class="kpi"><div class="v">${R(tot)}</div><div class="l">Total para NFC-e (com 10%)</div></div><div class="kpi"><div class="v">${vs.length}</div><div class="l">Vendas fechadas</div></div><div class="kpi"><div class="v">${R(dez)}</div><div class="l">10% incluído</div></div>
+    <div class="kpis"><div class="kpi"><div class="v">${R(tot)}</div><div class="l">Total para NFC-e (com 10%)</div></div><div class="kpi"><div class="v">${vs.filter(v => !v.cancelado).length}</div><div class="l">Vendas fechadas</div></div><div class="kpi"><div class="v">${R(dez)}</div><div class="l">10% incluído</div></div>
       ${Object.entries(canais).map(([k, v]) => `<div class="kpi"><div class="v">${R(v)}</div><div class="l">${k === 'salao' ? 'Salão' : k === 'ifood' ? 'iFood (pelo cardápio)' : 'WhatsApp'}</div></div>`).join('')}
       ${Object.entries(formas).map(([k, v]) => `<div class="kpi"><div class="v">${R(v)}</div><div class="l">${esc(k)}</div></div>`).join('')}</div>
     <div class="card" style="overflow-x:auto"><table class="tab"><tr><th>Hora</th><th>Venda</th><th>Itens</th><th class="n">Subtotal</th><th class="n">10%</th><th class="n">Total NFC-e</th><th>Pagamentos</th></tr>
@@ -1371,7 +1397,7 @@ A.csv = () => {
 A.novaNoite = () => {
   const abertas = Object.keys(S.mesas).length;
   if (abertas) { toast(abertas + ' mesa(s) aberta(s). Feche antes da nova noite.'); return; }
-  pedirPIN('Começar uma nova noite?', ['gerente'], async p => {
+  pedirPIN('Começar uma nova noite?', ACESSO_TOTAL, async p => {
     const antiga = cfg().noite; const nova = novaNoiteObj();
     await DB.mutate('config', 'main', c => { c.noites = [{ id: antiga.id, inicio: antiga.inicio, fim: agora() }].concat(c.noites || []).slice(0, 60); c.noite = nova; return c; });
     const ops = S.cards.filter(c => c.status === 'feito').map(c => ({ op: 'del', c: 'cards', id: c.id }));
@@ -1387,9 +1413,9 @@ function telaEquipe() {
   const c = cfg();
   return `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))"><div class="card"><h2>Equipe</h2>
     <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco).</p>
-    <table class="tab"><tr><th>Nome</th><th>Função</th><th>Código</th><th></th></tr>${(c.pessoas || []).map(p => `<tr><td>${esc(p.nome)}</td><td>${{ gerente: 'Gerente (acesso total)', garcom: 'Garçom', cozinha: 'Cozinha' }[p.papel]}</td><td>••••</td><td class="n"><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}">${ic('delete')}</button></td></tr>`).join('')}</table>
+    <table class="tab"><tr><th>Nome</th><th>Função</th><th>Código</th><th></th></tr>${(c.pessoas || []).map(p => `<tr><td>${esc(p.nome)}</td><td><select class="inp" style="min-height:34px;padding:4px 8px;width:auto" data-ch="papelPessoa" data-id="${p.id}">${[['socio', 'Sócio (acesso total)'], ['gerente', 'Gerente (acesso total)'], ['garcom', 'Garçom'], ['cozinha', 'Cozinha']].map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td>••••</td><td class="n"><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}">${ic('delete')}</button></td></tr>`).join('')}</table>
     <div class="secao-t">Acrescentar</div>${campo('Nome', 'pNome', 'Nome')}${campo('Código (4 números)', 'pPin', '', 'numeric')}
-    <div class="chips" style="margin-bottom:10px">${[['garcom', 'Garçom'], ['gerente', 'Gerente'], ['cozinha', 'Cozinha']].map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
+    <div class="chips" style="margin-bottom:10px">${[['garcom', 'Garçom'], ['gerente', 'Gerente'], ['socio', 'Sócio'], ['cozinha', 'Cozinha']].map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
     <button class="bt pri" data-a="addPessoa">${ic('person_add')} Acrescentar</button></div>
     <div class="card"><h2>Loja</h2>
     ${['lWa', 'lEnd', 'lPix', 'lPixNome', 'lPixCid', 'lTag', 'lMesas', 'lMin'].map(k => { if (F[k] == null) F[k] = { lWa: c.whatsapp, lEnd: c.endereco, lPix: (c.pix || {}).chave, lPixNome: (c.pix || {}).nome, lPixCid: (c.pix || {}).cidade, lTag: c.infiniteTag, lMesas: c.mesas, lMin: c.minPrato }[k]; return ''; }).join('')}
@@ -1399,6 +1425,13 @@ function telaEquipe() {
     <p class="sub" style="margin-top:12px">Dados: ${DB.modo === 'nuvem' ? 'nuvem (Firebase)' : 'modo local (ensaio)'} · loja ${esc(LOJA)}</p></div></div>`;
 }
 A.pPapel = d => { S.ui.pPapel = d.c; render(); };
+CH.papelPessoa = async (el, d) => {
+  const novo = el.value;
+  const outrosTotais = (cfg().pessoas || []).filter(p => p.id !== d.id && ACESSO_TOTAL.includes(p.papel)).length;
+  if (!ACESSO_TOTAL.includes(novo) && !outrosTotais) { toast('Precisa ficar pelo menos uma pessoa com acesso total'); render(); return; }
+  await DB.mutate('config', 'main', c => { const p = c.pessoas.find(x => x.id === d.id); if (!p) return undefined; c.logLoja = [{ t: agora(), quem: quem(), o: p.nome + ': ' + p.papel + ' → ' + novo }].concat(c.logLoja || []).slice(0, 100); p.papel = novo; return c; });
+  toast('Função alterada');
+};
 A.addPessoa = async () => {
   if (!F.pNome || !/^\d{4}$/.test(F.pPin || '')) { toast('Nome e código de 4 números'); return; }
   if (await pessoaPorPin(F.pPin)) { toast('Esse código já é de outra pessoa'); return; }
@@ -1432,7 +1465,7 @@ TELAS.inicio = () => `<div class="pag-estreita" style="padding-top:40px"><div cl
 TELAS.base = () => {
   if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
   if (!S.cfg) return telaConfigInicial();
-  if (!S.eu) return telaLogin('Plataforma base', ['gerente']);
+  if (!S.eu) return telaLogin('Plataforma base', ACESSO_TOTAL);
   const aba = S.ui.aba || 'mesas';
   const nPg = S.delivery.filter(d => ['frete', 'pagamento'].includes(colunaPedido(d))).length;
   const abas = [['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['cardapio', 'menu_book', 'Cardápio'], ['equipe', 'group', 'Equipe e loja']];
@@ -1457,7 +1490,7 @@ TELAS.garcom = () => {
   if (!S.cfg) return '<div class="vazio">O sistema ainda não foi configurado na base.</div>';
   const n = cfg().noite || {};
   if (PARAMS.get('t') !== n.token) return `<div class="pag-estreita" style="padding-top:60px"><div class="card plano" style="text-align:center"><h1>${ic('link_off')} Link vencido</h1><p>Este link é de outra noite. Peça o link novo na base.</p></div></div>`;
-  if (!S.eu) return telaLogin('App do garçom', ['garcom', 'gerente']);
+  if (!S.eu) return telaLogin('App do garçom', ['garcom'].concat(ACESSO_TOTAL));
   const aba = S.ui.aba || 'mesas';
   const nb = filaDe('bar').length;
   if (aba === 'caixa') assinarVendas(noiteId());
@@ -1470,7 +1503,7 @@ TELAS.garcom = () => {
 TELAS.cozinha = () => {
   if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
   if (!S.cfg) return '<div class="vazio">O sistema ainda não foi configurado na base.</div>';
-  if (!S.eu) return telaLogin('Painel da cozinha', ['cozinha', 'gerente']);
+  if (!S.eu) return telaLogin('Painel da cozinha', ['cozinha'].concat(ACESSO_TOTAL));
   return `<div class="tv">${telaFilaCozinha(false)}</div>`;
 };
 
