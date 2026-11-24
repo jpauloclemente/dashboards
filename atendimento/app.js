@@ -64,14 +64,23 @@ let BURGUERS = [], ADICIONAIS = [];
 // Bebidas e sobremesas: lista editável na base (config.extras); enquanto ninguém editar, vale a lista inicial do menu.js.
 let EXTRAS_CFG = null;
 function extrasAtuais() { return Array.isArray(EXTRAS_CFG) ? EXTRAS_CFG : C.EXTRAS; }
+// Cardápio fixo também se edita na base (v11, R50: tudo o que se vende tem uma fonte só, a base). O menu.js é o
+// ponto de partida; a base grava por cima, em config.fixosCfg: { edit: { código: campos mudados }, novos: [itens novos] }.
+// A estrutura dos combos (o que vem em cada um) e as regras de preço seguem no menu.js; nome, preço, descrição,
+// abreviação, glúten, selo e ligar/desligar mudam na base.
+let FIXOS_CFG = null;
+C.FIXOS_BASE = C.fixos.slice();
 function montarCardapio() {
   Object.keys(P).forEach(k => { delete P[k]; });
+  const ed = (FIXOS_CFG && FIXOS_CFG.edit) || {}; const novos = (FIXOS_CFG && Array.isArray(FIXOS_CFG.novos)) ? FIXOS_CFG.novos : [];
+  C.fixos = C.FIXOS_BASE.map(i => ed[i.cod] ? Object.assign({}, i, ed[i.cod], { editado: true }) : Object.assign({}, i))
+    .concat(novos.filter(n => !C.FIXOS_BASE.some(b => b.cod === n.cod)).map(n => Object.assign({}, n, { novo: true })));
   C.fixos.forEach(i => { P[i.cod] = i; });
   const ex = extrasAtuais().map(i => Object.assign({ setor: 'bar', tipo: 'bebida' }, i, { desc: i.ingredientes || i.desc || '', extra: true }));
   ex.forEach(i => { if (!P[i.cod]) P[i.cod] = i; });
   // Foto do produto (v10): arquivo fotos/<código>.jpg registrado em FOTOS no menu.js
   C.fixos.concat(ex).forEach(i => { const f = (C.FOTOS || {})[i.cod]; if (f && !i.foto) i.foto = f; });
-  C.itens = C.fixos.concat(ex.filter(i => i.ativo !== false && P[i.cod] === i));
+  C.itens = C.fixos.filter(i => i.ativo !== false).concat(ex.filter(i => i.ativo !== false && P[i.cod] === i));
   BURGUERS = C.itens.filter(i => i.tipo === 'burguer');
   ADICIONAIS = C.itens.filter(i => i.tipo === 'adicional');
 }
@@ -242,13 +251,29 @@ function pintar() {
   // Faixas que rolam de lado (destaques, categorias, abas, kanban) ficam onde a pessoa deixou (JP, 24/11/2026:
   // o carrossel dos destaques voltava sozinho para o primeiro a cada repintura)
   const lados = {}; app.querySelectorAll('[data-rola]').forEach(el => { lados[el.dataset.rola] = el.scrollLeft; });
-  app.innerHTML = TELAS[VIEW] ? TELAS[VIEW]() : TELAS.inicio();
+  app.innerHTML = (MODO_TESTE ? faixaTeste() : '') + (TELAS[VIEW] ? TELAS[VIEW]() : TELAS.inicio());
   app.querySelectorAll('[data-rola]').forEach(el => { const x = lados[el.dataset.rola]; if (x) el.scrollLeft = x; });
   if (MODAL) pintarModal();
   if (foco) { const el = document.getElementById(foco.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(foco.s, foco.e); } catch (e) {} } }
   window.scrollTo(0, rolagem);
   if (DEPOIS.length) { const fs = DEPOIS.splice(0); fs.forEach(f => f()); }
   posPintura();
+  SIG = sigTempo();
+}
+// Sem repintura por relógio (JP, 24/11/2026: "quem utilizar precisa ter liberdade de navegação própria").
+// A tela só se redesenha quando algo muda de verdade (pedido novo, item, pagamento). Os relógios (minutos, cores
+// de urgência, hora) se atualizam no lugar, sem mexer em rolagem, foco ou no que a pessoa está fazendo.
+// Única exceção: quando o tempo muda o que está na fila (bebida "com o prato" que entra sozinha).
+const CORES_T = ['verde', 'amarelo', 'laranja', 'vermelho'];
+let SIG = '';
+function sigTempo() { return ['base', 'garcom', 'cozinha'].includes(VIEW) && S.cfg ? ['cozinha', 'bar'].map(s => filaDe(s).map(c => c.id).join(',')).join('|') : ''; }
+function tique() {
+  const antes = S.eu; tentarEu();
+  if (S.eu !== antes || sigTempo() !== SIG) { render(); return; }
+  document.querySelectorAll('[data-min]').forEach(el => { el.textContent = minDesde(+el.dataset.min) + ' min'; });
+  document.querySelectorAll('[data-ate]').forEach(el => { el.textContent = Math.max(0, Math.ceil((+el.dataset.ate - agora()) / 60000)); });
+  document.querySelectorAll('[data-cor]').forEach(el => { const m = minDesde(+el.dataset.cor); const cor = el.dataset.esc === 'bar' ? corBar(m) : corCoz(m); const p = el.dataset.pref || ''; CORES_T.forEach(c => el.classList.remove(p + c)); el.classList.add(p + cor); });
+  document.querySelectorAll('[data-relogio]').forEach(el => { el.textContent = hora(agora()); });
 }
 const DEPOIS = [];
 function posPintura() {
@@ -259,7 +284,7 @@ const cfg = () => S.cfg || {};
 const noiteId = () => (cfg().noite && cfg().noite.id) || 'sem-noite';
 
 function assinar(cols) {
-  if (cols.includes('config')) DB.listenDoc('config', 'main', d => { S.cfg = d; EXTRAS_CFG = d && Array.isArray(d.extras) ? d.extras : null; montarCardapio(); tentarEu(); render(); });
+  if (cols.includes('config')) DB.listenDoc('config', 'main', d => { S.cfg = d; EXTRAS_CFG = d && Array.isArray(d.extras) ? d.extras : null; FIXOS_CFG = (d && d.fixosCfg) || null; montarCardapio(); tentarEu(); render(); });
   if (cols.includes('mesas')) DB.listen('mesas', a => { S.mesas = {}; a.forEach(m => { S.mesas[m.id] = m; }); render(); });
   if (cols.includes('cards')) DB.listen('cards', a => { const antes = S.cards.length; S.cards = a; aoMudarCards(antes); render(); });
   if (cols.includes('delivery')) DB.listen('delivery', a => { S.delivery = a; render(); });
@@ -359,9 +384,46 @@ const PAPEIS_COZINHA = ['cozinha', 'fritura'];
 const ordemPapel = p => { const i = PAPEIS.findIndex(x => x[0] === p); return i < 0 ? 99 : i; };
 function equipeOrdenada() { return (cfg().pessoas || []).slice().sort((a, b) => ordemPapel(a.papel) - ordemPapel(b.papel) || a.nome.localeCompare(b.nome, 'pt-BR')); }
 // O código pessoal nunca fica gravado em texto: guarda-se só a impressão (SHA-256).
-async function hashPin(pin) {
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('seutrem:' + LOJA + ':' + String(pin).trim()));
+async function hashPin(pin, loja) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('seutrem:' + (loja || LOJA) + ':' + String(pin).trim()));
   return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+// ================= modo de teste (JP, 24/11/2026) =================
+// Botão na base, só com código de sócio. Leva para a loja de ensaio (dados separados da loja real), já com o
+// sócio cadastrado (o mesmo código) e o cardápio da loja real copiado. Tudo fica com outro ambiente visual
+// (faixa listrada, cores roxas) para ficar explícito que é teste. Os links gerados lá (garçom, cozinha, pedido)
+// carregam o modo de teste junto.
+const LOJA_TESTE = 'ensaio';
+const MODO_TESTE = LOJA === LOJA_TESTE || LOJA === 'local';
+function faixaTeste() {
+  const sair = ['base', 'cozinha', 'pedido'].includes(VIEW);
+  return `<div class="faixa-teste">${ic('science')}<span class="t">Modo de teste<span class="d"> · ${DB && DB.modo === 'local' ? 'ensaio neste navegador' : 'loja de ensaio'} · nada aqui vale para a loja real</span></span>${sair ? `<button data-a="sairTeste">${ic('logout')} Sair do teste</button>` : ''}</div>`;
+}
+const acaoModoTeste = () => pedirPIN('Entrar no modo de teste', ['socio'], async (p, pin) => {
+  const c = cfg();
+  const ida = {
+    eu: { id: p.id, nome: p.nome, h: await hashPin(pin, LOJA_TESTE) },
+    cardapio: { extras: Array.isArray(c.extras) ? c.extras : null, fixosCfg: c.fixosCfg || null },
+    loja: { nome: c.nome || NOME_CURTO, frase: c.frase || FRASE, mesas: c.mesas || 14, minPrato: c.minPrato || 15, whatsapp: c.whatsapp || '', endereco: c.endereco || '', pix: c.pix || {}, infiniteTag: c.infiniteTag || 'seutrem' }
+  };
+  try { sessionStorage.setItem('st-teste', JSON.stringify(ida)); } catch (e) {}
+  location.href = BASE_URL + '?v=base&loja=' + LOJA_TESTE;
+});
+const acaoSairTeste = () => { location.href = BASE_URL + '?v=' + (VIEW === 'pedido' || VIEW === 'cozinha' ? VIEW : 'base'); };
+// Chegada na loja de ensaio: garante o sócio (mesmo código) e copia o cardápio da loja real
+async function chegadaTeste() {
+  let ida = null; try { ida = JSON.parse(sessionStorage.getItem('st-teste') || 'null'); sessionStorage.removeItem('st-teste'); } catch (e) {}
+  if (!ida || LOJA !== LOJA_TESTE) return;
+  await DB.mutate('config', 'main', c => {
+    c = c || Object.assign({}, ida.loja, { pessoas: [], noite: novaNoiteObj(), noites: [], seqPedido: 0, criadoEm: agora() });
+    c.pessoas = (c.pessoas || []).filter(x => x.id !== ida.eu.id).concat({ id: ida.eu.id, nome: ida.eu.nome, h: ida.eu.h, papel: 'socio' });
+    c.extras = ida.cardapio.extras; c.fixosCfg = ida.cardapio.fixosCfg;
+    c.logLoja = [{ t: agora(), quem: ida.eu.nome, o: 'entrou no modo de teste (cardápio copiado da loja real)' }].concat(c.logLoja || []).slice(0, 100);
+    return c;
+  });
+  LS.set('st-eu-' + LOJA + '-base', { id: ida.eu.id });
+  toast('Modo de teste: cardápio da loja real copiado');
 }
 async function pessoaPorPin(pin, papeis) {
   if (!pin) return null;
@@ -558,7 +620,7 @@ function pedirPIN(titulo, papeis, cb) {
     render: () => `<h2>${esc(titulo)}</h2><p class="sub">Digite o código de 4 números de quem autoriza. Fica registrado com nome e hora.</p>
       <div class="campo">${inputPin('pinM', 'okPin')}</div>
       <div class="linha"><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="okPin">Confirmar</button></div>`,
-    async okPin() { const p = await pessoaPorPin(F.pinM, papeis); F.pinM = ''; if (!p) { toast('Código não confere'); pintarModal(); return; } fecharModal(); cb(p); }
+    async okPin() { const pin = F.pinM; const p = await pessoaPorPin(pin, papeis); F.pinM = ''; if (!p) { toast('Código não confere'); pintarModal(); return; } fecharModal(); cb(p, pin); }
   });
 }
 // Campo do código pessoal: texto mascarado (não é campo de senha), para o navegador não guardar nem preencher sozinho
@@ -737,6 +799,7 @@ function precisaModal(p) {
 // ================= ações (cliques) =================
 const A = {};
 const CH = {};
+A.modoTeste = acaoModoTeste; A.sairTeste = acaoSairTeste;
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el) return;
   const nome = el.dataset.a;
@@ -816,11 +879,13 @@ function listaMesas() {
   Object.keys(S.mesas).filter(id => !ids.includes(id)).sort().forEach(id => ids.push(id));
   return ids;
 }
-function corMesa(id) {
+function inicioMesa(id) {
   const cs = S.cards.filter(c => c.refId === id && c.origem === 'salao' && c.setor === 'cozinha' && emFila(c) && c.status !== 'aguardando');
-  if (!cs.length) return null;
-  return corCoz(minDesde(Math.min(...cs.map(cardInicio))));
+  return cs.length ? Math.min(...cs.map(cardInicio)) : null;
 }
+function corMesa(id) { const t = inicioMesa(id); return t == null ? null : corCoz(minDesde(t)); }
+// Bolinha de urgência que muda de cor sozinha (sem repintar a tela)
+function pontoMesa(id) { const t = inicioMesa(id); return t == null ? '' : `<span class="ponto c-${corCoz(minDesde(t))}" data-cor="${t}" data-pref="c-"></span>`; }
 function telaSlots() {
   const ids = listaMesas();
   const ci = consumoValidos(); const porTipo = contarPorTipo(ci);
@@ -831,10 +896,10 @@ function telaSlots() {
   ids.forEach(id => {
     const m = S.mesas[id];
     if (!m) { h += `<button class="slot livre" data-a="abrirMesa" data-id="${id}"><div class="num">${esc(rotuloMesa(id))}</div><div class="inf">livre</div></button>`; return; }
-    const cor = corMesa(id); const tot = subtotal(m.itens); const pend = itensValidos(m.itens).filter(i => !i.enviado).length;
-    h += `<button class="slot" data-a="verMesa" data-id="${id}"><div class="num">${esc(m.label || rotuloMesa(id))} ${cor ? `<span class="ponto c-${cor}"></span>` : ''}</div>
+    const tot = subtotal(m.itens); const pend = itensValidos(m.itens).filter(i => !i.enviado).length;
+    h += `<button class="slot" data-a="verMesa" data-id="${id}"><div class="num">${esc(m.label || rotuloMesa(id))} ${pontoMesa(id)}</div>
       <div class="nomes">${esc((m.nomes || []).join(', ') || '—')}</div>
-      <div class="inf">${R(tot)} · ${minDesde(m.abertaEm)} min${pend ? ` · <b style="color:var(--laranja)">${pend} a enviar</b>` : ''}</div></button>`;
+      <div class="inf">${R(tot)} · <span data-min="${m.abertaEm}">${minDesde(m.abertaEm)} min</span>${pend ? ` · <b style="color:var(--laranja)">${pend} a enviar</b>` : ''}</div></button>`;
   });
   h += `<button class="slot novo" data-a="novoSlot">${ic('add')} Slot extra (fila)</button></div>`;
   return h;
@@ -943,18 +1008,17 @@ function statusItem(it) {
   const pend = cs.filter(c => c.status !== 'feito');
   if (!pend.length) return '<span class="tag ok">pronto ✓</span>';
   return pend.map(c => {
-    if (c.status === 'espera' && c.liberaEm > agora()) return `<span class="tag cinza">bebida com o prato · ${Math.ceil((c.liberaEm - agora()) / 60000)} min</span>`;
-    const m = minDesde(cardInicio(c)); const cor = c.setor === 'bar' ? corBar(m) : corCoz(m);
-    return `<span class="tag" style="background:#fff;border:1px solid var(--borda)"><span class="ponto c-${cor}"></span> ${c.setor === 'bar' ? 'bar' : 'cozinha'} ${m} min</span>`;
+    if (c.status === 'espera' && c.liberaEm > agora()) return `<span class="tag cinza">bebida com o prato · <span data-ate="${c.liberaEm}">${Math.ceil((c.liberaEm - agora()) / 60000)}</span> min</span>`;
+    const t0 = cardInicio(c); const m = minDesde(t0); const cor = c.setor === 'bar' ? corBar(m) : corCoz(m);
+    return `<span class="tag" style="background:#fff;border:1px solid var(--borda)"><span class="ponto c-${cor}" data-cor="${t0}" data-esc="${c.setor === 'bar' ? 'bar' : 'coz'}" data-pref="c-"></span> ${c.setor === 'bar' ? 'bar' : 'cozinha'} <span data-min="${t0}">${m} min</span></span>`;
   }).join(' ');
 }
 function telaMesa(id) {
   const m = S.mesas[id];
   if (!m) return `<div class="vazio">Esta mesa foi fechada.<br><br><button class="bt" data-a="voltarMesas">Voltar às mesas</button></div>`;
   const val = itensValidos(m.itens); const pend = val.filter(i => !i.enviado); const env = val.filter(i => i.enviado);
-  const cor = corMesa(id);
   let h = `<div class="mesa-topo"><button class="bt-ic" data-a="voltarMesas">${ic('arrow_back')}</button>
-    <h1 style="margin:0;flex:1">${esc(m.label || rotuloMesa(id))} ${cor ? `<span class="ponto c-${cor}"></span>` : ''}</h1>
+    <h1 style="margin:0;flex:1">${esc(m.label || rotuloMesa(id))} ${pontoMesa(id)}</h1>
     <button class="bt ton" data-a="qrCliente" data-id="${id}">${ic('qr_code_2')} QR</button></div>
     <div class="nomes-mesa">${(m.nomes || []).map(n => `<span class="nome-p">${esc(n)}</span>`).join('')}<button class="chip" data-a="editarNomes" data-id="${id}">${ic('edit')} nomes</button>
     ${(m.clientes || []).length ? `<span class="tag whatsapp">${ic('chat')} ${m.clientes.length} no WhatsApp</span>` : ''}</div>
@@ -1271,14 +1335,14 @@ function telaBebidas() {
   let h = `<h2>Bebidas pendentes</h2>`;
   if (!fila.length) h += '<div class="vazio">Nada pendente no bar.</div>';
   h += '<div class="grade">' + fila.map(c => {
-    const m = minDesde(cardInicio(c)); const veio = c.status === 'espera';
-    return `<div class="bc ${corBar(m)}"><div class="entre"><span><span class="tag ${c.origem}">${c.origem === 'salao' ? 'salão' : c.origem}</span> <b>${esc(c.ref)}</b></span><b>${m} min</b></div>
+    const t0 = cardInicio(c); const m = minDesde(t0); const veio = c.status === 'espera';
+    return `<div class="bc ${corBar(m)}" data-cor="${t0}" data-esc="bar"><div class="entre"><span><span class="tag ${c.origem}">${c.origem === 'salao' ? 'salão' : c.origem}</span> <b>${esc(c.ref)}</b></span><b data-min="${t0}">${m} min</b></div>
       ${c.blocos.map(b => b.linhas.map(l => `<div class="bl">${esc(l.ab || l.nome)}${l.trocas.length ? ` <span class="troca" style="color:#b06000;font-size:14px">${esc(l.trocas.join(', '))}</span>` : ''}</div>`).join('')).join('')}
       ${c.pgPendente ? '<span class="tag aviso">pagamento a confirmar</span>' : ''}
       <div class="linha"><button class="bt verde" style="flex:1" data-a="feito" data-id="${c.id}">${ic('check')} Feito</button>${veio ? `<button class="bt" data-a="voltaEspera" data-id="${c.id}">${ic('undo')} Voltar p/ espera</button>` : ''}</div></div>`;
   }).join('') + '</div>';
   if (espera.length) {
-    h += `<div class="secao-t">Vão com o prato (entram sozinhas)</div><div class="grade">` + espera.map(c => `<div class="bc espera"><div class="entre"><b>${esc(c.ref)}</b><span>entra em ${Math.ceil((c.liberaEm - agora()) / 60000)} min</span></div>
+    h += `<div class="secao-t">Vão com o prato (entram sozinhas)</div><div class="grade">` + espera.map(c => `<div class="bc espera"><div class="entre"><b>${esc(c.ref)}</b><span>entra em <span data-ate="${c.liberaEm}">${Math.ceil((c.liberaEm - agora()) / 60000)}</span> min</span></div>
       ${c.blocos.map(b => b.linhas.map(l => `<div class="bl">${esc(l.ab || l.nome)}</div>`).join('')).join('')}
       <button class="bt" data-a="liberarJa" data-id="${c.id}">${ic('play_arrow')} Fazer agora</button></div>`).join('') + '</div>';
   }
@@ -1313,11 +1377,11 @@ function somaFila(cards) {
   return s;
 }
 function cardCozinha(c) {
-  const ag = c.status === 'aguardando'; const m = minDesde(ag ? c.criadoEm : cardInicio(c));
+  const ag = c.status === 'aguardando'; const t0 = ag ? c.criadoEm : cardInicio(c); const m = minDesde(t0);
   const cor = ag ? 'aguardando' : corCoz(m);
   const tagO = c.origem === 'salao' ? 'salão' : c.origem === 'ifood' ? 'iFood' : 'WhatsApp';
   const alergia = c.blocos.some(b => b.linhas.some(l => l.alergia));
-  let h = `<div class="kc ${cor} ${alergia ? 'com-alergia' : ''}" data-card="${c.id}"><div class="kh"><span class="tag ${c.origem}">${tagO}</span>${c.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<span class="ref">${esc(c.ref)}</span><span class="tempo">${m} min</span></div>`;
+  let h = `<div class="kc ${cor} ${alergia ? 'com-alergia' : ''}" data-card="${c.id}"${ag ? '' : ` data-cor="${t0}"`}><div class="kh"><span class="tag ${c.origem}">${tagO}</span>${c.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<span class="ref">${esc(c.ref)}</span><span class="tempo" data-min="${t0}">${m} min</span></div>`;
   if (alergia) h += `<div class="kalerta">${ic('warning')} ALERGIA A GLÚTEN</div>`;
   if (c.nPedido) h += `<div class="npedido">${ordinal(c.nPedido)} pedido com a gente</div>`;
   // Na TV, a abreviação da linha de produção (como nas fichas de montagem); sem abreviação, o nome
@@ -1341,7 +1405,7 @@ function cardCozinha(c) {
 function telaFilaCozinha(compacta) {
   const fila = filaDe('cozinha'); const s = somaFila(fila.filter(c => c.status !== 'aguardando'));
   return `<div class="tv-topo">${compacta ? '' : `<b style="font-size:20px">Cozinha</b>`}<div class="soma"><div class="s"><b>${s.burguer}</b>hambúrgueres</div><div class="s"><b>${s.quesadilla}</b>quesadillas</div><div class="s"><b>${s.cogumelo}</b>cogumelos</div></div>
-    <span class="esp" style="flex:1"></span><span style="font-size:22px;font-weight:700">${hora(agora())}</span>${compacta ? '' : `<button class="bt-ic" data-a="sair" title="Sair">${ic('logout')}</button>`}</div>
+    <span class="esp" style="flex:1"></span><span style="font-size:22px;font-weight:700" data-relogio>${hora(agora())}</span>${compacta ? '' : `<button class="bt-ic" data-a="sair" title="Sair">${ic('logout')}</button>`}</div>
     ${fila.length ? `<div class="fila" id="fila">${fila.map(cardCozinha).join('')}</div>` : '<div class="tv-vazia">Fila vazia</div>'}
     ${compacta ? telaFeitosRecentes() : ''}`;
 }
@@ -1831,7 +1895,7 @@ A.salvarLoja = async () => {
   toast('Loja salva');
 };
 function telaCardapio() {
-  const fixos = C.itens.filter(p => !p.extra);
+  const fixos = C.fixos;
   const cats = []; fixos.forEach(p => { let c = cats.find(x => x.n === p.cat); if (!c) cats.push(c = { n: p.cat, i: [] }); c.i.push(p); });
   const ex = extrasAtuais();
   const resumoOps = p => (p.grupos || []).map(g => g.t + ': ' + g.ops.map(o => o.n + (o.mais ? ' + ' + Rc(o.mais) : '')).join(', ')).join(' · ');
@@ -1841,9 +1905,91 @@ function telaCardapio() {
     ${ex.slice().sort((a, b) => (a.cat || '').localeCompare(b.cat || '') || a.cod - b.cod).map(p => `<tr style="${p.ativo === false ? 'opacity:.5' : ''}"><td><span class="cod">${p.cod}</span></td><td><b>${esc(p.nome)}</b><br><span class="sub">${esc(p.cat)}${p.ingredientes ? ' · ' + esc(p.ingredientes) : ''}</span></td>
       <td>${esc(p.ab || '(nome)')}</td><td class="sub">${esc(resumoOps(p))}${comboDe(p) ? `<br><span class="tag combo" style="margin-top:4px">combo: ${esc(ROT_COMBO[comboDe(p)] || comboDe(p))}</span>` : ''}</td><td class="n">${R(p.preco)}${p.precoDelivery ? `<br><span class="sub">delivery ${R(p.precoDelivery)}</span>` : ''}</td>
       <td><input type="checkbox" class="ck" data-ch="extraAtivo" data-c="${p.cod}" ${p.ativo !== false ? 'checked' : ''}></td><td class="n"><button class="bt-ic" data-a="extraEditar" data-c="${p.cod}" title="Editar">${ic('edit')}</button></td></tr>`).join('')}</table></div>
-    <h2>Cardápio fixo</h2><p class="sub">Do Cardápio A3 FINAL, com os códigos de 23/11 e as abreviações da linha de produção (as das fichas de montagem). Mudança aqui: peça ao Claude (arquivo menu.js).</p>
-    <div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))">${cats.map(c => `<div class="card"><h3>${esc(c.n)}</h3><table class="tab">${c.i.map(p => `<tr><td><span class="cod">${p.cod}</span></td><td>${esc(p.nome)}${p.ab ? `<br><span class="sub">TV: <b>${esc(p.ab)}</b></span>` : ''}</td><td>${p.setor === 'bar' ? '<span class="tag cinza">bar</span>' : ''}</td><td class="n">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}</td></tr>`).join('')}</table></div>`).join('')}</div>`;
+    <div class="entre"><h2 style="margin:0">Cardápio fixo</h2><button class="bt pri" data-a="fixoNovo">${ic('add')} Novo item</button></div>
+    <p class="sub">Burguers, aperitivos, combos, Circuito, adicionais, acompanhamentos e doces. Toque no lápis para mudar nome, preço, descrição, abreviação, glúten e selo; desligue o que saiu do cardápio. Tudo chega na hora ao garçom, à TV e ao link do WhatsApp (R50). O que vem dentro de cada combo e as regras de preço (2 adicionais por R$ 10, Bitrem e CTB nos combos da mesa) seguem fixos: para mudar, peça ao Claude.</p>
+    <div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))">${cats.map(c => `<div class="card"><h3>${esc(c.n)}</h3><table class="tab">${c.i.map(p => `<tr style="${p.ativo === false ? 'opacity:.5' : ''}"><td><span class="cod">${p.cod}</span></td><td>${esc(p.nome)}${p.ab ? `<br><span class="sub">TV: <b>${esc(p.ab)}</b></span>` : ''}${p.editado ? ' <span class="tag aviso">editado</span>' : ''}${p.novo ? ' <span class="tag ok">novo</span>' : ''}</td><td>${p.setor === 'bar' ? '<span class="tag cinza">bar</span>' : ''}</td><td class="n">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}${p.precoDelivery ? `<br><span class="sub">delivery ${R(p.precoDelivery)}</span>` : ''}</td>
+      <td><input type="checkbox" class="ck" data-ch="fixoAtivo" data-c="${p.cod}" ${p.ativo !== false ? 'checked' : ''} title="Ligado"></td><td class="n"><button class="bt-ic" data-a="fixoEditar" data-c="${p.cod}" title="Editar">${ic('edit')}</button></td></tr>`).join('')}</table></div>`).join('')}</div>`;
   return h;
+}
+// --- edição do cardápio fixo (grava em config.fixosCfg; fica registrado no log da loja) ---
+async function salvarFixos(fn, log) {
+  await DB.mutate('config', 'main', c => {
+    const fc = clone(c.fixosCfg || {}); fc.edit = fc.edit || {}; fc.novos = Array.isArray(fc.novos) ? fc.novos : [];
+    const r = fn(fc); if (r === false) return undefined;
+    c.fixosCfg = fc; c.logLoja = [{ t: agora(), quem: quem(), o: 'cardápio fixo: ' + log }].concat(c.logLoja || []).slice(0, 100); return c;
+  });
+}
+CH.fixoAtivo = async (el, d) => {
+  const cod = +d.c; const p = P[cod]; if (!p) return;
+  await salvarFixos(fc => { const n = fc.novos.find(x => x.cod === cod); if (n) n.ativo = el.checked; else { fc.edit[cod] = Object.assign(fc.edit[cod] || {}, { ativo: el.checked }); } }, p.nome + (el.checked ? ' ligado' : ' desligado'));
+};
+A.fixoEditar = d => modalFixo(P[+d.c], null);
+A.fixoNovo = () => modalFixo(null, 'Burguers');
+// Glúten do prato (o pão brioche de trigo já entra sozinho em todo burguer)
+const GL_OPS = [['isca', 'Isca empanada (só no fubá)'], ['onion', 'Onion rings dentro (sai na alergia)'], ['trigo', 'Tortilha de trigo'], ['oniprato', 'O prato é de onion rings']];
+// Categorias em que se cria item novo, com o tipo que o sistema entende e a faixa de códigos
+const CATS_NOVO = { 'Burguers': { tipo: 'burguer', setor: 'cozinha', chapa: 'burguer', de: 12 }, 'Aperitivos': { tipo: 'aperitivo', setor: 'cozinha', de: 29 }, 'Adicionais': { tipo: 'adicional', setor: 'cozinha', combina: true, de: 74 }, 'Acompanhamentos e sobremesas': { tipo: 'simples', setor: 'cozinha', de: 88 } };
+function modalFixo(p, catNova) {
+  const novo = !p; const base = p && C.FIXOS_BASE.find(b => b.cod === p.cod);
+  let cat = p ? p.cat : catNova;
+  const livre = c => { const usados = new Set(C.fixos.map(x => x.cod).concat(extrasAtuais().map(x => x.cod))); let n = CATS_NOVO[c].de; while (usados.has(n)) n++; return n; };
+  const num = v => v == null || v === '' ? '' : String(v).replace('.', ',');
+  Object.assign(F, { fxNome: p ? p.nome : '', fxAb: p ? p.ab || '' : '', fxCod: String(p ? p.cod : livre(cat)), fxPreco: p ? num(p.preco) : '', fxDel: p ? num(p.precoDelivery) : '', fxDesc: p ? p.desc || '' : '', fxSelo: p ? p.selo || '' : '', fxEco: p ? p.economia || '' : '' });
+  let gl = new Set(String((p && p.gl) || '').split(' ').filter(k => GL_OPS.some(o => o[0] === k)));
+  let setor = p ? p.setor : (CATS_NOVO[cat] || {}).setor || 'cozinha'; let combina = p ? !!p.combina : true;
+  const tipo = () => p ? p.tipo : CATS_NOVO[cat].tipo;
+  const temGl = () => setor === 'cozinha' && ['burguer', 'aperitivo', 'simples'].includes(tipo());
+  abrirModal({
+    foco: 'fxNome',
+    render: () => `<div class="entre"><h2>${novo ? 'Novo item do cardápio' : 'Editar ' + esc(p.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+      ${novo ? `<div class="chips" style="margin:6px 0 12px">${Object.keys(CATS_NOVO).map(c => `<button class="chip ${cat === c ? 'on' : ''}" data-a="cat" data-c="${c}">${c}</button>`).join('')}</div>` : `<p class="sub" style="margin:2px 0 12px">${esc(p.cat)}${base ? ' · do cardápio A3' : ' · item novo'}</p>`}
+      ${campo('Nome', 'fxNome', 'Ex.: Trem Vegano')}
+      <div class="linha"><div style="flex:2">${campo('Abreviação na TV (caixa alta)', 'fxAb', 'Ex.: TV')}</div><div style="flex:1">${novo ? campo('Código', 'fxCod', '', 'numeric') : `<div class="campo"><label>Código</label><div class="inp" style="background:#f1f3f4">${p.cod}</div></div>`}</div></div>
+      <div class="linha"><div style="flex:1">${campo('Preço (R$)', 'fxPreco', '35', 'decimal')}</div>${tipo() === 'adicional' ? '' : `<div style="flex:1">${campo('Preço no delivery (opcional)', 'fxDel', '', 'decimal')}</div>`}</div>
+      ${tipo() === 'adicional' ? `<label class="sub" style="display:flex;gap:8px;align-items:center;margin:0 0 12px"><button class="chip ${combina ? 'on' : ''}" data-a="comb">${ic(combina ? 'check_box' : 'check_box_outline_blank')} Entra no combo de adicionais (2 por R$ 10 · 3 por R$ 12)</button></label>` : `<div class="campo"><label for="fxDesc">Descrição (aparece no link do WhatsApp e no garçom)</label><textarea id="fxDesc" class="inp" data-f="fxDesc" placeholder="Ingredientes, como vem">${esc(F.fxDesc)}</textarea></div>`}
+      ${tipo() === 'simples' && novo ? `<div class="campo"><label>Sai de onde</label><div class="chips">${[['cozinha', 'Cozinha (TV)'], ['bar', 'Bar (garçom)']].map(([k, l]) => `<button class="chip ${setor === k ? 'on' : ''}" data-a="set" data-c="${k}">${l}</button>`).join('')}</div></div>` : ''}
+      ${temGl() ? `<div class="campo"><label>Glúten (o que muda no pedido sem glúten)${tipo() === 'burguer' ? ' · o pão brioche já entra sozinho' : ''}</label><div class="chips">${GL_OPS.map(([k, l]) => `<button class="chip ${gl.has(k) ? 'on verm' : ''}" data-a="gl" data-c="${k}">${ic(gl.has(k) ? 'check_box' : 'check_box_outline_blank')} ${l}</button>`).join('')}</div></div>` : ''}
+      ${tipo() === 'adicional' ? '' : `<div class="linha"><div style="flex:1">${campo('Selo (opcional)', 'fxSelo', 'Ex.: Lançamento')}</div><div style="flex:2">${campo('Economia (combos, opcional)', 'fxEco', 'Ex.: Separado R$ 37 · economize R$ 9')}</div></div>`}
+      <div class="linha">${novo ? '' : base ? (p.editado ? `<button class="bt txt" data-a="restaurar">${ic('restart_alt')} Voltar ao original</button>` : '') : `<button class="bt txt verm" data-a="tirar">${ic('delete')} Tirar da lista</button>`}<span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok">${ic('save')} Salvar</button></div>`,
+    cat(d) { cat = d.c; setor = CATS_NOVO[cat].setor; F.fxCod = String(livre(cat)); pintarModal(); },
+    set(d) { setor = d.c; pintarModal(); },
+    gl(d) { if (gl.has(d.c)) gl.delete(d.c); else gl.add(d.c); pintarModal(); },
+    comb() { combina = !combina; pintarModal(); },
+    async restaurar() {
+      if (!confirm('Voltar ' + p.nome + ' ao original do cardápio A3?')) return;
+      await salvarFixos(fc => { delete fc.edit[p.cod]; }, p.nome + ' voltou ao original');
+      fecharModal(); toast(p.nome + ' voltou ao original');
+    },
+    async tirar() {
+      if (!confirm('Tirar ' + p.nome + ' da lista? (Para pausar, é melhor desligar.)')) return;
+      await salvarFixos(fc => { const i = fc.novos.findIndex(x => x.cod === p.cod); if (i < 0) return false; fc.novos.splice(i, 1); }, p.nome + ' tirado');
+      fecharModal(); toast(p.nome + ' tirado da lista');
+    },
+    async ok() {
+      const nome = (F.fxNome || '').trim(); const preco = r2(parseFloat(String(F.fxPreco || '').replace(',', '.')) || 0);
+      const del = r2(parseFloat(String(F.fxDel || '').replace(',', '.')) || 0);
+      if (!nome) { toast('Ponha o nome'); return; }
+      if (!(preco > 0)) { toast('Ponha o preço'); return; }
+      const campos = { nome, ab: (F.fxAb || '').trim().toUpperCase(), preco, precoDelivery: del || null, desc: (F.fxDesc || '').trim(), selo: (F.fxSelo || '').trim(), economia: (F.fxEco || '').trim() };
+      if (temGl()) campos.gl = Array.from(gl).join(' ');
+      if (tipo() === 'adicional') { campos.combina = combina; delete campos.desc; delete campos.precoDelivery; }
+      if (novo) {
+        const cod = parseInt(F.fxCod, 10);
+        if (!(cod > 0)) { toast('Código inválido'); return; }
+        if (P[cod] || C.fixos.some(x => x.cod === cod) || extrasAtuais().some(x => x.cod === cod)) { toast('O código ' + cod + ' já é de outro item'); return; }
+        const k = CATS_NOVO[cat];
+        const item = Object.assign({ cod, cat, tipo: k.tipo, setor: k.tipo === 'simples' ? setor : k.setor, ativo: true }, k.chapa ? { chapa: k.chapa } : {}, campos);
+        await salvarFixos(fc => { fc.novos.push(item); }, 'novo ' + nome + ' (' + R(preco) + ')');
+      } else if (base) {
+        // Grava só o que ficou diferente do original do menu.js
+        const dif = {}; Object.keys(campos).forEach(k => { const o = base[k] == null ? (k === 'gl' ? '' : k === 'precoDelivery' ? null : '') : base[k]; if (JSON.stringify(campos[k]) !== JSON.stringify(o)) dif[k] = campos[k]; });
+        await salvarFixos(fc => { const a = fc.edit[p.cod] || {}; const ativoAntes = a.ativo; fc.edit[p.cod] = Object.assign(dif, ativoAntes === undefined ? {} : { ativo: ativoAntes }); if (!Object.keys(fc.edit[p.cod]).length) delete fc.edit[p.cod]; }, 'editou ' + nome + ' (' + R(preco) + ')');
+      } else {
+        await salvarFixos(fc => { const n = fc.novos.find(x => x.cod === p.cod); if (!n) return false; Object.assign(n, campos); }, 'editou ' + nome + ' (' + R(preco) + ')');
+      }
+      fecharModal(); toast(nome + ' salvo');
+    }
+  });
 }
 // --- edição das bebidas e sobremesas (grava em config.extras; fica registrado no log da loja) ---
 // Opções em texto, uma por linha:  Sabor: Groselha=GRO, Pitanga=PIT   ·   Tamanho: 500 ml, 900 ml=900+15
@@ -2299,7 +2445,7 @@ TELAS.base = () => {
 function topoBase(abas, aba) {
   return `<div class="topo"><div class="marca"><span class="logo">ST</span><b>${esc(NOME_CURTO)}</b><span class="longo">· base</span></div>
     <nav class="abas" data-rola="abas">${abas.map(([k, i, l, b]) => `<button class="${k === aba ? 'on' : ''}" data-a="aba" data-c="${k}">${ic(i)} ${l}${b ? ` <span class="badge">${b}</span>` : ''}</button>`).join('')}</nav>
-    <span class="esp"></span><span class="quem">${ic('account_circle')} ${esc(S.eu.nome)} <button class="bt-ic" data-a="sair" title="Trocar de pessoa">${ic('logout')}</button></span></div>`;
+    <span class="esp"></span>${MODO_TESTE ? '' : `<button class="bt bt-teste" data-a="modoTeste" title="Modo de teste (código de sócio)">${ic('science')}<span>Modo de teste</span></button>`}<span class="quem">${ic('account_circle')} ${esc(S.eu.nome)} <button class="bt-ic" data-a="sair" title="Trocar de pessoa">${ic('logout')}</button></span></div>`;
 }
 
 TELAS.garcom = () => {
@@ -2570,15 +2716,16 @@ async function iniciar() {
   try { DB = window.FIREBASE_CONFIG ? await dbNuvem(window.FIREBASE_CONFIG) : dbLocal(); }
   catch (e) { console.error(e); $('#app').innerHTML = `<div class="vazio">Não consegui conectar à nuvem (${esc(e.code || e.message)}). Confira a internet e recarregue.</div>`; return; }
   document.body.classList.toggle('tv', VIEW === 'cozinha');
+  document.body.classList.toggle('teste', MODO_TESTE); document.documentElement.classList.toggle('teste', MODO_TESTE);
+  if (MODO_TESTE) { try { await chegadaTeste(); } catch (e) { toast('Modo de teste: ' + (e.message || e)); } }
   if (VIEW === 'base') { assinar(['config', 'mesas', 'cards', 'delivery', 'fretes']); }
   else if (VIEW === 'garcom') { assinar(['config', 'mesas', 'cards']); }
   else if (VIEW === 'cozinha') { assinar(['config', 'cards']); }
   else if (VIEW === 'mesa') { assinar(['config']); DB.listenDoc('mesas', PARAMS.get('m'), m => { S.mesaCli = m; render(); }); }
   else if (VIEW === 'pedido') { assinar(['config']); }
   else if (VIEW === 'pago') { assinar(['config']); iniciarPago(); }
-  // Repintura a cada 15 s só nas telas da equipe (tempos da TV, mesas); nas páginas do cliente não há relógio,
-  // e repintar interromperia a rolagem de quem está lendo o cardápio
-  if (['base', 'garcom', 'cozinha'].includes(VIEW)) setInterval(() => { tentarEu(); render(); }, 15000);
+  // Relógios no lugar, a cada 15 s, só nas telas da equipe; nada se redesenha por tempo (ver tique)
+  if (['base', 'garcom', 'cozinha'].includes(VIEW)) setInterval(tique, 15000);
   render();
 }
 function tentarEu() {

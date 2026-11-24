@@ -390,6 +390,27 @@ img{max-width:100%}
   .combo-ops{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
+/* v11 · modo de teste: outro ambiente, sem dúvida de que é teste (JP, 24/11/2026) */
+.bt-teste{color:#6a1b9a;border-color:#d7aefb;background:#faf5ff;min-height:36px;padding:6px 12px}
+.bt-teste:hover{background:#f3e8fd}
+.faixa-teste{position:sticky;top:0;z-index:40;height:36px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;background:repeating-linear-gradient(-45deg,#202124 0 12px,#3c4043 12px 24px);color:#fdd663;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.faixa-teste > .ms{font-size:20px;flex:none}
+.faixa-teste .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.faixa-teste button{flex:none;border:0;background:#fdd663;color:#202124;border-radius:14px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;text-transform:none;letter-spacing:0;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.faixa-teste button .ms{font-size:16px}
+html.teste{--fundo:#fff8e6;background:#fff8e6 repeating-linear-gradient(-45deg,rgba(249,171,0,.07) 0 16px,transparent 16px 32px) fixed}
+body.teste{--azul:#8430ce;--azul-esc:#5b1f96;--azul-cl:#f3e8fd;--fundo:#fff8e6;background:transparent}
+body.teste .topo{top:36px;background:#fef7e0;border-bottom:3px solid #f9ab00}
+body.teste .cats-nav,body.teste .cc-topo{top:36px}
+body.teste .hero{background:linear-gradient(135deg,#3b1366 0%,#6a2bb0 55%,#9c5cf0 100%)}
+body.teste .hero-logo{color:#6a2bb0}
+body.teste .tv{background:#f1e6fb}
+body.teste .tv-topo{background:#fef7e0}
+body.teste .card,body.teste .slot,body.teste .kpi{box-shadow:0 0 0 1px rgba(132,48,206,.12)}
+body.teste .nav-inf{background:#fef7e0;border-top:3px solid #f9ab00}
+body.teste .carrinho-bar{background:#fef7e0}
+@media(max-width:600px){.bt-teste span{display:none}.bt-teste{padding:6px 8px}.faixa-teste .d{display:none}}
+
 /* Ficha técnica (v9) */
 #modal .caixa.largo{max-width:1000px}
 .ft-linhas td{padding:4px 6px;vertical-align:middle}
