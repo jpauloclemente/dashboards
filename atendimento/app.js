@@ -64,6 +64,22 @@ let BURGUERS = [], ADICIONAIS = [];
 // Bebidas e sobremesas: lista editável na base (config.extras); enquanto ninguém editar, vale a lista inicial do menu.js.
 let EXTRAS_CFG = null;
 function extrasAtuais() { return Array.isArray(EXTRAS_CFG) ? EXTRAS_CFG : C.EXTRAS; }
+// Ajustes do menu.js (EXTRAS_AJUSTES) sobre a lista que a base já gravou: valem na leitura até a próxima edição na base,
+// que grava a lista ajustada e marca os ajustes como feitos (config.ajustesExtras). Assim o item novo do cardápio
+// impresso chega ao garçom e à página de pedido mesmo quando a base já tem a própria lista (R50).
+function aplicarAjustesExtras(lista, feitos) {
+  const out = clone(lista); const ja = feitos || [];
+  (C.EXTRAS_AJUSTES || []).forEach(a => {
+    if (ja.includes(a.id)) return;
+    Object.keys(a.set || {}).forEach(cod => {
+      const it = out.find(x => x.cod === +cod); const ref = C.EXTRAS.find(x => x.cod === +cod);
+      if (it && ref) a.set[cod].forEach(k => { it[k] = clone(ref[k]); });
+    });
+    (a.novo || []).forEach(cod => { const ref = C.EXTRAS.find(x => x.cod === cod); if (ref && !out.some(x => x.cod === cod)) out.push(clone(ref)); });
+  });
+  return out;
+}
+const idsAjustesExtras = () => (C.EXTRAS_AJUSTES || []).map(a => a.id);
 // Cardápio fixo também se edita na base (v11, R50: tudo o que se vende tem uma fonte só, a base). O menu.js é o
 // ponto de partida; a base grava por cima, em config.fixosCfg: { edit: { código: campos mudados }, novos: [itens novos] }.
 // A estrutura dos combos (o que vem em cada um) e as regras de preço seguem no menu.js; nome, preço, descrição,
@@ -284,7 +300,7 @@ const cfg = () => S.cfg || {};
 const noiteId = () => (cfg().noite && cfg().noite.id) || 'sem-noite';
 
 function assinar(cols) {
-  if (cols.includes('config')) DB.listenDoc('config', 'main', d => { S.cfg = d; EXTRAS_CFG = d && Array.isArray(d.extras) ? d.extras : null; FIXOS_CFG = (d && d.fixosCfg) || null; montarCardapio(); tentarEu(); render(); });
+  if (cols.includes('config')) DB.listenDoc('config', 'main', d => { S.cfg = d; EXTRAS_CFG = d && Array.isArray(d.extras) ? aplicarAjustesExtras(d.extras, d.ajustesExtras) : null; FIXOS_CFG = (d && d.fixosCfg) || null; montarCardapio(); tentarEu(); render(); });
   if (cols.includes('mesas')) DB.listen('mesas', a => { S.mesas = {}; a.forEach(m => { S.mesas[m.id] = m; }); render(); });
   if (cols.includes('cards')) DB.listen('cards', a => { const antes = S.cards.length; S.cards = a; aoMudarCards(antes); render(); });
   if (cols.includes('delivery')) DB.listen('delivery', a => { S.delivery = a; render(); });
@@ -1357,7 +1373,7 @@ function telaEstudo() {
   const q = norm(F.estudo || '');
   const cats = [];
   C.itens.forEach(p => { if (q && !(norm(p.nome).includes(q) || String(p.cod).startsWith(q))) return; let c = cats.find(x => x.n === p.cat); if (!c) cats.push(c = { n: p.cat, i: [] }); c.i.push(p); });
-  return `<h2>Estudo · cardápio e códigos</h2><p class="sub">Burguers de 1 a 11 · aperitivos 21 a 28 · combo do burguer 30 a 33 · combos da mesa 41 a 46 · Circuito 50 a 53 · adicionais 61 a 73 · acompanhamentos e sobremesas 81 a 87 · bebidas 91 a 107. Lance pelo código, pelo nome ou pela abreviação da linha (ex.: XT, B24, PILSEN, BELO GIN PIT).</p>
+  return `<h2>Estudo · cardápio e códigos</h2><p class="sub">Burguers de 1 a 11 · aperitivos 21 a 28 · combo do burguer 30 a 33 · combos da mesa 41 a 46 · Circuito 50 a 53 · adicionais 61 a 73 · acompanhamentos e sobremesas 81 a 89 · bebidas 91 a 107 · combos do bar 108 a 110. Lance pelo código, pelo nome ou pela abreviação da linha (ex.: XT, B24, PILSEN, BELO GIN PIT).</p>
     <div class="busca" style="margin:12px 0">${ic('search')}<input id="estudo" data-f="estudo" data-vivo placeholder="Procurar" value="${esc(F.estudo || '')}"></div>
     ${cats.map(c => `<div class="secao-t">${esc(c.n)}</div><div class="card" style="padding:4px 12px">${c.i.map(p => `<div class="res" style="cursor:default"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}${p.ab ? ` <span class="tag cinza">${esc(p.ab)}</span>` : ''}${p.desc ? `<br><span class="sub">${esc(p.desc)}</span>` : ''}${p.grupos ? `<br><span class="sub">${esc(p.grupos.map(g => g.t + ': ' + g.ops.map(o => o.n + (o.ab ? ' (' + o.ab + ')' : '') + (o.mais ? ' + ' + Rc(o.mais) : '')).join(', ')).join(' · '))}</span>` : ''}</span><span class="pr">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}${p.setor === 'bar' ? '<br><span class="tag cinza">bar</span>' : ''}</span></div>`).join('')}</div>`).join('')}
     <div class="secao-t">Regras de preço</div><div class="card sub" style="line-height:1.6">
@@ -2084,9 +2100,9 @@ function textoParaOps(txt) {
 }
 async function salvarExtras(fn, log) {
   await DB.mutate('config', 'main', c => {
-    const lista = clone(Array.isArray(c.extras) ? c.extras : C.EXTRAS);
+    const lista = Array.isArray(c.extras) ? aplicarAjustesExtras(c.extras, c.ajustesExtras) : clone(C.EXTRAS);
     const r = fn(lista); if (r === false) return undefined;
-    c.extras = lista; c.logLoja = [{ t: agora(), quem: quem(), o: 'cardápio: ' + log }].concat(c.logLoja || []).slice(0, 100); return c;
+    c.extras = lista; c.ajustesExtras = idsAjustesExtras(); c.logLoja = [{ t: agora(), quem: quem(), o: 'cardápio: ' + log }].concat(c.logLoja || []).slice(0, 100); return c;
   });
 }
 CH.extraAtivo = async (el, d) => {
@@ -2105,7 +2121,7 @@ function modalExtra(p) {
   abrirModal({
     foco: 'exNome',
     render: () => `<div class="entre"><h2>${novo ? 'Novo item' : 'Editar ' + esc(p.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
-      <div class="chips" style="margin:6px 0 12px">${['Bebidas', 'Sobremesas'].map(c => `<button class="chip ${cat === c ? 'on' : ''}" data-a="cat" data-c="${c}">${c}</button>`).join('')}</div>
+      <div class="chips" style="margin:6px 0 12px">${['Bebidas', 'Sobremesas', 'Combos do bar'].map(c => `<button class="chip ${cat === c ? 'on' : ''}" data-a="cat" data-c="${c}">${c}</button>`).join('')}</div>
       ${campo('Nome', 'exNome', 'Ex.: Soda italiana')}
       <div class="linha"><div style="flex:2">${campo('Abreviação no bar (caixa alta)', 'exAb', 'Ex.: SODA')}</div><div style="flex:1">${campo('Código', 'exCod', '', 'numeric')}</div></div>
       <div class="linha"><div style="flex:1">${campo('Preço (R$)', 'exPreco', '16', 'decimal')}</div><div style="flex:1">${campo('Preço no delivery (opcional)', 'exDel', '', 'decimal')}</div></div>
@@ -2586,9 +2602,10 @@ const CATS_PEDIDO = {
   'Combos da mesa': { ic: 'dinner_dining', cor: '#1a73e8', bg: '#e8f0fe', titulo: 'Combos para dividir' },
   'Acompanhamentos e sobremesas': { ic: 'icecream', cor: '#d01884', bg: '#fde7f3', titulo: 'Acompanhamentos e doces' },
   'Sobremesas': { ic: 'cake', cor: '#d01884', bg: '#fde7f3', titulo: 'Sobremesas da casa' },
-  'Bebidas': { ic: 'local_bar', cor: '#007b83', bg: '#e4f7fb' }
+  'Bebidas': { ic: 'local_bar', cor: '#007b83', bg: '#e4f7fb' },
+  'Combos do bar': { ic: 'liquor', cor: '#007b83', bg: '#e4f7fb', titulo: 'Combos do bar', sub: 'Para a mesa: sai mais em conta que separado.' }
 };
-const ORDEM_CATS = ['Circuito 2026', 'Burguers', 'Combo do burguer', 'Aperitivos', 'Combos da mesa', 'Acompanhamentos e sobremesas', 'Sobremesas', 'Bebidas'];
+const ORDEM_CATS = ['Circuito 2026', 'Burguers', 'Combo do burguer', 'Aperitivos', 'Combos da mesa', 'Acompanhamentos e sobremesas', 'Sobremesas', 'Bebidas', 'Combos do bar'];
 function icProd(p) {
   if (!p) return 'restaurant';
   if (p.tipo === 'burguer') return 'lunch_dining';
@@ -2599,7 +2616,10 @@ function icProd(p) {
   if ([22, 23, 25, 81, 82].includes(p.cod)) return 'fastfood';
   if (p.cod === 83) return 'cake'; if (p.cod === 84) return 'cookie'; if (p.cod === 53) return 'icecream';
   if (p.cod === 41 || p.cod === 42) return 'dinner_dining'; if (p.cod === 43) return 'groups'; if (p.cod === 50) return 'emoji_events';
+  if (p.cod === 89) return 'cookie';
   if (p.cat === 'Sobremesas') return 'cake';
+  if (p.cod === 108) return 'sports_bar';
+  if (p.cat === 'Combos do bar') return 'liquor';
   const ic1 = { 91: 'local_drink', 92: 'water_full', 93: 'sports_bar', 94: 'glass_cup', 95: 'local_bar', 96: 'water_full', 97: 'water_drop', 98: 'water_drop', 99: 'local_drink', 100: 'sports_bar', 101: 'sports_bar', 102: 'sports_bar', 107: 'liquor' }[p.cod];
   return ic1 || (p.cat === 'Bebidas' ? 'local_bar' : 'restaurant');
 }

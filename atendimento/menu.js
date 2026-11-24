@@ -101,10 +101,13 @@ window.CARDAPIO = (function () {
   const sab = () => ({ t: 'Sabor', ops: SABORES.map(([n, ab]) => ({ n, ab, mais: 0 })) });
   const tam = () => ({ t: 'Tamanho', ops: [{ n: '500 ml', ab: '', mais: 0 }, { n: '900 ml', ab: '900', mais: 15 }] });
   const BAR = { setor: 'bar', tipo: 'bebida', ativo: true };
+  const DESTILADOS = () => [{ n: 'Rum', ab: 'RUM', mais: 0 }, { n: 'Gin', ab: 'GIN', mais: 0 }, { n: 'Vodka', ab: 'VODK', mais: 0 }, { n: '51', ab: '51', mais: 0 }, { n: 'Conhaque', ab: 'CONH', mais: 0 }, { n: 'Whisky', ab: 'WHIS', mais: 10 }];
+  // Na dupla, o Mix fica de fora: a escolha dos sabores do Mix só funciona com um grupo de sabor por item
+  const SAB_SEM_MIX = () => SABORES.filter(([n]) => n !== 'Mix').map(([n, ab]) => ({ n, ab, mais: 0 }));
   const EXTRAS = [
-    Object.assign({ cod: 91, nome: 'Suco de limão', ab: 'SUCO', preco: 11, precoDelivery: 12, cat: 'Bebidas', ingredientes: 'Suco de limão. No delivery, R$ 12 por causa da embalagem.' }, BAR),
+    Object.assign({ cod: 91, nome: 'Suco de limão 500 ml', ab: 'SUCO', preco: 11, precoDelivery: 12, cat: 'Bebidas', ingredientes: 'Suco de limão, 500 ml. No delivery, R$ 12 por causa da embalagem.' }, BAR),
     Object.assign({ cod: 92, nome: 'Refrigerante 600 ml', ab: '', preco: 11, cat: 'Bebidas', ingredientes: 'Coca, Coca zero ou Guaraná 600 ml.', grupos: [{ t: 'Qual', ops: [{ n: 'Coca', ab: 'COCA 600', mais: 0 }, { n: 'Coca zero', ab: 'ZERO 600', mais: 0 }, { n: 'Guaraná', ab: 'GUA 600', mais: 0 }] }] }, BAR),
-    Object.assign({ cod: 93, nome: 'Cerveja Pilsen 600 ml', ab: 'PILSEN', preco: 15, cat: 'Bebidas', ingredientes: 'Pilsen 600 ml.' }, BAR),
+    Object.assign({ cod: 93, nome: 'Verace Pilsen 600 ml', ab: 'PILSEN', preco: 15, cat: 'Bebidas', ingredientes: 'Cerveja Verace Pilsen, garrafa de 600 ml.' }, BAR),
     Object.assign({ cod: 94, nome: 'Soda italiana', ab: 'SODA', preco: 16, cat: 'Bebidas', ingredientes: 'Limão, xarope do sabor e água com gás. No Mix, anote quais sabores se misturam.', grupos: [sab()] }, BAR),
     Object.assign({ cod: 95, nome: 'Drink especial da semana', ab: 'DRINK ESP', preco: 0, cat: 'Bebidas', ingredientes: 'Defina na base, toda semana: nome, ingredientes e preço.' }, BAR, { ativo: false }),
     Object.assign({ cod: 96, nome: 'Refrigerante 200 ml', ab: '', preco: 5, cat: 'Bebidas', ingredientes: 'Coca, Coca zero ou Guaraná 200 ml.', grupos: [{ t: 'Qual', ops: [{ n: 'Coca', ab: 'COCA 200', mais: 0 }, { n: 'Coca zero', ab: 'ZERO 200', mais: 0 }, { n: 'Guaraná', ab: 'GUA 200', mais: 0 }] }] }, BAR),
@@ -119,12 +122,24 @@ window.CARDAPIO = (function () {
     Object.assign({ cod: 105, nome: 'Belorihills', ab: 'BELO', preco: 23, cat: 'Bebidas', ingredientes: 'Montagem: limão espremido, destilado, açúcar, sabor e água com gás. Qualquer destilado com qualquer sabor; 900 ml +R$ 15; com whisky +R$ 10.',
       grupos: [{ t: 'Destilado', ops: [{ n: 'Rum', ab: 'RUM', mais: 0 }, { n: 'Gin', ab: 'GIN', mais: 0 }, { n: 'Vodka', ab: 'VODK', mais: 0 }, { n: '51', ab: '51', mais: 0 }, { n: 'Conhaque', ab: 'CONH', mais: 0 }, { n: 'Whisky', ab: 'WHIS', mais: 10 }] }, sab(), tam()] }, BAR),
     Object.assign({ cod: 106, nome: 'Jorge Amado', ab: 'JORGE', preco: 26, cat: 'Bebidas', ingredientes: 'Maracujá, cravo e canela, cachaça de jambu, açúcar e água com gás. 900 ml +R$ 15.', grupos: [tam()] }, BAR),
-    Object.assign({ cod: 107, nome: 'Dose', ab: 'DOSE', preco: 10, cat: 'Bebidas', ingredientes: '51, vodka, rum ou conhaque R$ 10; gin R$ 15; whisky R$ 20.',
-      grupos: [{ t: 'Destilado', ops: [{ n: '51', ab: '51', mais: 0 }, { n: 'Vodka', ab: 'VODK', mais: 0 }, { n: 'Rum', ab: 'RUM', mais: 0 }, { n: 'Conhaque', ab: 'CONH', mais: 0 }, { n: 'Gin', ab: 'GIN', mais: 5 }, { n: 'Whisky', ab: 'WHIS', mais: 10 }] }] }, BAR),
-    Object.assign({ cod: 85, nome: 'Brownie e doce de leite', ab: '', preco: 28, cat: 'Sobremesas', ingredientes: 'Brownie com doce de leite.' }, BAR, { tipo: 'simples' }),
-    Object.assign({ cod: 86, nome: 'Brownie e café', ab: '', preco: 28, cat: 'Sobremesas', ingredientes: 'Brownie com café.' }, BAR, { tipo: 'simples' }),
-    Object.assign({ cod: 87, nome: 'As duas sobremesas', ab: '', preco: 50, cat: 'Sobremesas', ingredientes: 'Brownie e doce de leite + brownie e café.' }, BAR, { tipo: 'simples' })
+    Object.assign({ cod: 107, nome: 'Dose', ab: 'DOSE', preco: 10, cat: 'Bebidas', ingredientes: '51, vodka, rum ou conhaque R$ 10; gin ou cachaça de jambu R$ 15; whisky R$ 20.',
+      grupos: [{ t: 'Destilado', ops: [{ n: '51', ab: '51', mais: 0 }, { n: 'Vodka', ab: 'VODK', mais: 0 }, { n: 'Rum', ab: 'RUM', mais: 0 }, { n: 'Conhaque', ab: 'CONH', mais: 0 }, { n: 'Gin', ab: 'GIN', mais: 5 }, { n: 'Cachaça de jambu', ab: 'JAMBU', mais: 5 }, { n: 'Whisky', ab: 'WHIS', mais: 10 }] }] }, BAR),
+    Object.assign({ cod: 85, nome: 'Brownie e doce de leite', ab: '', preco: 28, cat: 'Sobremesas', ingredientes: 'Brownie, açaí, doce de leite, Ovomaltine e coco ralado.' }, BAR, { tipo: 'simples' }),
+    Object.assign({ cod: 86, nome: 'Brownie e café', ab: '', preco: 28, cat: 'Sobremesas', ingredientes: 'Brownie, açaí, caramelo, cravo e canela + café.' }, BAR, { tipo: 'simples' }),
+    Object.assign({ cod: 87, nome: 'As duas sobremesas', ab: '', preco: 50, cat: 'Sobremesas', ingredientes: 'Brownie e doce de leite + brownie e café. Separado R$ 56, economize R$ 6.' }, BAR, { tipo: 'simples' }),
+    // Cardápio de Bebidas e Sobremesas A3 (JP, 24/11/2026): adicionais da sobremesa e combos do bar
+    Object.assign({ cod: 88, nome: '+ Super brownie na sobremesa', ab: '+BROWNIE', preco: 10, cat: 'Sobremesas', ingredientes: 'Adicional na compra de uma sobremesa. Avulso R$ 13, economize R$ 3.' }, BAR, { tipo: 'simples' }),
+    Object.assign({ cod: 89, nome: '+ Alfajor Atelier na sobremesa', ab: '+ALFAJOR', preco: 10, cat: 'Sobremesas', ingredientes: 'Adicional na compra de uma sobremesa. Avulso R$ 13, economize R$ 3.' }, BAR, { tipo: 'simples' }),
+    Object.assign({ cod: 108, nome: 'Combo Verace', ab: '5x PILSEN', preco: 65, cat: 'Combos do bar', ingredientes: '5 Verace Pilsen de 600 ml. Separado R$ 75, economize R$ 10.' }, BAR),
+    Object.assign({ cod: 109, nome: 'Dupla de 900 ml', ab: 'DUPLA 900', preco: 70, cat: 'Combos do bar', ingredientes: '2 drinks de 900 ml, iguais ou diferentes: Belorihills ou Jorge Amado (whisky + R$ 10 cada). No Belorihills, anote destilado e sabor. Separado R$ 76 a 82.',
+      grupos: [{ t: 'Qual o 1º drink?', ops: [{ n: 'Belorihills', ab: 'BELO', mais: 0 }, { n: 'Jorge Amado', ab: 'JORGE', mais: 0 }] }, { t: 'Qual o 2º drink?', ops: [{ n: 'Belorihills', ab: 'BELO', mais: 0 }, { n: 'Jorge Amado', ab: 'JORGE', mais: 0 }] }, { t: 'Algum com whisky?', ops: [{ n: 'Nenhum', ab: '', mais: 0 }, { n: '1 com whisky', ab: 'WHIS', mais: 10 }, { n: '2 com whisky', ab: '2WHIS', mais: 20 }] }] }, BAR),
+    Object.assign({ cod: 110, nome: 'Dupla de Belorihills', ab: 'DUPLA BELO', preco: 40, cat: 'Combos do bar', ingredientes: '2 Belorihills de 500 ml, cada um com o destilado e o sabor que quiser. Separado R$ 46, economize R$ 6.',
+      grupos: [{ t: '1º Belorihills: qual destilado?', ops: DESTILADOS() }, { t: '1º Belorihills: qual sabor?', ops: SAB_SEM_MIX() }, { t: '2º Belorihills: qual destilado?', ops: DESTILADOS() }, { t: '2º Belorihills: qual sabor?', ops: SAB_SEM_MIX() }] }, BAR)
   ];
+  // Ajustes de 24/11/2026 (cardápio de Bebidas e Sobremesas A3). Se a base já gravou a própria lista (config.extras),
+  // o app aplica estes ajustes por cima dela até a próxima edição na base, que os grava de vez (app.js, aplicarAjustesExtras).
+  // set: campos que mudam num item existente; novo: item que entra se ainda não houver o código.
+  const EXTRAS_AJUSTES = [{ id: 'bebidas-a3-2026-11-24', set: { 91: ['nome', 'ingredientes'], 93: ['nome', 'ingredientes'], 107: ['ingredientes', 'grupos'], 85: ['ingredientes'], 86: ['ingredientes'], 87: ['ingredientes'] }, novo: [88, 89, 108, 109, 110] }];
 
   const QUESADILLAS = ['Bolonhesa', 'Shimeji Teriyaki'];
   const AB_QUESA = { Bolonhesa: 'QS', 'Shimeji Teriyaki': 'QD' };
@@ -138,5 +153,5 @@ window.CARDAPIO = (function () {
   // Fotos dos produtos (JP, 24/11/2026: "com o tempo vamos colocar uma foto para cada produto"). Arquivo em fotos/<código>.jpg.
   const FOTOS = { 50: 'fotos/50.jpg' };
 
-  return { itens, fixos: itens.slice(), EXTRAS, QUESADILLAS, AB_QUESA, DOCES, ACRESCIMO_COMBO_MESA, COMBO_BEBIDA, FOTOS };
+  return { itens, fixos: itens.slice(), EXTRAS, EXTRAS_AJUSTES, QUESADILLAS, AB_QUESA, DOCES, ACRESCIMO_COMBO_MESA, COMBO_BEBIDA, FOTOS };
 })();
