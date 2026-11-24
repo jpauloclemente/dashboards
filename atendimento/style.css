@@ -290,6 +290,57 @@ table.tab td.n{text-align:right;white-space:nowrap}
 .opcao.on{border-color:var(--azul);background:var(--azul-cl)}
 .opcao.on > .ms{color:var(--azul)}
 
+/* Código pessoal: texto mascarado (o navegador não guarda nem preenche sozinho) */
+.inp.pin{-webkit-text-security:disc;text-security:disc;font-family:Roboto,Arial,sans-serif}
+
+/* Consumo interno e perdas: slot fixo, separado das mesas de cliente */
+.slot-ci{width:100%;display:flex;align-items:center;gap:14px;background:var(--amarelo-cl);border:1px solid #f6d36b;border-radius:var(--raio);padding:12px 14px;margin:4px 0 14px;cursor:pointer;text-align:left}
+.slot-ci:hover{box-shadow:var(--sombra)}
+.slot-ci .ci-ic{width:44px;height:44px;border-radius:50%;background:#fff;color:#b06000;display:grid;place-items:center;flex:none}
+.slot-ci .ci-ic .ms{font-size:26px}
+.slot-ci .ci-t{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.slot-ci .ci-t b{font-size:17px;font-weight:500;color:var(--txt)}
+.slot-ci .ci-t small{font-size:13px;color:#7a4b00}
+.slot-ci .ci-n{display:flex;flex-direction:column;align-items:center;color:#b06000;min-width:56px}
+.slot-ci .ci-n b{font-size:26px;line-height:1}
+.slot-ci .ci-n small{font-size:11px}
+.ci-form .secao-t{margin:14px 0 6px}
+.ci-item{display:flex;align-items:center;gap:10px;background:var(--azul-cl);border-radius:10px;padding:8px 8px 8px 12px}
+.ci-qtd{font-size:24px;min-width:40px;text-align:center}
+.bt-ic.borda{border:1px solid var(--borda)}
+.item.apagado,table.tab tr.apagado td{opacity:.55}
+.item.apagado .nm,table.tab tr.apagado td:nth-child(2){text-decoration:line-through}
+.tag.ci-consumo{background:var(--azul-cl);color:var(--azul-esc)}
+.tag.ci-cortesia{background:var(--verde-cl);color:var(--verde)}
+.tag.ci-bonificacao{background:var(--roxo-cl);color:var(--roxo)}
+.tag.ci-desconto{background:var(--laranja-cl);color:var(--laranja)}
+.tag.ci-perda{background:var(--vermelho-cl);color:var(--vermelho)}
+
+/* Desconto no item da mesa (d100, d50, d5…) */
+.toca{cursor:pointer}
+.item .nm.toca:hover,.item .pr.toca:hover{color:var(--azul)}
+.item .pr.toca{text-align:right}
+.tag.desc{background:var(--laranja-cl);color:var(--laranja);text-transform:none;letter-spacing:0;font-size:12px}
+.tag.desc .ms{font-size:14px}
+.desc-prev{margin-top:10px;background:var(--fundo);border-radius:10px;padding:10px 12px;font-size:15px;text-align:center}
+
+/* Alergia a glúten: destaque forte (checkpoint do garçom e TV da cozinha) */
+.passo.alergia{border-color:var(--vermelho);background:var(--vermelho-cl)}
+.chip.on.verm{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
+.inp.falta-inp{border-color:var(--amarelo);background:var(--amarelo-cl)}
+.kc.com-alergia{box-shadow:0 0 0 4px var(--vermelho) inset}
+.kc .kalerta{background:var(--vermelho);color:#fff;font-weight:900;font-size:20px;letter-spacing:.04em;border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:8px}
+.kc .kalerta .ms{font-size:26px}
+.kc .ka{display:inline-block;background:var(--vermelho);color:#fff;font-weight:900;font-size:19px;text-transform:uppercase;border-radius:4px;padding:2px 8px;margin:3px 0}
+
+/* Base no celular (só sócio): abas numa linha que rola, embaixo da marca */
+@media(max-width:820px){
+  .topo{flex-wrap:wrap;padding:8px 12px;gap:6px 10px}
+  .topo .abas{order:3;flex:1 1 100%;margin:0 -12px;padding:0 8px 2px}
+  .abas button{padding:8px 12px;font-size:14px}
+  .kanban{grid-template-columns:repeat(6,minmax(250px,86vw))}
+}
+
 /* Impressão do relatório */
 @media print{.topo,.abas,.nav-inf,.nao-imprimir{display:none!important}.pag{max-width:none;padding:0}body{background:#fff}}
 
@@ -297,3 +348,14 @@ table.tab td.n{text-align:right;white-space:nowrap}
   .topo .marca .longo{display:none}
   .pag{padding:12px}
 }
+
+/* Ficha técnica (v9) */
+#modal .caixa.largo{max-width:1000px}
+.ft-linhas td{padding:4px 6px;vertical-align:middle}
+.ft-linhas .inp{min-height:38px;padding:6px 8px}
+.ft-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.ft-card{text-align:left;background:var(--sup);border:1px solid var(--borda);border-radius:var(--raio);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:10px;font:inherit;color:inherit}
+.ft-card:hover{border-color:var(--azul);box-shadow:var(--sombra)}
+.ft-num{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.ft-num small{display:block;font-size:11px;color:var(--txt2)}
+.ft-num b{font-size:15px;font-weight:500}
