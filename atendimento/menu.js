@@ -121,6 +121,12 @@ window.CARDAPIO = (function () {
   const DOCES = ['Super brownie', 'Alfajor Atelier'];
   // Acréscimo dos burguers mais caros nos combos 41 e 42: Bitrem +15, CTB +5. No 43 e no 44 eles não entram.
   const ACRESCIMO_COMBO_MESA = { 11: 15, 10: 5 };
+  // Bebida do combo do burguer (v10, JP 24/11/2026: tudo por toque, vindo da lista da base). Padrão por código;
+  // na base, cada bebida pode mudar em "Entra no combo do burguer como". Combo 30 = suco 500 ml ou refri 600 ml;
+  // 31 = soda italiana; 32 = cerveja; 33 = qualquer drink da casa (cardápio A3 FINAL).
+  const COMBO_BEBIDA = { 91: 'sucoRefri', 92: 'sucoRefri', 94: 'soda', 93: 'cerveja', 102: 'cerveja', 95: 'drink', 103: 'drink', 104: 'drink', 105: 'drink', 106: 'drink' };
+  // Fotos dos produtos (JP, 24/11/2026: "com o tempo vamos colocar uma foto para cada produto"). Arquivo em fotos/<código>.jpg.
+  const FOTOS = { 50: 'fotos/50.jpg' };
 
-  return { itens, fixos: itens.slice(), EXTRAS, QUESADILLAS, AB_QUESA, DOCES, ACRESCIMO_COMBO_MESA };
+  return { itens, fixos: itens.slice(), EXTRAS, QUESADILLAS, AB_QUESA, DOCES, ACRESCIMO_COMBO_MESA, COMBO_BEBIDA, FOTOS };
 })();

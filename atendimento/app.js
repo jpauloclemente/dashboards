@@ -15,6 +15,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const R = v => 'R$ ' + (Math.round((+v || 0) * 100) / 100).toFixed(2).replace('.', ',');
 const r2 = v => Math.round((+v || 0) * 100) / 100;
+// Preço curto, sempre com R$ (JP, 24/11/2026: "tudo que representar preço não pode ser somente 8"): R$ 8 · R$ 49,90
+const Rc = v => { v = r2(v); return 'R$ ' + (Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',')); };
 const agora = () => Date.now();
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -67,12 +69,59 @@ function montarCardapio() {
   C.fixos.forEach(i => { P[i.cod] = i; });
   const ex = extrasAtuais().map(i => Object.assign({ setor: 'bar', tipo: 'bebida' }, i, { desc: i.ingredientes || i.desc || '', extra: true }));
   ex.forEach(i => { if (!P[i.cod]) P[i.cod] = i; });
+  // Foto do produto (v10): arquivo fotos/<código>.jpg registrado em FOTOS no menu.js
+  C.fixos.concat(ex).forEach(i => { const f = (C.FOTOS || {})[i.cod]; if (f && !i.foto) i.foto = f; });
   C.itens = C.fixos.concat(ex.filter(i => i.ativo !== false && P[i.cod] === i));
   BURGUERS = C.itens.filter(i => i.tipo === 'burguer');
   ADICIONAIS = C.itens.filter(i => i.tipo === 'adicional');
 }
 montarCardapio();
 const ativo = p => p && p.ativo !== false;
+// Bebida do combo do burguer vem da lista de bebidas da base (R50, JP 24/11/2026): cada bebida diz em que combo entra
+// (sucoRefri, soda, cerveja, drink ou nenhum). Sem marcação na base, vale o padrão do menu.js (COMBO_BEBIDA).
+function comboDe(x) { return x && x.combo != null ? x.combo : ((C.COMBO_BEBIDA || {})[x && x.cod] || ''); }
+function bebidasDoCombo(tipo) { return C.itens.filter(p => p.extra && ativo(p) && comboDe(p) === tipo); }
+const ROT_COMBO = { sucoRefri: 'Suco ou refri', soda: 'Soda italiana', cerveja: 'Cerveja', drink: 'Drink da casa' };
+// Perguntas das escolhas (JP: em vez de "Sabor", "Qual o sabor da soda?")
+const COMUNS = ['soda', 'suco', 'cerveja', 'caipirinha', 'caipi', 'dose', 'água', 'refrigerante', 'drink'];
+function daBebida(p) { const w = String(p.nome || '').split(' ')[0]; const lw = w.toLowerCase(); const n = COMUNS.includes(lw) ? lw : w; return (/a$/i.test(w) ? 'da ' : 'do ') + n; }
+function pergunta(p, g) {
+  const t = String(g.t || '').trim();
+  if (/\?$/.test(t)) return t;
+  if (/sabor/i.test(t)) return 'Qual o sabor ' + daBebida(p) + '?';
+  if (/destilado/i.test(t)) return 'Com qual destilado?';
+  if (/tamanho/i.test(t)) return 'Qual o tamanho?';
+  if (/^qual$/i.test(t)) return 'Qual ' + String(p.nome || '').split(' ')[0].toLowerCase() + '?';
+  return t + '?';
+}
+const ehMix = o => o && /^mix$/i.test(o.n);
+// Nome, abreviação e acréscimo de uma bebida com as escolhas feitas (Mix: os sabores escolhidos por toque)
+function descBebida(p, opsSel, mix) {
+  const ops = (p.grupos || []).map((g, i) => g.ops[opsSel[i]]).filter(Boolean);
+  const mixOps = (mix || []).map(i => { const g = (p.grupos || []).find(gg => gg.ops.some(ehMix)); return g && g.ops[i]; }).filter(Boolean);
+  const nomes = ops.map(o => ehMix(o) && mixOps.length ? 'Mix (' + mixOps.map(m => m.n).join(' + ') + ')' : o.n);
+  const abs = ops.map(o => ehMix(o) && mixOps.length ? 'MIX ' + mixOps.map(m => m.ab || m.n).join('/') : o.ab);
+  return { nome: p.nome + (nomes.length ? ' · ' + nomes.join(' · ') : ''), ab: [p.ab].concat(abs).filter(Boolean).join(' '), mais: ops.reduce((s, o) => s + (+o.mais || 0), 0) };
+}
+// Blocos de escolha por toque de uma bebida (grupos + sabores do Mix). pre: prefixo das ações (op/mix ou cbOp/cbMix)
+function htmlEscolhasBebida(p, opsSel, mix, pre) {
+  let h = '';
+  (p.grupos || []).forEach((g, gi) => {
+    h += `<div class="passo ${opsSel[gi] == null ? 'falta' : ''}"><div class="pt">${ic('local_bar')} ${esc(pergunta(p, g))}</div><div class="chips">${g.ops.map((o, oi) => `<button class="chip ${opsSel[gi] === oi ? 'on' : ''}" data-a="${pre}Op" data-g="${gi}" data-c="${oi}">${esc(o.n)}${o.mais ? ` <span class="sub">+ ${Rc(o.mais)}</span>` : ''}</button>`).join('')}</div>`;
+    const esc1 = g.ops[opsSel[gi]];
+    if (ehMix(esc1)) {
+      const n = (mix || []).length;
+      h += `<div class="mix ${n < 2 ? 'falta' : ''}"><div class="sub" style="margin:10px 0 6px">Quais sabores vão no mix? <b>Toque em 2 ou mais</b></div><div class="chips">${g.ops.map((o, oi) => ehMix(o) ? '' : `<button class="chip ${(mix || []).includes(oi) ? 'on' : ''}" data-a="${pre}Mix" data-c="${oi}">${ic((mix || []).includes(oi) ? 'check_box' : 'check_box_outline_blank')} ${esc(o.n)}</button>`).join('')}</div></div>`;
+    }
+    h += '</div>';
+  });
+  return h;
+}
+function faltaBebida(p, opsSel, mix) {
+  const f = [];
+  (p.grupos || []).forEach((g, i) => { if (opsSel[i] == null) f.push(pergunta(p, g).replace(/\?$/, '').toLowerCase()); else if (ehMix(g.ops[opsSel[i]]) && (mix || []).length < 2) f.push('os sabores do mix'); });
+  return f;
+}
 
 // Combo de adicionais: 2 por R$ 10, 3 por R$ 12 (misturando os de R$ 8 e R$ 5). No espeto: 3 por R$ 10.
 function precoAdds(adds, espeto) {
@@ -190,7 +239,11 @@ function pintar() {
   const app = $('#app'); const a = document.activeElement; let foco = null;
   if (a && a.id && (app.contains(a) || $('#modal').contains(a))) foco = { id: a.id, s: a.selectionStart, e: a.selectionEnd };
   const rolagem = window.scrollY;
+  // Faixas que rolam de lado (destaques, categorias, abas, kanban) ficam onde a pessoa deixou (JP, 24/11/2026:
+  // o carrossel dos destaques voltava sozinho para o primeiro a cada repintura)
+  const lados = {}; app.querySelectorAll('[data-rola]').forEach(el => { lados[el.dataset.rola] = el.scrollLeft; });
   app.innerHTML = TELAS[VIEW] ? TELAS[VIEW]() : TELAS.inicio();
+  app.querySelectorAll('[data-rola]').forEach(el => { const x = lados[el.dataset.rola]; if (x) el.scrollLeft = x; });
   if (MODAL) pintarModal();
   if (foco) { const el = document.getElementById(foco.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(foco.s, foco.e); } catch (e) {} } }
   window.scrollTo(0, rolagem);
@@ -405,40 +458,56 @@ function bebidaCombo(c, MI) {
   return 'Drink da casa' + sab;
 }
 function rotuloCombo(c) { return { sucoRefri: 'combo', soda: 'combo soda', cerveja: 'combo cerveja', drink: 'combo drink' }[c.bebida] || 'combo'; }
+// Bebida do combo escolhida por toque da lista da base (v10); sem ela (itens antigos), vale o texto de antes
+function bebidaDoCombo(c, MI) {
+  const b = MI.cbCod && P[MI.cbCod];
+  if (!b) return { nome: bebidaCombo(c, MI), ab: '', mais: 0 };
+  return descBebida(b, MI.cbOps, MI.cbMix);
+}
 function partesCombo(c, MI) {
+  const b = bebidaDoCombo(c, MI);
   return [
     { nome: 'Fritas (combo)', ab: 'FRI 100g', setor: 'cozinha', adds: [], grupo: 1 },
     { nome: MI.doce || 'Super brownie', setor: 'bar', adds: [], grupo: 1 },
-    { nome: bebidaCombo(c, MI), setor: 'bar', adds: [], grupo: 1, bebida: true }
+    { nome: b.nome, ab: b.ab, setor: 'bar', adds: [], grupo: 1, bebida: true }
   ];
 }
 function novoMI(p) {
-  const MI = { p, sel: [], combo: null, doce: null, bebTipo: null, sabor: '', obs: '', escolha: null, preco: null, ops: {}, semGluten: false, delivery: false };
+  const MI = { p, sel: [], combo: null, doce: null, bebTipo: null, sabor: '', obs: '', escolha: null, preco: null, ops: {}, mix: [], cbCod: null, cbOps: {}, cbMix: [], semGluten: false, delivery: false };
   (p.grupos || []).forEach((g, i) => { if (/tamanho/i.test(g.t)) MI.ops[i] = 0; });
   const n = p.tipo === 'comboMesa' ? p.partes.length : 1;
   for (let i = 0; i < n; i++) MI.sel.push({ burg: p.tipo === 'burguer' ? p.cod : null, quesa: null, adds: [], obs: '' });
-  if (p.tipo === 'comboBurguer') MI.combo = p.cod;
+  if (p.tipo === 'comboBurguer') { MI.combo = p.cod; autoBebCombo(MI); }
   if (p.tipo === 'comboFixo') MI.sel = [{ adds: [], obs: '' }];
   return MI;
 }
+// Combo com uma bebida só na lista (ex.: soda italiana): já vem marcada e o cliente escolhe só o sabor
+function escolherBebCombo(MI, c) {
+  if (MI.cbCod === c) return;
+  MI.cbCod = c; MI.cbOps = {}; MI.cbMix = [];
+  const b = P[c]; ((b && b.grupos) || []).forEach((g, i) => { if (/tamanho/i.test(g.t)) MI.cbOps[i] = 0; });
+}
+function autoBebCombo(MI) { if (!MI.combo) return; const l = bebidasDoCombo(P[MI.combo].bebida); if (l.length === 1) escolherBebCombo(MI, l[0].cod); }
 function faltaMI(MI) {
   const p = MI.p, f = [];
   if (p.tipo === 'comboBurguer' && !MI.sel[0].burg) f.push('o burguer');
   if (p.tipo === 'comboMesa') p.partes.forEach((d, i) => { if (d.t === 'burguer' && !MI.sel[i].burg) f.push('o burguer ' + (i + 1)); if (d.t === 'quesadilla' && !MI.sel[i].quesa) f.push('a quesadilla'); });
-  if (MI.combo) { if (!MI.doce) f.push('o doce do combo'); if (P[MI.combo].bebida === 'sucoRefri' && !MI.bebTipo) f.push('suco ou refri'); }
+  if (MI.combo) {
+    if (!MI.doce) f.push('o doce do combo');
+    if (!MI.cbCod) f.push('a bebida do combo'); else f.push(...faltaBebida(P[MI.cbCod], MI.cbOps, MI.cbMix));
+  }
   if (p.escolha && !MI.escolha) f.push(p.escolha.titulo.toLowerCase());
   if (p.precoLivre && !(MI.preco >= p.precoLivre[0])) f.push('o preço do drink');
-  (p.grupos || []).forEach((g, i) => { if (MI.ops[i] == null) f.push(g.t.toLowerCase()); });
-  if (temMix(p, MI) && !String(MI.obs || '').trim()) f.push('os sabores do mix');
+  if (p.tipo === 'bebida') f.push(...faltaBebida(p, MI.ops, MI.mix));
   return f;
 }
 function montarItem(MI) {
   const p = MI.p; const partes = []; let base = (MI.delivery && p.precoDelivery) || p.preco, acresc = 0, nome = p.nome, combo = false, comboAb = '';
   if (p.tipo === 'burguer') {
     partes.push(parteBurg(p, MI.sel[0], 0));
-    if (MI.combo) { const c = P[MI.combo]; base += c.preco; combo = true; comboAb = c.ab || ''; nome = p.nome + ' + ' + rotuloCombo(c); partes.push(...partesCombo(c, MI)); }
+    if (MI.combo) { const c = P[MI.combo]; base += c.preco; acresc += bebidaDoCombo(c, MI).mais; combo = true; comboAb = c.ab || ''; nome = p.nome + ' + ' + rotuloCombo(c); partes.push(...partesCombo(c, MI)); }
   } else if (p.tipo === 'comboBurguer') {
-    const b = P[MI.sel[0].burg]; base = b.preco + p.preco; combo = true; comboAb = p.ab || ''; nome = b.nome + ' + ' + rotuloCombo(p);
+    const b = P[MI.sel[0].burg]; base = b.preco + p.preco; acresc += bebidaDoCombo(p, MI).mais; combo = true; comboAb = p.ab || ''; nome = b.nome + ' + ' + rotuloCombo(p);
     partes.push(parteBurg(b, MI.sel[0], 0), ...partesCombo(p, MI));
   } else if (p.tipo === 'comboMesa') {
     combo = p.partes.length > 1; comboAb = p.ab || '';
@@ -455,12 +524,10 @@ function montarItem(MI) {
     p.fixas.forEach((x, i) => partes.push({ nome: x.nome, ab: x.ab || '', gl: x.gl || '', setor: x.setor, chapa: x.chapa || null, discos: x.chapa === 'burguer' ? 1 : 0, adds: x.burguer ? addsObj(MI.sel[0].adds) : [], obs: x.burguer ? MI.sel[0].obs : '', grupo: i }));
   } else if (p.tipo === 'bebida') {
     if (p.precoLivre) base = +MI.preco;
-    const ops = opsEscolhidas(p, MI);
-    base += ops.reduce((s, o) => s + (+o.mais || 0), 0);
-    const comp = [ops.map(o => o.n).join(' · '), MI.sabor].filter(Boolean).join(' · ');
-    if (comp) nome = p.nome + ' · ' + comp;
-    const ab = [p.ab].concat(ops.map(o => o.ab)).filter(Boolean).join(' ');
-    partes.push({ nome, ab, setor: 'bar', adds: [], obs: MI.obs || '' });
+    const d = descBebida(p, MI.ops, MI.mix);
+    base += d.mais;
+    nome = MI.sabor ? d.nome + ' · ' + MI.sabor : d.nome;
+    partes.push({ nome, ab: d.ab, setor: 'bar', adds: [], obs: MI.obs || '' });
   } else {
     const abE = p.abEscolha && MI.escolha && p.abEscolha[MI.escolha];
     partes.push({ nome: p.nome, ab: abE || p.ab || '', gl: (p.glEscolha && MI.escolha && p.glEscolha[MI.escolha]) || p.gl || '', setor: p.setor, chapa: p.chapa || null, discos: 0, adds: addsObj(MI.sel[0].adds), espeto: !!p.espeto, det: abE ? '' : (MI.escolha || ''), obs: MI.sel[0].obs || MI.obs || '' });
@@ -536,7 +603,7 @@ function modalItem(p, onAdd, opts) {
       let h;
       if (opts.cliente) {
         const k = CATS_PEDIDO[p.cat] || {}; const inc = inclusosDe(p);
-        h = `<div class="md-hero" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}<button class="bt-ic md-x" data-a="fecharModal">${ic('close')}</button>${p.selo ? `<span class="selo">${esc(p.selo)}</span>` : ''}</div>
+        h = `<div class="md-hero${p.foto ? ' foto' : ''}" style="background:${k.bg};color:${k.cor}">${p.foto ? `<img src="${esc(p.foto)}" alt="">` : ic(icProd(p))}<button class="bt-ic md-x" data-a="fecharModal">${ic('close')}</button>${p.selo ? `<span class="selo">${esc(p.selo)}</span>` : ''}</div>
           <h2 style="margin-top:14px">${esc(p.nome)}</h2>${p.desc ? `<p class="md-desc">${esc(p.desc)}</p>` : ''}
           ${inc ? htmlInclusos(inc, true) : ''}${p.economia ? `<div class="pc-eco" style="margin:6px 0 4px">${esc(p.economia)}</div>` : ''}`;
       } else {
@@ -546,10 +613,10 @@ function modalItem(p, onAdd, opts) {
       const chipsAdds = (i, espeto, burg) => {
         const lista = ADICIONAIS.filter(a => burg || (a.cod !== 72 && a.cod !== 73));
         return `<div class="sub" style="margin:8px 0 6px">Adicionais ${espeto ? '(no espeto: 3 por R$ 10)' : '(2 por R$ 10 · 3 por R$ 12)'}</div><div class="chips">` +
-          lista.map(a => `<button class="chip ${MI.sel[i].adds.includes(a.cod) ? 'on' : ''}" data-a="miAdd" data-i="${i}" data-c="${a.cod}">${esc(a.nome)} <span class="sub">${a.preco}</span></button>`).join('') + '</div>' +
+          lista.map(a => `<button class="chip ${MI.sel[i].adds.includes(a.cod) ? 'on' : ''}" data-a="miAdd" data-i="${i}" data-c="${a.cod}">${esc(a.nome)} <span class="sub">${Rc(a.preco)}</span></button>`).join('') + '</div>' +
           `<input id="obsMI${i}" class="inp" style="margin-top:8px" placeholder="Troca ou observação (ex.: sem cebola)" data-f="obsMI${i}" data-mi="${i}" value="${esc(MI.sel[i].obs)}">`;
       };
-      const escolheBurg = (i) => `<div class="chips">` + BURGUERS.filter(b => !(p.semPremium && C.ACRESCIMO_COMBO_MESA[b.cod])).map(b => `<button class="chip ${MI.sel[i].burg === b.cod ? 'on' : ''}" data-a="miBurg" data-i="${i}" data-c="${b.cod}"><b>${b.cod}</b> ${esc(b.nome)}${opts.comboMesa && C.ACRESCIMO_COMBO_MESA[b.cod] ? ' <span class="sub">+' + C.ACRESCIMO_COMBO_MESA[b.cod] + '</span>' : ''}</button>`).join('') + '</div>';
+      const escolheBurg = (i) => `<div class="chips">` + BURGUERS.filter(b => !(p.semPremium && C.ACRESCIMO_COMBO_MESA[b.cod])).map(b => `<button class="chip ${MI.sel[i].burg === b.cod ? 'on' : ''}" data-a="miBurg" data-i="${i}" data-c="${b.cod}"><b>${b.cod}</b> ${esc(b.nome)}${opts.comboMesa && C.ACRESCIMO_COMBO_MESA[b.cod] ? ' <span class="sub">+ ' + Rc(C.ACRESCIMO_COMBO_MESA[b.cod]) + '</span>' : ''}</button>`).join('') + '</div>';
       if (p.tipo === 'burguer' || p.tipo === 'comboBurguer') {
         if (p.tipo === 'comboBurguer') h += `<div class="passo ${MI.sel[0].burg ? '' : 'falta'}"><div class="pt">${ic('lunch_dining')} Qual burguer?</div>${escolheBurg(0)}</div>`;
         if (p.tipo === 'burguer') {
@@ -559,10 +626,13 @@ function modalItem(p, onAdd, opts) {
         }
         if (MI.combo) {
           const c = P[MI.combo];
-          h += `<div class="passo ${MI.doce && (c.bebida !== 'sucoRefri' || MI.bebTipo) ? '' : 'falta'}"><div class="pt">${ic('local_bar')} No combo: fritas + doce + bebida</div>
-            <div class="sub" style="margin-bottom:6px">Doce</div><div class="chips">${C.DOCES.map(d => `<button class="chip ${MI.doce === d ? 'on' : ''}" data-a="miDoce" data-c="${esc(d)}">${esc(d)}</button>`).join('')}</div>
-            ${c.bebida === 'sucoRefri' ? `<div class="sub" style="margin:10px 0 6px">Bebida</div><div class="chips">${['Suco 500 ml', 'Refrigerante 600 ml'].map(d => `<button class="chip ${MI.bebTipo === d ? 'on' : ''}" data-a="miBeb" data-c="${d}">${d}</button>`).join('')}</div>` : ''}
-            <input id="saborMI" class="inp" style="margin-top:8px" placeholder="${c.bebida === 'drink' ? 'Qual drink?' : c.bebida === 'cerveja' ? 'Qual cerveja?' : 'Sabor'}" data-f="saborMI" value="${esc(MI.sabor)}"></div>`;
+          // Tudo por toque (JP, 24/11/2026): doce, bebida da lista da base e as escolhas da bebida (sabor, destilado, Mix)
+          const bebs = bebidasDoCombo(c.bebida);
+          const b1 = MI.cbCod && P[MI.cbCod];
+          h += `<div class="passo ${MI.doce ? '' : 'falta'}"><div class="pt">${ic('cake')} Qual o doce do combo?</div><div class="chips">${C.DOCES.map(d => `<button class="chip ${MI.doce === d ? 'on' : ''}" data-a="miDoce" data-c="${esc(d)}">${esc(d)}</button>`).join('')}</div></div>`;
+          h += `<div class="passo ${b1 ? '' : 'falta'}"><div class="pt">${ic('local_bar')} ${c.bebida === 'drink' ? 'Qual drink?' : c.bebida === 'cerveja' ? 'Qual cerveja?' : c.bebida === 'soda' ? 'A bebida do combo' : 'Qual a bebida do combo?'}</div>
+            ${bebs.length ? `<div class="chips">${bebs.map(x => `<button class="chip ${MI.cbCod === x.cod ? 'on' : ''}" data-a="miCbBeb" data-c="${x.cod}">${esc(x.nome)}</button>`).join('')}</div>` : `<div class="sub">Nenhuma bebida ligada para este combo na base.</div>`}</div>`;
+          if (b1) h += htmlEscolhasBebida(b1, MI.cbOps, MI.cbMix, 'miCb');
         }
         if (MI.sel[0].burg) h += `<div class="passo"><div class="pt">${ic('add_circle')} ${esc(P[MI.sel[0].burg].nome)}: ${opts.cliente ? 'do seu jeito' : 'do jeito do cliente'}</div>${chipsAdds(0, false, true)}</div>`;
       } else if (p.tipo === 'comboMesa') {
@@ -579,14 +649,11 @@ function modalItem(p, onAdd, opts) {
         h += `<div class="passo"><div class="pt">${ic('star')} Vem no combo</div>${p.fixas.map(x => `<div>• ${esc(x.nome)} ${x.setor === 'bar' ? '<span class="tag cinza">bar</span>' : ''}</div>`).join('')}</div>`;
         h += `<div class="passo"><div class="pt">${ic('add_circle')} Burguer Circuito 26: do jeito do cliente</div>${chipsAdds(0, false, true)}</div>`;
       } else if (p.tipo === 'bebida') {
-        (p.grupos || []).forEach((g, gi) => {
-          h += `<div class="passo ${MI.ops[gi] == null ? 'falta' : ''}"><div class="pt">${ic('local_bar')} ${esc(g.t)}</div><div class="chips">${g.ops.map((o, oi) => `<button class="chip ${MI.ops[gi] === oi ? 'on' : ''}" data-a="miOp" data-g="${gi}" data-c="${oi}">${esc(o.n)}${o.mais ? ` <span class="sub">+${o.mais}</span>` : ''}</button>`).join('')}</div></div>`;
-        });
+        h += htmlEscolhasBebida(p, MI.ops, MI.mix, 'mi');
         if (p.pedeSabor) h += `<div class="passo"><div class="pt">${ic('local_bar')} ${esc(p.pedeSabor)}</div><input id="saborMI" class="inp" data-f="saborMI" value="${esc(MI.sabor)}" data-enter="miOk" placeholder="${esc(p.pedeSabor)} (opcional)"></div>`;
-        if (p.precoLivre) { const ps = []; for (let v = p.precoLivre[0]; v <= p.precoLivre[1]; v++) ps.push(v); h += `<div class="sub" style="margin:10px 0 6px">Preço</div><div class="chips">${ps.map(v => `<button class="chip ${MI.preco === v ? 'on' : ''}" data-a="miPreco" data-c="${v}">${v}</button>`).join('')}</div>`; }
-        const mix = temMix(p, MI);
-        h += `<input id="obsBeb" class="inp ${mix && !MI.obs ? 'falta-inp' : ''}" style="margin-top:8px" data-f="obsBeb" value="${esc(MI.obs)}" data-enter="miOk" placeholder="${mix ? 'Quais sabores vão no mix?' : 'Observação (opcional, ex.: sem gelo)'}">`;
-        const abNow = [p.ab].concat(opsEscolhidas(p, MI).map(o => o.ab)).filter(Boolean).join(' ');
+        if (p.precoLivre) { const ps = []; for (let v = p.precoLivre[0]; v <= p.precoLivre[1]; v++) ps.push(v); h += `<div class="sub" style="margin:10px 0 6px">Preço</div><div class="chips">${ps.map(v => `<button class="chip ${MI.preco === v ? 'on' : ''}" data-a="miPreco" data-c="${v}">${Rc(v)}</button>`).join('')}</div>`; }
+        h += `<input id="obsBeb" class="inp" style="margin-top:8px" data-f="obsBeb" value="${esc(MI.obs)}" data-enter="miOk" placeholder="Observação (opcional, ex.: sem gelo)">`;
+        const abNow = descBebida(p, MI.ops, MI.mix).ab;
         if (abNow && !opts.cliente) h += `<p class="sub" style="margin-top:8px">No painel do bar: <b>${esc(abNow)}</b></p>`;
       } else {
         if (p.escolha) h += `<div class="passo ${MI.escolha ? '' : 'falta'}"><div class="pt">${esc(p.escolha.titulo)}</div><div class="chips">${p.escolha.opcoes.map(o => `<button class="chip ${MI.escolha === o ? 'on' : ''}" data-a="miEsc" data-c="${esc(o)}">${esc(o)}</button>`).join('')}</div></div>`;
@@ -613,12 +680,16 @@ function modalItem(p, onAdd, opts) {
     miAdd(d) { const s = MI.sel[+d.i]; const c = +d.c; s.adds = s.adds.includes(c) ? s.adds.filter(x => x !== c) : s.adds.concat(c); pintarModal(); },
     miBurg(d) { MI.sel[+d.i].burg = +d.c; pintarModal(); },
     miQuesa(d) { MI.sel[+d.i].quesa = d.c; pintarModal(); },
-    miCombo(d) { MI.combo = d.c ? +d.c : null; pintarModal(); },
+    miCombo(d) { MI.combo = d.c ? +d.c : null; MI.cbCod = null; MI.cbOps = {}; MI.cbMix = []; autoBebCombo(MI); pintarModal(); },
     miDoce(d) { MI.doce = d.c; pintarModal(); },
     miBeb(d) { MI.bebTipo = d.c; pintarModal(); },
     miEsc(d) { MI.escolha = d.c; pintarModal(); },
     miPreco(d) { MI.preco = +d.c; pintarModal(); },
-    miOp(d) { MI.ops[+d.g] = +d.c; pintarModal(); },
+    miOp(d) { MI.ops[+d.g] = +d.c; if (!ehMix(((p.grupos || [])[+d.g] || { ops: [] }).ops[+d.c])) MI.mix = []; pintarModal(); },
+    miMix(d) { const i = +d.c; MI.mix = MI.mix.includes(i) ? MI.mix.filter(x => x !== i) : MI.mix.concat(i); pintarModal(); },
+    miCbBeb(d) { escolherBebCombo(MI, +d.c); pintarModal(); },
+    miCbOp(d) { const b = P[MI.cbCod]; MI.cbOps[+d.g] = +d.c; if (!ehMix(((b && b.grupos) || [])[+d.g] && b.grupos[+d.g].ops[+d.c])) MI.cbMix = []; pintarModal(); },
+    miCbMix(d) { const i = +d.c; MI.cbMix = MI.cbMix.includes(i) ? MI.cbMix.filter(x => x !== i) : MI.cbMix.concat(i); pintarModal(); },
     miGl() { MI.semGluten = !MI.semGluten; pintarModal(); },
     miOk() { if (faltaMI(MI).length) { toast('Falta escolher: ' + faltaMI(MI).join(', ')); return; } const it = montarItem(MI); fecharModal(); onAdd(it); },
     campo(k, v, el) {
@@ -890,7 +961,7 @@ function telaMesa(id) {
     <div class="busca">${ic('search')}<input id="busca" data-f="busca" data-vivo placeholder="Código ou nome (ex.: 6 ou 3 Queij)" autocomplete="off" value="${esc(F.busca || '')}" data-enter="addPrimeiro" data-id="${id}" inputmode="search">
     ${F.busca ? `<button class="bt-ic" data-a="limparBusca">${ic('close')}</button>` : ''}</div>`;
   const res = buscar(F.busca);
-  if (res.length) h += `<div class="resultados">${res.map(p => `<div class="res" data-a="addProd" data-id="${id}" data-c="${p.cod}"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}${p.ab ? ` <span class="sub">${esc(p.ab)}</span>` : ''}</span><span class="pr">${p.precoLivre ? '17–30' : R(p.preco)}</span></div>`).join('')}</div>`;
+  if (res.length) h += `<div class="resultados">${res.map(p => `<div class="res" data-a="addProd" data-id="${id}" data-c="${p.cod}"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}${p.ab ? ` <span class="sub">${esc(p.ab)}</span>` : ''}</span><span class="pr">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}</span></div>`).join('')}</div>`;
   if (pend.length) {
     h += `<div class="secao-t">A enviar · marque o que sai primeiro</div><div class="itens">` + pend.map(it => `
       <div class="item"><input type="checkbox" class="ck" data-ch="selItem" data-id="${id}" data-u="${it.uid}" ${it.sel ? 'checked' : ''}>
@@ -1224,10 +1295,10 @@ function telaEstudo() {
   C.itens.forEach(p => { if (q && !(norm(p.nome).includes(q) || String(p.cod).startsWith(q))) return; let c = cats.find(x => x.n === p.cat); if (!c) cats.push(c = { n: p.cat, i: [] }); c.i.push(p); });
   return `<h2>Estudo · cardápio e códigos</h2><p class="sub">Burguers de 1 a 11 · aperitivos 21 a 28 · combo do burguer 30 a 33 · combos da mesa 41 a 46 · Circuito 50 a 53 · adicionais 61 a 73 · acompanhamentos e sobremesas 81 a 87 · bebidas 91 a 107. Lance pelo código, pelo nome ou pela abreviação da linha (ex.: XT, B24, PILSEN, BELO GIN PIT).</p>
     <div class="busca" style="margin:12px 0">${ic('search')}<input id="estudo" data-f="estudo" data-vivo placeholder="Procurar" value="${esc(F.estudo || '')}"></div>
-    ${cats.map(c => `<div class="secao-t">${esc(c.n)}</div><div class="card" style="padding:4px 12px">${c.i.map(p => `<div class="res" style="cursor:default"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}${p.ab ? ` <span class="tag cinza">${esc(p.ab)}</span>` : ''}${p.desc ? `<br><span class="sub">${esc(p.desc)}</span>` : ''}${p.grupos ? `<br><span class="sub">${esc(p.grupos.map(g => g.t + ': ' + g.ops.map(o => o.n + (o.ab ? ' (' + o.ab + ')' : '') + (o.mais ? ' +' + o.mais : '')).join(', ')).join(' · '))}</span>` : ''}</span><span class="pr">${p.precoLivre ? '17–30' : R(p.preco)}${p.setor === 'bar' ? '<br><span class="tag cinza">bar</span>' : ''}</span></div>`).join('')}</div>`).join('')}
+    ${cats.map(c => `<div class="secao-t">${esc(c.n)}</div><div class="card" style="padding:4px 12px">${c.i.map(p => `<div class="res" style="cursor:default"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}${p.ab ? ` <span class="tag cinza">${esc(p.ab)}</span>` : ''}${p.desc ? `<br><span class="sub">${esc(p.desc)}</span>` : ''}${p.grupos ? `<br><span class="sub">${esc(p.grupos.map(g => g.t + ': ' + g.ops.map(o => o.n + (o.ab ? ' (' + o.ab + ')' : '') + (o.mais ? ' + ' + Rc(o.mais) : '')).join(', ')).join(' · '))}</span>` : ''}</span><span class="pr">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}${p.setor === 'bar' ? '<br><span class="tag cinza">bar</span>' : ''}</span></div>`).join('')}</div>`).join('')}
     <div class="secao-t">Regras de preço</div><div class="card sub" style="line-height:1.6">
     • Adicionais: 2 por R$ 10, 3 por R$ 12 (o sistema calcula sozinho). No espeto, 3 por R$ 10.<br>
-    • Combo do burguer: fritas + brownie ou alfajor + suco 500 ml ou refri 600 ml = +R$ 28. Soda +30, cerveja +36, drink +37.<br>
+    • Combo do burguer: fritas + brownie ou alfajor + suco 500 ml ou refri 600 ml = + R$ 28. Soda + R$ 30, cerveja + R$ 36, drink + R$ 37.<br>
     • Combos 41 e 42 com Bitrem: +R$ 15; com CTB: +R$ 5. No Combo Família e no + burguer, Bitrem e CTB não entram.<br>
     • Antes de enviar, o garçom tira o que quiser. Depois de enviado, só o gerente ou sócio cancela, com código e motivo.<br>
     • Alergia a glúten: marque "Sem glúten (alergia)" no item. A TV mostra em vermelho: isca de shimeji só no fubá e sem onion rings. Pão sem glúten +R$ 5 nos adicionais.<br>
@@ -1337,7 +1408,7 @@ function telaWhatsApp() {
   const ped = S.delivery.filter(d => d.noiteId === noiteId() || !['fim', 'cancelado'].includes(d.status)).sort((a, b) => a.ts - b.ts);
   const linkPedido = BQ + 'v=pedido';
   let h = `<div class="entre" style="margin-bottom:12px"><div><h2 style="margin:0">WhatsApp do dia</h2><div class="sub">Link para a saudação do WhatsApp: ${esc(linkPedido)}</div></div>
-    <div class="linha"><button class="bt" data-a="copiar" data-c="${esc(linkPedido)}">${ic('content_copy')} Copiar link</button><button class="bt ton" data-a="link" data-c="${esc(linkPedido)}">${ic('add')} Lançar pedido</button></div></div><div class="kanban">`;
+    <div class="linha"><button class="bt" data-a="copiar" data-c="${esc(linkPedido)}">${ic('content_copy')} Copiar link</button><button class="bt ton" data-a="link" data-c="${esc(linkPedido)}">${ic('add')} Lançar pedido</button></div></div><div class="kanban" data-rola="kanban">`;
   cols.forEach(([k, nome]) => {
     const ps = ped.filter(d => colunaPedido(d) === k);
     h += `<div class="kcol"><h3><span>${nome}</span><span>${ps.length}</span></h3>${ps.map(d => cardPedido(d, k)).join('')}</div>`;
@@ -1563,7 +1634,7 @@ function telaNoite() {
   const canais = {}; vs.forEach(v => { canais[v.canal] = r2((canais[v.canal] || 0) + v.total); });
   const dez = r2(vs.reduce((s, v) => s + (v.dez || 0), 0));
   const descs = descontosDaNoite(); const totDesc = r2(descs.reduce((s, x) => s + (x.valor || 0), 0));
-  let h = `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+  let h = `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))">
     <div class="card"><h3>${ic('smartphone')} Link dos garçons desta noite</h3><div class="qr" data-qr="${esc(linkG)}"></div><div class="copia">${esc(linkG)}</div>
       <div class="linha" style="margin-top:8px"><button class="bt" data-a="copiar" data-c="${esc(linkG)}">${ic('content_copy')} Copiar</button></div><p class="sub">O link muda a cada "Nova noite". Cada um entra com o próprio código.</p></div>
     <div class="card"><h3>${ic('tv')} Cozinha (celular da TV)</h3><div class="qr" data-qr="${esc(linkC)}"></div><div class="copia">${esc(linkC)}</div>
@@ -1606,7 +1677,7 @@ function telaRelConsumo() {
     <div class="card" style="overflow-x:auto"><table class="tab"><tr><th>Hora</th><th>Item</th><th class="n">Qtd</th><th>Tipo</th><th>Para quem</th><th>Motivo</th><th>Pedido</th><th>Lançou</th></tr>
     ${todos.map(c => `<tr class="${c.apagado ? 'apagado' : ''}"><td>${hora(c.ts)}</td><td>${esc(c.item)}${c.livre ? ' <span class="tag cinza">livre</span>' : ''}</td><td class="n">${c.qtd}</td><td>${esc(c.tipo)}</td><td>${esc(paraQuem(c))}</td><td>${esc(c.motivo || '')}${c.apagado ? `<br><span class="sub">apagado: pediu ${esc(c.apagado.pediu)}, autorizou ${esc(c.apagado.autorizou)} · ${esc(c.apagado.motivo)}</span>` : ''}</td><td>${esc(c.pedido || '')}</td><td>${esc(c.por)}</td></tr>`).join('') || '<tr><td colspan="8" class="vazio">Nada lançado nesta noite.</td></tr>'}</table></div>`;
   if (dsc.length) h += `<p class="sub" style="margin:8px 0 0">${ic('sell')} Descontos nas contas das mesas: ${dsc.length} (−${R(dsc.reduce((s, x) => s + (x.valor || 0), 0))} pelo cardápio). Entram nas cópias abaixo como tipo Desconto; o detalhe está na Conferência do caixa.</p>`;
-  if (val.length || dsc.length) h += `<div class="grade nao-imprimir" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:10px">
+  if (val.length || dsc.length) h += `<div class="grade nao-imprimir" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));margin-top:10px">
     <div class="card"><h3>${ic('forum')} Padrão do grupo do fiscal</h3><div class="copia" style="white-space:pre-wrap">${esc(grupo)}</div><button class="bt" style="margin-top:8px" data-a="copiar" data-c="${esc(grupo)}">${ic('content_copy')} Copiar</button></div>
     <div class="card"><h3>${ic('table_view')} Para a planilha (aba Consumo interno)</h3><p class="sub">Data, item, quantidade, para quem, tipo e observação, separados por tabulação. O custo entra no fechamento do fiscal.</p><button class="bt" data-a="copiar" data-c="${esc(plan)}">${ic('content_copy')} Copiar linhas</button></div></div>`;
   return h;
@@ -1654,7 +1725,7 @@ function telaConferencia() {
       return `<tr><td><b>${esc(n)}</b></td><td class="n">${R(x.PIX)}</td><td class="n">${R(x['Crédito'])}</td><td class="n">${R(x['Débito'])}</td><td class="n">${R(x.Dinheiro)}</td>
       <td class="n">${x.Dinheiro ? `${inputConf(k, 'R$', 'width:110px;min-height:36px')} ${dif(ent, x.Dinheiro)}` : '—'}</td>
       <td>${al.map(a => `<span class="tag aviso">${esc(a)}</span>`).join(' ') || '<span class="sub">nenhum</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="sub">Sem pagamentos ainda.</td></tr>'}</table></div>`;
-  h += `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-bottom:10px"><div class="card"><h3>${ic('point_of_sale')} Maquininha (salão)</h3>
+  h += `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));margin-bottom:10px"><div class="card"><h3>${ic('point_of_sale')} Maquininha (salão)</h3>
     <div class="total-linha"><span>Crédito no sistema</span><b>${R(sysCred)}</b></div><div class="linha">${inputConf('maqCred', 'Crédito no relatório da maquininha', 'flex:1')}${dif(num('maqCred'), sysCred)}</div>
     <div class="total-linha" style="margin-top:8px"><span>Débito no sistema</span><b>${R(sysDeb)}</b></div><div class="linha">${inputConf('maqDeb', 'Débito no relatório da maquininha', 'flex:1')}${dif(num('maqDeb'), sysDeb)}</div></div>
     <div class="card"><h3>${ic('qr_code')} PIX: ${pixOk} de ${pix.length} achados no extrato</h3><p class="sub">Abra o extrato da conta da empresa e marque cada PIX pelo valor e pela hora. PIX que não aparece = recebido fora da conta da casa.</p>
@@ -1721,7 +1792,7 @@ A.novaNoite = () => {
 // ================= equipe e loja =================
 function telaEquipe() {
   const c = cfg();
-  return `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))"><div class="card"><h2>Equipe</h2>
+  return `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))"><div class="card"><h2>Equipe</h2>
     <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco).</p>
     <table class="tab"><tr><th>Nome</th><th>Função</th><th>Código</th><th></th></tr>${equipeOrdenada().map(p => `<tr><td>${esc(p.nome)}</td><td><select class="inp" style="min-height:34px;padding:4px 8px;width:auto" data-ch="papelPessoa" data-id="${p.id}">${PAPEIS.map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td>••••</td><td class="n"><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}">${ic('delete')}</button></td></tr>`).join('')}</table>
     <div class="secao-t">Acrescentar</div>${campo('Nome', 'pNome', 'Nome')}${campo('Código (4 números)', 'pPin', '', 'numeric')}
@@ -1763,15 +1834,15 @@ function telaCardapio() {
   const fixos = C.itens.filter(p => !p.extra);
   const cats = []; fixos.forEach(p => { let c = cats.find(x => x.n === p.cat); if (!c) cats.push(c = { n: p.cat, i: [] }); c.i.push(p); });
   const ex = extrasAtuais();
-  const resumoOps = p => (p.grupos || []).map(g => g.t + ': ' + g.ops.map(o => o.n + (o.mais ? ' +' + o.mais : '')).join(', ')).join(' · ');
+  const resumoOps = p => (p.grupos || []).map(g => g.t + ': ' + g.ops.map(o => o.n + (o.mais ? ' + ' + Rc(o.mais) : '')).join(', ')).join(' · ');
   let h = `<div class="entre"><h2 style="margin:0">Bebidas e sobremesas</h2><button class="bt pri" data-a="extraNovo">${ic('add')} Novo item</button></div>
     <p class="sub">Você edita aqui: nome, abreviação (o que aparece no painel do bar e vale na busca), código, preço, preço no delivery, ingredientes e opções. ${Array.isArray(EXTRAS_CFG) ? '' : 'Esta é a lista inicial das suas notas de 23/11; ela se grava na primeira edição.'} Itens desligados somem do garçom e da página de pedido, mas ficam aqui.</p>
     <div class="card" style="overflow-x:auto;margin-bottom:18px"><table class="tab"><tr><th>Cód.</th><th>Item</th><th>No bar</th><th>Opções</th><th class="n">Preço</th><th>Ativo</th><th></th></tr>
     ${ex.slice().sort((a, b) => (a.cat || '').localeCompare(b.cat || '') || a.cod - b.cod).map(p => `<tr style="${p.ativo === false ? 'opacity:.5' : ''}"><td><span class="cod">${p.cod}</span></td><td><b>${esc(p.nome)}</b><br><span class="sub">${esc(p.cat)}${p.ingredientes ? ' · ' + esc(p.ingredientes) : ''}</span></td>
-      <td>${esc(p.ab || '(nome)')}</td><td class="sub">${esc(resumoOps(p))}</td><td class="n">${R(p.preco)}${p.precoDelivery ? `<br><span class="sub">delivery ${R(p.precoDelivery)}</span>` : ''}</td>
+      <td>${esc(p.ab || '(nome)')}</td><td class="sub">${esc(resumoOps(p))}${comboDe(p) ? `<br><span class="tag combo" style="margin-top:4px">combo: ${esc(ROT_COMBO[comboDe(p)] || comboDe(p))}</span>` : ''}</td><td class="n">${R(p.preco)}${p.precoDelivery ? `<br><span class="sub">delivery ${R(p.precoDelivery)}</span>` : ''}</td>
       <td><input type="checkbox" class="ck" data-ch="extraAtivo" data-c="${p.cod}" ${p.ativo !== false ? 'checked' : ''}></td><td class="n"><button class="bt-ic" data-a="extraEditar" data-c="${p.cod}" title="Editar">${ic('edit')}</button></td></tr>`).join('')}</table></div>
     <h2>Cardápio fixo</h2><p class="sub">Do Cardápio A3 FINAL, com os códigos de 23/11 e as abreviações da linha de produção (as das fichas de montagem). Mudança aqui: peça ao Claude (arquivo menu.js).</p>
-    <div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">${cats.map(c => `<div class="card"><h3>${esc(c.n)}</h3><table class="tab">${c.i.map(p => `<tr><td><span class="cod">${p.cod}</span></td><td>${esc(p.nome)}${p.ab ? `<br><span class="sub">TV: <b>${esc(p.ab)}</b></span>` : ''}</td><td>${p.setor === 'bar' ? '<span class="tag cinza">bar</span>' : ''}</td><td class="n">${p.precoLivre ? '17–30' : R(p.preco)}</td></tr>`).join('')}</table></div>`).join('')}</div>`;
+    <div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))">${cats.map(c => `<div class="card"><h3>${esc(c.n)}</h3><table class="tab">${c.i.map(p => `<tr><td><span class="cod">${p.cod}</span></td><td>${esc(p.nome)}${p.ab ? `<br><span class="sub">TV: <b>${esc(p.ab)}</b></span>` : ''}</td><td>${p.setor === 'bar' ? '<span class="tag cinza">bar</span>' : ''}</td><td class="n">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}</td></tr>`).join('')}</table></div>`).join('')}</div>`;
   return h;
 }
 // --- edição das bebidas e sobremesas (grava em config.extras; fica registrado no log da loja) ---
@@ -1807,6 +1878,7 @@ function modalExtra(p) {
   const livres = () => { const usados = new Set(C.fixos.map(x => x.cod).concat(extrasAtuais().map(x => x.cod))); let c = 108; while (usados.has(c)) c++; return c; };
   Object.assign(F, { exNome: p ? p.nome : '', exAb: p ? p.ab || '' : '', exCod: String(p ? p.cod : livres()), exPreco: p ? String(p.preco).replace('.', ',') : '', exDel: p && p.precoDelivery ? String(p.precoDelivery).replace('.', ',') : '', exIng: p ? p.ingredientes || '' : '', exOps: p ? opsParaTexto(p.grupos) : '' });
   let cat = p ? p.cat : 'Bebidas'; F.exLiga = p ? p.ativo !== false : true;
+  let comboX = p ? comboDe(p) : '';
   abrirModal({
     foco: 'exNome',
     render: () => `<div class="entre"><h2>${novo ? 'Novo item' : 'Editar ' + esc(p.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
@@ -1816,10 +1888,12 @@ function modalExtra(p) {
       <div class="linha"><div style="flex:1">${campo('Preço (R$)', 'exPreco', '16', 'decimal')}</div><div style="flex:1">${campo('Preço no delivery (opcional)', 'exDel', '', 'decimal')}</div></div>
       <div class="campo"><label for="exIng">Ingredientes e montagem</label><textarea id="exIng" class="inp" data-f="exIng" placeholder="Ex.: limão espremido, destilado, açúcar, sabor e água com gás">${esc(F.exIng)}</textarea></div>
       <div class="campo"><label for="exOps">Opções (uma por linha; Nome=ABREVIAÇÃO e +valor quando aumenta o preço)</label><textarea id="exOps" class="inp" data-f="exOps" placeholder="Sabor: Groselha=GRO, Pitanga=PIT, Mix=MIX&#10;Tamanho: 500 ml, 900 ml=900+15">${esc(F.exOps)}</textarea>
-        <span class="sub">Ex.: Belorihills + Gin + Pitanga sai no bar como BELO GIN PIT. Quem pede Mix escreve os sabores.</span></div>
+        <span class="sub">Ex.: Belorihills + Gin + Pitanga sai no bar como BELO GIN PIT. Cada linha vira uma pergunta por toque no link do WhatsApp e no garçom; com Mix, o cliente toca nos sabores.</span></div>
+      ${cat === 'Bebidas' ? `<div class="campo"><label>Entra no combo do burguer como</label><div class="chips">${[['', 'Não entra'], ['sucoRefri', 'Suco ou refri'], ['soda', 'Soda italiana'], ['cerveja', 'Cerveja'], ['drink', 'Drink da casa']].map(([k, l]) => `<button class="chip ${comboX === k ? 'on' : ''}" data-a="cmb" data-c="${k}">${l}</button>`).join('')}</div><span class="sub">Aparece como opção por toque na bebida do combo, no link do WhatsApp e no garçom.</span></div>` : ''}
       <label class="sub" style="display:flex;gap:8px;align-items:center;margin:4px 0 12px"><input type="checkbox" class="ck" data-f="exLiga" ${F.exLiga ? 'checked' : ''}> Ativo (aparece no garçom e na página de pedido)</label>
       <div class="linha">${novo ? '' : `<button class="bt txt verm" data-a="tirar">${ic('delete')} Tirar da lista</button>`}<span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok">${ic('save')} Salvar</button></div>`,
     cat(d) { cat = d.c; pintarModal(); },
+    cmb(d) { comboX = d.c; pintarModal(); },
     async tirar() {
       if (!confirm('Tirar ' + p.nome + ' da lista? (Para pausar, é melhor desligar.)')) return;
       await salvarExtras(l => { const i = l.findIndex(y => y.cod === p.cod); if (i < 0) return false; l.splice(i, 1); }, p.nome + ' tirado');
@@ -1836,6 +1910,7 @@ function modalExtra(p) {
       const grupos = textoParaOps(F.exOps);
       const item = { cod, nome, ab: (F.exAb || '').trim().toUpperCase(), preco, cat, ingredientes: (F.exIng || '').trim(), setor: 'bar', tipo: grupos.length || cat === 'Bebidas' ? 'bebida' : 'simples', ativo: liga };
       if (del) item.precoDelivery = del; if (grupos.length) item.grupos = grupos;
+      if (cat === 'Bebidas') item.combo = comboX;
       await salvarExtras(l => { const i = p ? l.findIndex(y => y.cod === p.cod) : -1; if (i >= 0) l[i] = item; else l.push(item); }, (novo ? 'novo ' : 'editou ') + nome + ' (' + R(preco) + ')');
       fecharModal(); toast(nome + ' salvo');
     }
@@ -2068,7 +2143,7 @@ function telaFichaGluten(prods, calc, fa, m) {
   let h = `<p class="sub">Vem dos ingredientes de cada ficha: um ingrediente com glúten basta para o prato ter glúten; se todos os que têm glúten têm troca (pão sem glúten, empanar só no fubá, tirar o onion), o prato é adaptável. Serve para os ícones do cardápio (tem, não tem, adaptável). Enquanto houver insumo "a conferir", o prato fica a conferir.</p>`;
   h += diverg.length ? `<div class="card" style="border-color:var(--vermelho);background:var(--vermelho-cl);margin:10px 0"><b>${ic('warning')} A ficha diz que tem glúten e a TV não avisa</b><div class="sub" style="margin-top:6px;line-height:1.7">${diverg.map(x => `<b>${x.p.cod} ${esc(x.p.nome)}</b>: ${esc(x.f.join(', '))}`).join('<br>')}</div><div class="sub" style="margin-top:6px">Hoje o aviso da TV vem do cardápio do sistema; peça ao Claude para incluir (ou para o alerta passar a vir da ficha).</div></div>`
     : `<div class="card" style="margin:10px 0"><span class="tag ok">confere</span> <span class="sub">Tudo o que a ficha marca com glúten na cozinha já tem aviso na TV.</span></div>`;
-  h += `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">${grupos.map(([k, t, cl]) => { const l = vend.filter(p => de(p) === k); return `<div class="card"><h3><span class="tag ${cl}">${l.length}</span> ${t}</h3><div class="sub" style="line-height:1.7">${l.map(p => { const r = calc[p.cod];
+  h += `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))">${grupos.map(([k, t, cl]) => { const l = vend.filter(p => de(p) === k); return `<div class="card"><h3><span class="tag ${cl}">${l.length}</span> ${t}</h3><div class="sub" style="line-height:1.7">${l.map(p => { const r = calc[p.cod];
       const tr = k === 'adapt' ? ' · ' + r.glIns.filter(x => x.gl === 'sim').map(x => x.troca).join('; ') : k === 'tem' ? ' · ' + r.glIns.filter(x => x.gl === 'sim' && !x.troca).map(x => x.nome).join(', ') : k === 'conf' && !r.vazia ? ' · ' + r.glIns.filter(x => x.gl === 'conferir').map(x => x.nome).slice(0, 4).join(', ') + (r.glIns.filter(x => x.gl === 'conferir').length > 4 ? '…' : '') : '';
       return `<b>${p.cod.toString().startsWith('p-') ? '' : p.cod + ' '}${esc(p.nome)}</b>${esc(tr)}`; }).join('<br>') || '—'}</div></div>`; }).join('')}</div>`;
   const conf = (fa.insumos || []).filter(i => i.tipo !== 'Embalagem' && glIns(i, m) === 'conferir');
@@ -2223,7 +2298,7 @@ TELAS.base = () => {
 };
 function topoBase(abas, aba) {
   return `<div class="topo"><div class="marca"><span class="logo">ST</span><b>${esc(NOME_CURTO)}</b><span class="longo">· base</span></div>
-    <nav class="abas">${abas.map(([k, i, l, b]) => `<button class="${k === aba ? 'on' : ''}" data-a="aba" data-c="${k}">${ic(i)} ${l}${b ? ` <span class="badge">${b}</span>` : ''}</button>`).join('')}</nav>
+    <nav class="abas" data-rola="abas">${abas.map(([k, i, l, b]) => `<button class="${k === aba ? 'on' : ''}" data-a="aba" data-c="${k}">${ic(i)} ${l}${b ? ` <span class="badge">${b}</span>` : ''}</button>`).join('')}</nav>
     <span class="esp"></span><span class="quem">${ic('account_circle')} ${esc(S.eu.nome)} <button class="bt-ic" data-a="sair" title="Trocar de pessoa">${ic('logout')}</button></span></div>`;
 }
 
@@ -2327,7 +2402,7 @@ function cardProduto(p) {
   const k = CATS_PEDIDO[p.cat] || {}; const inc = inclusosDe(p);
   const n = CARRINHO.filter(i => i.cod === p.cod).length;
   return `<button class="pc" data-a="cliProd" data-c="${p.cod}">
-    <div class="pc-img" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}${p.selo ? `<span class="selo">${esc(p.selo)}</span>` : ''}${n ? `<span class="qtd">${n}</span>` : ''}</div>
+    <div class="pc-img${p.foto ? ' foto' : ''}" style="background:${k.bg};color:${k.cor}">${p.foto ? `<img src="${esc(p.foto)}" alt="" loading="lazy">` : ic(icProd(p))}${p.selo ? `<span class="selo">${esc(p.selo)}</span>` : ''}${n ? `<span class="qtd">${n}</span>` : ''}</div>
     <div class="pc-corpo"><div class="pc-nome">${esc(p.nome)}</div>
     ${inc ? htmlInclusos(inc) : (p.desc ? `<div class="pc-desc">${esc(p.desc)}</div>` : '')}
     ${p.economia ? `<div class="pc-eco">${esc(p.economia.split('·').pop().trim())}</div>` : ''}
@@ -2338,20 +2413,43 @@ function topoPedido(compacto) {
   return `<div class="hero"><div class="hero-in"><div class="hero-logo">ST</div><div><div class="hero-n">${esc(NOME_CURTO)}</div><div class="hero-s">Plant-based · um trem feito procê desde 2020</div></div></div>
     <div class="hero-chips"><span>${ic('hail')} Retirada pelo Uber Flash</span><span>${ic('two_wheeler')} Entrega por moto</span><span>${ic('payments')} PIX ou cartão</span><span>${ic('eco')} 100% vegano</span></div></div>`;
 }
+// Cardápio original na página de pedido (JP, 24/11/2026): prévia do verso no alto; o toque abre o cardápio completo
+// (frente e verso, o mesmo PDF do WhatsApp) para ler com calma e voltar ao pedido.
+const CARDAPIO_IMG = { previa: 'img/cardapio-verso.jpg', completo: 'img/cardapio-completo.jpg', pdf: 'img/cardapio-seu-trem.pdf' };
+const MSG_DUVIDA = 'Ei Trem, tô olhando o cardápio e me bateu uma dúvida: ';
+const waCasa = () => cfg().whatsapp || '31993096150';
+function previaCardapio() {
+  return `<div class="cp">
+    <button class="cp-img" data-a="verCardapio" aria-label="Abrir o cardápio completo"><img src="${CARDAPIO_IMG.previa}" alt="Cardápio Seu Trem"><span class="cp-selo">${ic('menu_book')} Toque para ver o cardápio completo</span></button>
+    <p class="cp-txt">Se preferir, leia o cardápio original e depois volte para selecionar seu pedido: fica mais gostoso de ler.</p>
+    <a class="bt verde bloco cp-wa" href="${wa(waCasa(), MSG_DUVIDA)}" target="_blank" rel="noopener">${ic('chat')} Qualquer dúvida toque aqui</a></div>`;
+}
+function telaCardapioCompleto() {
+  return `<div class="cc-topo"><button class="bt pri" data-a="fecharCardapio">${ic('arrow_back')} Voltar para o pedido</button><span class="esp"></span><a class="bt txt" href="${CARDAPIO_IMG.pdf}" target="_blank" rel="noopener">${ic('picture_as_pdf')} PDF</a></div>
+    <div class="cc"><p class="sub" style="text-align:center;margin:10px 16px">Afaste dois dedos na tela para ampliar.</p><img src="${CARDAPIO_IMG.completo}" alt="Cardápio Seu Trem completo, frente e verso">
+    <div style="padding:16px"><button class="bt verde grande bloco" data-a="fecharCardapio">${ic('shopping_bag')} Voltar e fazer o pedido</button>
+    <a class="bt bloco" style="margin-top:10px" href="${wa(waCasa(), MSG_DUVIDA)}" target="_blank" rel="noopener">${ic('chat')} Qualquer dúvida toque aqui</a></div></div>`;
+}
+A.verCardapio = () => { S.ui.rolPedido = window.scrollY; S.ui.verCardapio = true; try { history.pushState({ cardapio: 1 }, ''); } catch (e) {} window.scrollTo(0, 0); render(); };
+A.fecharCardapio = () => { if (history.state && history.state.cardapio) { history.back(); return; } fecharCardapio(); };
+function fecharCardapio() { if (!S.ui.verCardapio) return; S.ui.verCardapio = false; pintar(); window.scrollTo(0, S.ui.rolPedido || 0); }
+window.addEventListener('popstate', () => { if (VIEW === 'pedido') fecharCardapio(); });
 TELAS.pedido = () => {
   if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
   if (S.ui.pedidoFeito) return topoPedido(true) + telaPedidoFeito();
   if (S.ui.checkout) return topoPedido(true) + telaCheckout();
+  if (S.ui.verCardapio) return telaCardapioCompleto();
   const lista = C.itens.filter(p => p.tipo !== 'adicional' && !(p.tipo === 'comboMesa' && p.partes.length === 1));
   const q = norm(F.buscaCli || '');
   const filtra = p => !q || norm(p.nome + ' ' + (p.desc || '')).includes(q);
   const cats = ORDEM_CATS.map(n => ({ n, i: lista.filter(p => p.cat === n && filtra(p)) })).filter(c => c.i.length);
   const tot = subtotal(CARRINHO);
   let h = topoPedido(false);
-  h += `<div class="cats-nav">${cats.map(c => `<button class="cat-chip" data-a="irCat" data-c="${esc(c.n)}">${ic(CATS_PEDIDO[c.n].ic)} ${esc(c.n)}</button>`).join('')}</div>`;
+  h += `<div class="pag-estreita pedido" style="padding-bottom:0">${previaCardapio()}</div>`;
+  h += `<div class="cats-nav" data-rola="cats">${cats.map(c => `<button class="cat-chip" data-a="irCat" data-c="${esc(c.n)}">${ic(CATS_PEDIDO[c.n].ic)} ${esc(c.n)}</button>`).join('')}</div>`;
   h += `<div class="pag-estreita pedido" style="padding-bottom:110px">
     <div class="busca" style="margin:4px 0 14px">${ic('search')}<input id="buscaCli" data-f="buscaCli" data-vivo placeholder="Buscar no cardápio" value="${esc(F.buscaCli || '')}" autocomplete="off"></div>`;
-  if (!q) h += `<div class="sec-t">Destaques da casa</div><div class="destaques">${[P[50], P[30], P[43]].map(p => { const k = CATS_PEDIDO[p.cat]; return `<button class="dq" data-a="cliProd" data-c="${p.cod}" style="background:${k.bg}"><div class="dq-ic" style="color:${k.cor}">${ic(icProd(p))}</div>${p.selo ? `<span class="selo-in">${esc(p.selo)}</span>` : ''}<b class="dq-n">${esc(p.cod === 30 ? 'Combo do burguer' : p.nome)}</b>${htmlInclusos(inclusosDe(p))}${p.economia ? `<div class="pc-eco">${esc(p.economia)}</div>` : ''}<div class="dq-p">${precoCard(p)}</div></button>`; }).join('')}</div>`;
+  if (!q) h += `<div class="sec-t">Destaques da casa</div><div class="destaques" data-rola="destaques">${[P[50], P[30], P[43]].map(p => { const k = CATS_PEDIDO[p.cat]; return `<button class="dq${p.foto ? ' com-foto' : ''}" data-a="cliProd" data-c="${p.cod}" style="background:${k.bg}">${p.foto ? `<div class="dq-foto"><img src="${esc(p.foto)}" alt=""></div>` : `<div class="dq-ic" style="color:${k.cor}">${ic(icProd(p))}</div>`}${p.selo ? `<span class="selo-in">${esc(p.selo)}</span>` : ''}<b class="dq-n">${esc(p.cod === 30 ? 'Combo do burguer' : p.nome)}</b>${htmlInclusos(inclusosDe(p))}${p.economia ? `<div class="pc-eco">${esc(p.economia)}</div>` : ''}<div class="dq-p">${precoCard(p)}</div></button>`; }).join('')}</div>`;
   cats.forEach(c => {
     const k = CATS_PEDIDO[c.n];
     h += `<div class="sec" id="cat-${norm(c.n).replace(/\W+/g, '-')}"><div class="sec-t"><span class="sec-ic" style="background:${k.bg};color:${k.cor}">${ic(k.ic)}</span>${esc(k.titulo || c.n)}</div>${k.sub ? `<div class="sec-sub">${esc(k.sub)}</div>` : ''}<div class="grade-p">${c.i.map(cardProduto).join('')}</div></div>`;
@@ -2376,7 +2474,7 @@ function telaCheckout() {
   return `<div class="pag-estreita pedido" style="padding-bottom:40px"><button class="bt txt" data-a="voltarCardapio">${ic('arrow_back')} Voltar ao cardápio</button>
     <div class="etapa"><div class="etapa-t"><span class="etapa-n">1</span> Sua sacola</div>
       <div class="itens">${CARRINHO.map((it, i) => { const p = P[it.cod] || {}; const k = CATS_PEDIDO[p.cat] || {}; return `<div class="item"><span class="it-ic" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}</span><div class="corpo"><div class="nm">${esc(it.nome)}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}</div><div class="pr">${R(precoItem(it))}<div class="qtd-bt"><button class="bt-ic" data-a="tirarCarrinho" data-i="${i}" title="Tirar">${ic('remove_circle_outline')}</button><button class="bt-ic" data-a="repetirItem" data-i="${i}" title="Mais um igual">${ic('add_circle_outline')}</button></div></div></div>`; }).join('') || '<div class="vazio">Sua sacola está vazia.</div>'}</div>
-      ${sug.length && CARRINHO.length ? `<div class="sub" style="margin:14px 0 8px">Peça também</div><div class="sugs">${sug.map(p => `<button class="sug" data-a="cliProd" data-c="${p.cod}"><span class="sug-ic" style="background:${CATS_PEDIDO[p.cat].bg};color:${CATS_PEDIDO[p.cat].cor}">${ic(icProd(p))}</span><span class="sug-n">${esc(p.nome.replace(' (acompanha)', ''))}</span><b>${R(p.preco)}</b></button>`).join('')}</div>` : ''}</div>
+      ${sug.length && CARRINHO.length ? `<div class="sub" style="margin:14px 0 8px">Peça também</div><div class="sugs" data-rola="sugs">${sug.map(p => `<button class="sug" data-a="cliProd" data-c="${p.cod}"><span class="sug-ic" style="background:${CATS_PEDIDO[p.cat].bg};color:${CATS_PEDIDO[p.cat].cor}">${ic(icProd(p))}</span><span class="sug-n">${esc(p.nome.replace(' (acompanha)', ''))}</span><b>${R(p.preco)}</b></button>`).join('')}</div>` : ''}</div>
     <div class="etapa"><div class="etapa-t"><span class="etapa-n">2</span> Você</div>${campo('Nome', 'pNomeC', '')}${campo('WhatsApp (com DDD)', 'pTelC', '31 9…', 'tel', 'tel')}</div>
     <div class="etapa"><div class="etapa-t"><span class="etapa-n">3</span> Como recebe</div>
       <div class="opcoes">${opcao('cliEnt', 'retirada', ent, 'hail', 'Retirada', 'Você chama o Uber Flash quando avisarmos que está pronto')}${opcao('cliEnt', 'moto', ent, 'two_wheeler', 'Entrega por moto', 'A casa chama a moto; o frete vem pelo WhatsApp')}</div>
@@ -2478,7 +2576,9 @@ async function iniciar() {
   else if (VIEW === 'mesa') { assinar(['config']); DB.listenDoc('mesas', PARAMS.get('m'), m => { S.mesaCli = m; render(); }); }
   else if (VIEW === 'pedido') { assinar(['config']); }
   else if (VIEW === 'pago') { assinar(['config']); iniciarPago(); }
-  setInterval(() => { tentarEu(); render(); }, 15000);
+  // Repintura a cada 15 s só nas telas da equipe (tempos da TV, mesas); nas páginas do cliente não há relógio,
+  // e repintar interromperia a rolagem de quem está lendo o cardápio
+  if (['base', 'garcom', 'cozinha'].includes(VIEW)) setInterval(() => { tentarEu(); render(); }, 15000);
   render();
 }
 function tentarEu() {
