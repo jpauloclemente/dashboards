@@ -411,6 +411,30 @@ body.teste .nav-inf{background:#fef7e0;border-top:3px solid #f9ab00}
 body.teste .carrinho-bar{background:#fef7e0}
 @media(max-width:600px){.bt-teste span{display:none}.bt-teste{padding:6px 8px}.faixa-teste .d{display:none}}
 
+/* v12 · leva de produção na TV (até 10 burguers): o que preparar, de bater o olho */
+.leva{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--borda);padding:10px 16px}
+.lv-t{display:flex;align-items:center;gap:8px;padding-right:14px;border-right:2px solid var(--borda);font-size:18px;color:var(--txt2)}
+.lv-t b{font-size:34px;color:var(--txt);font-weight:900;line-height:1}
+.lv-n{background:#202124;color:#fff;font-weight:900;font-size:14px;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:4px 8px}
+.lv-its{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 320px;min-width:0}
+.lv{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:6px 12px;font-size:18px;color:#3c4043;background:#f1f3f4;border:2px solid transparent;white-space:nowrap}
+.lv-t,.lv-prox{flex:none}
+.lv b{font-size:28px;font-weight:900;color:var(--txt);line-height:1}
+.lv .ms{font-size:22px}
+.lv small{font-size:14px}
+.lv.gb{background:#fef7e0;border-color:#f6d36b}.lv.gb .ms{color:#b06000}
+.lv.soja{background:#e6f4ea;border-color:#a8dab5}.lv.soja .ms{color:#188038}
+.lv.isca{background:#f3e8fd;border-color:#d7aefb}.lv.isca .ms{color:#9334e6}
+.lv.oni{background:#feefe3;border-color:#fbc89c}.lv.oni .ms{color:#e8710a}
+.lv.fri{background:#fff8e1;border-color:#fde293}.lv.fri .ms{color:#b06000}
+.lv-prox{display:inline-flex;align-items:center;gap:8px;background:var(--laranja);color:#fff;border-radius:10px;padding:6px 12px;font-size:15px;line-height:1.2}
+.lv-prox .ms{font-size:26px}
+.lv-prox b{display:block;font-size:17px;font-weight:900}
+.leva.compacta .lv-t{font-size:14px}.leva.compacta .lv-t b{font-size:24px}
+.leva.compacta .lv{font-size:14px;padding:4px 10px}.leva.compacta .lv b{font-size:20px}.leva.compacta .lv .ms{font-size:18px}
+.tag.leva-tag{background:#202124;color:#fff}
+@media(max-width:820px){.lv-t{border-right:0;padding-right:0}.lv{font-size:14px;padding:4px 9px}.lv b{font-size:20px}.lv .ms{font-size:18px}}
+
 /* Ficha técnica (v9) */
 #modal .caixa.largo{max-width:1000px}
 .ft-linhas td{padding:4px 6px;vertical-align:middle}

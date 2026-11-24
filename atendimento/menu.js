@@ -83,6 +83,16 @@ window.CARDAPIO = (function () {
     // Bebidas e sobremesas novas: lista editável na base (aba Cardápio), com os valores iniciais abaixo (EXTRAS)
   ];
 
+  // Produção por leva na TV (JP, 24/11/2026). prot: as proteínas de cada burguer (gb = grão de bico, soja), pelas
+  // descrições de montagem; o Circuito 2023 e o Burguer Circuito 26 são recheados de iscas, sem proteína. O recheio de
+  // iscas e os 2 onion rings do burguer saem do glúten (gl 'isca' e 'onion'). fritas: o tamanho da porção que acompanha
+  // (P no combo do burguer e no acompanhamento; M na shimentinha, quesadillas, espeto e filé do combo do Circuito;
+  // G nas porções de iscas, cheddar e bacon, onion e coguporó, fritas ou onions e filé G).
+  const PROT = { 1: ['gb'], 2: ['soja'], 3: ['gb'], 4: ['soja'], 5: ['soja'], 6: ['gb'], 7: ['soja'], 8: [], 9: ['soja'], 10: ['gb'], 11: ['soja', 'gb'], 52: [] };
+  const FRITAS = { 21: 'G', 22: 'G', 23: 'G', 24: 'M', 25: 'G', 26: 'M', 27: 'M', 28: 'M', 51: 'G', 81: 'P' };
+  itens.forEach(i => { if (PROT[i.cod]) i.prot = PROT[i.cod]; if (FRITAS[i.cod]) i.fritas = FRITAS[i.cod]; });
+  const fx50 = itens.find(i => i.cod === 50).fixas; fx50[0].fritas = 'M'; fx50[1].cod = 52;
+
   // Bebidas e sobremesas da casa (JP, 23/11/2026, grupo Sistema). Editáveis na base: nome, abreviação, preço,
   // preço no delivery, ingredientes e opções. Cada opção soma a abreviação e, se tiver, o acréscimo no preço.
   // Ex.: Belorihills + Gin + Pitanga = BELO GIN PIT; 900 ml = +R$ 15. O cardápio impresso de bebidas e

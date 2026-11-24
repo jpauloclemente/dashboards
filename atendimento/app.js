@@ -455,7 +455,7 @@ function blocosDe(itens, setor) {
     if (!ps.length) return null;
     return {
       item: it.uid, combo: it.combo ? it.nome : null, comboAb: it.combo ? (it.comboAb || '') : '',
-      linhas: ps.map(p => ({ nome: p.nome, ab: p.ab || '', alergia: p.alergia || '', trocas: [...(p.adds || []).map(a => '+ ' + a.nome), p.det, p.obs].filter(Boolean), grupo: p.grupo || 0, chapa: p.chapa || null, discos: p.discos || 0 }))
+      linhas: ps.map(p => ({ nome: p.nome, ab: p.ab || '', alergia: p.alergia || '', trocas: [...(p.adds || []).map(a => '+ ' + a.nome), p.det, p.obs].filter(Boolean), grupo: p.grupo || 0, chapa: p.chapa || null, discos: p.discos || 0, cod: p.cod || null, fritas: p.fritas || null, esc: p.esc || p.det || '', adds: (p.adds || []).map(a => a.cod) }))
     };
   }).filter(Boolean);
 }
@@ -490,7 +490,7 @@ function grupoDe(t) { return { burguer: 0, quesadilla: 1, espeto: 2, sobremesaFa
 function addsObj(cods) { return (cods || []).map(c => ({ cod: c, nome: P[c].nome, preco: P[c].preco })); }
 function parteBurg(b, s, g) {
   const adds = addsObj(s.adds);
-  return { nome: b.nome, ab: b.ab || '', gl: ('pao ' + (b.gl || '')).trim(), setor: 'cozinha', chapa: 'burguer', discos: (b.discos || 1) + adds.filter(a => P[a.cod].disco).length, adds, obs: s.obs || '', grupo: g || 0 };
+  return { cod: b.cod, nome: b.nome, ab: b.ab || '', gl: ('pao ' + (b.gl || '')).trim(), setor: 'cozinha', chapa: 'burguer', discos: (b.discos || 1) + adds.filter(a => P[a.cod].disco).length, adds, obs: s.obs || '', grupo: g || 0 };
 }
 // Pedido sem glúten (alergia): tudo o que tem glúten entra no alerta (JP, 23 e 24/11/2026). A isca de shimeji empanada
 // vai só no fubá, o onion ring sai, o pão brioche e a tortilha da quesadilla são de trigo. Toda parte da cozinha do item
@@ -529,7 +529,7 @@ function bebidaDoCombo(c, MI) {
 function partesCombo(c, MI) {
   const b = bebidaDoCombo(c, MI);
   return [
-    { nome: 'Fritas (combo)', ab: 'FRI 100g', setor: 'cozinha', adds: [], grupo: 1 },
+    { nome: 'Fritas (combo)', ab: 'FRI 100g', fritas: 'P', setor: 'cozinha', adds: [], grupo: 1 },
     { nome: MI.doce || 'Super brownie', setor: 'bar', adds: [], grupo: 1 },
     { nome: b.nome, ab: b.ab, setor: 'bar', adds: [], grupo: 1, bebida: true }
   ];
@@ -583,7 +583,7 @@ function montarItem(MI) {
     if (!combo) nome = p.nome.replace('(combo da mesa)', '').trim() + (partes[0] && p.partes[0].t === 'burguer' ? ': ' + partes[0].nome : partes[0] && p.partes[0].t === 'quesadilla' ? ': ' + partes[0].nome.replace('Quesadilla ', '') : '') + ' (combo da mesa)';
   } else if (p.tipo === 'comboFixo') {
     combo = true; comboAb = p.ab || '';
-    p.fixas.forEach((x, i) => partes.push({ nome: x.nome, ab: x.ab || '', gl: x.gl || '', setor: x.setor, chapa: x.chapa || null, discos: x.chapa === 'burguer' ? 1 : 0, adds: x.burguer ? addsObj(MI.sel[0].adds) : [], obs: x.burguer ? MI.sel[0].obs : '', grupo: i }));
+    p.fixas.forEach((x, i) => partes.push({ cod: x.cod || null, fritas: x.fritas || null, nome: x.nome, ab: x.ab || '', gl: x.gl || '', setor: x.setor, chapa: x.chapa || null, discos: x.chapa === 'burguer' ? 1 : 0, adds: x.burguer ? addsObj(MI.sel[0].adds) : [], obs: x.burguer ? MI.sel[0].obs : '', grupo: i }));
   } else if (p.tipo === 'bebida') {
     if (p.precoLivre) base = +MI.preco;
     const d = descBebida(p, MI.ops, MI.mix);
@@ -592,7 +592,7 @@ function montarItem(MI) {
     partes.push({ nome, ab: d.ab, setor: 'bar', adds: [], obs: MI.obs || '' });
   } else {
     const abE = p.abEscolha && MI.escolha && p.abEscolha[MI.escolha];
-    partes.push({ nome: p.nome, ab: abE || p.ab || '', gl: (p.glEscolha && MI.escolha && p.glEscolha[MI.escolha]) || p.gl || '', setor: p.setor, chapa: p.chapa || null, discos: 0, adds: addsObj(MI.sel[0].adds), espeto: !!p.espeto, det: abE ? '' : (MI.escolha || ''), obs: MI.sel[0].obs || MI.obs || '' });
+    partes.push({ cod: p.cod, esc: MI.escolha || '', nome: p.nome, ab: abE || p.ab || '', gl: (p.glEscolha && MI.escolha && p.glEscolha[MI.escolha]) || p.gl || '', setor: p.setor, chapa: p.chapa || null, discos: 0, adds: addsObj(MI.sel[0].adds), espeto: !!p.espeto, det: abE ? '' : (MI.escolha || ''), obs: MI.sel[0].obs || MI.obs || '' });
   }
   if (MI.semGluten) aplicarGluten(partes);
   return { uid: uid(), cod: p.cod, nome, base: r2(base), acresc, combo, comboAb, partes, tipo: p.tipo, sel: false, comPrato: false, enviado: false, cards: [], por: quem(), ts: agora() };
@@ -1381,7 +1381,7 @@ function cardCozinha(c) {
   const cor = ag ? 'aguardando' : corCoz(m);
   const tagO = c.origem === 'salao' ? 'salão' : c.origem === 'ifood' ? 'iFood' : 'WhatsApp';
   const alergia = c.blocos.some(b => b.linhas.some(l => l.alergia));
-  let h = `<div class="kc ${cor} ${alergia ? 'com-alergia' : ''}" data-card="${c.id}"${ag ? '' : ` data-cor="${t0}"`}><div class="kh"><span class="tag ${c.origem}">${tagO}</span>${c.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<span class="ref">${esc(c.ref)}</span><span class="tempo" data-min="${t0}">${m} min</span></div>`;
+  let h = `<div class="kc ${cor} ${alergia ? 'com-alergia' : ''}" data-card="${c.id}"${ag ? '' : ` data-cor="${t0}"`}><div class="kh"><span class="tag ${c.origem}">${tagO}</span>${c.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<span class="ref">${esc(c.ref)}</span>${LEVAS_CARD[c.id] ? `<span class="tag leva-tag">${[...LEVAS_CARD[c.id]].map(x => 'L' + (x + 1)).join('/')}</span>` : ''}<span class="tempo" data-min="${t0}">${m} min</span></div>`;
   if (alergia) h += `<div class="kalerta">${ic('warning')} ALERGIA A GLÚTEN</div>`;
   if (c.nPedido) h += `<div class="npedido">${ordinal(c.nPedido)} pedido com a gente</div>`;
   // Na TV, a abreviação da linha de produção (como nas fichas de montagem); sem abreviação, o nome
@@ -1402,10 +1402,78 @@ function cardCozinha(c) {
   h += `<div class="kmove"><button data-a="mover" data-id="${c.id}" data-c="-1" title="Adiantar">${ic('arrow_back')}</button><button data-a="mover" data-id="${c.id}" data-c="1" title="Atrasar">${ic('arrow_forward')}</button></div></div>`;
   return h;
 }
+// ================= leva de produção (JP, 24/11/2026) =================
+// Uma pessoa produz até 10 burguers por leva. O painel mostra o que a leva da vez pede: proteínas de grão de bico e
+// de soja, recheios de iscas, onion rings dos burguers, porções de onion e as fritas P, M e G. Passou de 10, o resto
+// fica para a próxima leva, com o aviso ao lado. As porções entram na leva em que estão na fila.
+const LEVA_MAX = 10;
+// O produto da linha: pelo código (cards novos) ou, nos cards antigos, pela abreviação ou pelo nome
+function prodDaLinha(l) {
+  if (l.cod && P[l.cod]) return P[l.cod];
+  const ab = norm(l.ab), nm = norm(l.nome);
+  return C.fixos.find(p => (ab && norm(p.ab) === ab && (p.tipo === 'burguer') === (l.chapa === 'burguer')) || norm(p.nome) === nm) || null;
+}
+function prodLinha(l) {
+  const r = { burg: 0, gb: 0, soja: 0, protX: 0, isca: 0, oniB: 0, oniP: 0, P: 0, M: 0, G: 0, meio: 0 };
+  const p = prodDaLinha(l); const adds = l.adds || [];
+  const semOnion = /SEM ONION/.test(l.alergia || '');
+  if (l.chapa === 'burguer') {
+    r.burg = 1;
+    const prot = (p && p.prot) || [];
+    prot.forEach(k => { r[k] += 1; });
+    adds.filter(c => c === 72).forEach(() => { if (prot[0]) r[prot[0]] += 1; else r.protX += 1; });
+    const gl = String((p && p.gl) || '');
+    if (/\bisca\b/.test(gl)) r.isca = 1;
+    if (/\bonion\b/.test(gl) && !semOnion) r.oniB += 2;
+    r.oniB += adds.filter(c => c === 64).length * 2;
+    return r;
+  }
+  const esc = l.esc || ''; const tam = l.fritas || (p && p.fritas) || (/^FRI 100g$/i.test(l.ab) ? 'P' : /^1\/2 FIL/i.test(l.ab) ? 'M' : /FRI/i.test(l.ab) && !p ? 'G' : null);
+  const oniEsc = p && p.escolha && esc && /oniprato/.test(((p.glEscolha || {})[esc]) || '');
+  const meio = /meio|mix/i.test(esc);
+  const soOnion = oniEsc && !meio;
+  if (tam && !soOnion) { r[tam] += 1; if (meio) r.meio += 1; }
+  if (oniEsc || (p && !p.escolha && /oniprato/.test(p.gl || ''))) r.oniP += 1;
+  return r;
+}
+// Divide a fila em levas de até 10 burguers; devolve o resumo de cada leva e as levas de cada card
+function levasDaFila(fila) {
+  const lev = []; const doCard = {}; let L = 0, n = 0;
+  const nova = () => ({ burg: 0, gb: 0, soja: 0, protX: 0, isca: 0, oniB: 0, oniP: 0, P: 0, M: 0, G: 0, meio: 0 });
+  fila.filter(c => c.status !== 'aguardando').forEach(c => {
+    (c.blocos || []).forEach(b => (b.linhas || []).forEach(l => {
+      const r = prodLinha(l);
+      if (r.burg && n >= LEVA_MAX) { L++; n = 0; }
+      if (r.burg) n++;
+      const x = lev[L] = lev[L] || nova();
+      Object.keys(r).forEach(k => { x[k] += r[k]; });
+      (doCard[c.id] = doCard[c.id] || new Set()).add(L);
+    }));
+  });
+  return { lev, doCard };
+}
+let LEVAS_CARD = {};
+function telaLeva(fila, compacta) {
+  const { lev, doCard } = levasDaFila(fila); LEVAS_CARD = lev.length > 1 ? doCard : {};
+  const a = lev[0]; if (!a) return '';
+  const resto = lev.slice(1); const burgResto = resto.reduce((s, x) => s + x.burg, 0);
+  const it = (v, t, cls, ic1) => v ? `<span class="lv ${cls || ''}">${ic1 ? ic(ic1) : ''}<b>${v}</b>${t}</span>` : '';
+  const its = [
+    it(a.gb, 'grão de bico', 'gb', 'grain'), it(a.soja, 'soja', 'soja', 'eco'), it(a.protX, 'proteína extra (ver card)', '', 'add_circle'),
+    it(a.isca, a.isca > 1 ? 'recheios de isca' : 'recheio de isca', 'isca', 'set_meal'),
+    it(a.oniB, 'onions nos burguers', 'oni', 'donut_large'), it(a.oniP, a.oniP > 1 ? 'porções de onion' : 'porção de onion', 'oni', 'donut_small'),
+    it(a.P, 'fritas P', 'fri', 'fastfood'), it(a.M, 'fritas M', 'fri', 'fastfood'), it(a.G, 'fritas G' + (a.meio ? ` <small>(${a.meio} meio a meio)</small>` : ''), 'fri', 'fastfood')
+  ].join('');
+  return `<div class="leva${compacta ? ' compacta' : ''}"><div class="lv-t"><span class="lv-n">Leva 1</span><b>${a.burg}</b><span>${a.burg === 1 ? 'burguer' : 'burguers'}${a.burg >= LEVA_MAX ? ' (cheia)' : ''}</span></div>
+    <div class="lv-its">${its || '<span class="sub">só o que já está nos cards</span>'}</div>
+    ${resto.length ? `<div class="lv-prox">${ic('layers')}<span><b>+${resto.length} ${resto.length > 1 ? 'levas' : 'leva'} na fila</b>${burgResto} ${burgResto === 1 ? 'burguer' : 'burguers'}</span></div>` : ''}</div>`;
+}
 function telaFilaCozinha(compacta) {
   const fila = filaDe('cozinha'); const s = somaFila(fila.filter(c => c.status !== 'aguardando'));
+  const leva = telaLeva(fila, compacta);
   return `<div class="tv-topo">${compacta ? '' : `<b style="font-size:20px">Cozinha</b>`}<div class="soma"><div class="s"><b>${s.burguer}</b>hambúrgueres</div><div class="s"><b>${s.quesadilla}</b>quesadillas</div><div class="s"><b>${s.cogumelo}</b>cogumelos</div></div>
     <span class="esp" style="flex:1"></span><span style="font-size:22px;font-weight:700" data-relogio>${hora(agora())}</span>${compacta ? '' : `<button class="bt-ic" data-a="sair" title="Sair">${ic('logout')}</button>`}</div>
+    ${leva}
     ${fila.length ? `<div class="fila" id="fila">${fila.map(cardCozinha).join('')}</div>` : '<div class="tv-vazia">Fila vazia</div>'}
     ${compacta ? telaFeitosRecentes() : ''}`;
 }
@@ -1939,6 +2007,9 @@ function modalFixo(p, catNova) {
   let setor = p ? p.setor : (CATS_NOVO[cat] || {}).setor || 'cozinha'; let combina = p ? !!p.combina : true;
   const tipo = () => p ? p.tipo : CATS_NOVO[cat].tipo;
   const temGl = () => setor === 'cozinha' && ['burguer', 'aperitivo', 'simples'].includes(tipo());
+  // Leva da TV: a proteína do burguer e o tamanho das fritas da porção (v12)
+  let prot = JSON.stringify((p && p.prot) || ['soja']); let fritas = (p && p.fritas) || '';
+  const PROT_OPS = [['["soja"]', 'Soja'], ['["gb"]', 'Grão de bico'], ['["soja","gb"]', 'Soja + grão de bico'], ['[]', 'Sem proteína (recheio)']];
   abrirModal({
     foco: 'fxNome',
     render: () => `<div class="entre"><h2>${novo ? 'Novo item do cardápio' : 'Editar ' + esc(p.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
@@ -1948,6 +2019,8 @@ function modalFixo(p, catNova) {
       <div class="linha"><div style="flex:1">${campo('Preço (R$)', 'fxPreco', '35', 'decimal')}</div>${tipo() === 'adicional' ? '' : `<div style="flex:1">${campo('Preço no delivery (opcional)', 'fxDel', '', 'decimal')}</div>`}</div>
       ${tipo() === 'adicional' ? `<label class="sub" style="display:flex;gap:8px;align-items:center;margin:0 0 12px"><button class="chip ${combina ? 'on' : ''}" data-a="comb">${ic(combina ? 'check_box' : 'check_box_outline_blank')} Entra no combo de adicionais (2 por R$ 10 · 3 por R$ 12)</button></label>` : `<div class="campo"><label for="fxDesc">Descrição (aparece no link do WhatsApp e no garçom)</label><textarea id="fxDesc" class="inp" data-f="fxDesc" placeholder="Ingredientes, como vem">${esc(F.fxDesc)}</textarea></div>`}
       ${tipo() === 'simples' && novo ? `<div class="campo"><label>Sai de onde</label><div class="chips">${[['cozinha', 'Cozinha (TV)'], ['bar', 'Bar (garçom)']].map(([k, l]) => `<button class="chip ${setor === k ? 'on' : ''}" data-a="set" data-c="${k}">${l}</button>`).join('')}</div></div>` : ''}
+      ${tipo() === 'burguer' ? `<div class="campo"><label>Proteína (conta na leva da TV)</label><div class="chips">${PROT_OPS.map(([k, l]) => `<button class="chip ${prot === k ? 'on' : ''}" data-a="prot" data-c='${k}'>${l}</button>`).join('')}</div></div>` : ''}
+      ${temGl() && tipo() !== 'burguer' ? `<div class="campo"><label>Fritas que acompanham (contam na leva da TV)</label><div class="chips">${[['', 'Nenhuma'], ['P', 'Fritas P'], ['M', 'Fritas M'], ['G', 'Fritas G']].map(([k, l]) => `<button class="chip ${fritas === k ? 'on' : ''}" data-a="fri" data-c="${k}">${l}</button>`).join('')}</div></div>` : ''}
       ${temGl() ? `<div class="campo"><label>Glúten (o que muda no pedido sem glúten)${tipo() === 'burguer' ? ' · o pão brioche já entra sozinho' : ''}</label><div class="chips">${GL_OPS.map(([k, l]) => `<button class="chip ${gl.has(k) ? 'on verm' : ''}" data-a="gl" data-c="${k}">${ic(gl.has(k) ? 'check_box' : 'check_box_outline_blank')} ${l}</button>`).join('')}</div></div>` : ''}
       ${tipo() === 'adicional' ? '' : `<div class="linha"><div style="flex:1">${campo('Selo (opcional)', 'fxSelo', 'Ex.: Lançamento')}</div><div style="flex:2">${campo('Economia (combos, opcional)', 'fxEco', 'Ex.: Separado R$ 37 · economize R$ 9')}</div></div>`}
       <div class="linha">${novo ? '' : base ? (p.editado ? `<button class="bt txt" data-a="restaurar">${ic('restart_alt')} Voltar ao original</button>` : '') : `<button class="bt txt verm" data-a="tirar">${ic('delete')} Tirar da lista</button>`}<span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok">${ic('save')} Salvar</button></div>`,
@@ -1955,6 +2028,8 @@ function modalFixo(p, catNova) {
     set(d) { setor = d.c; pintarModal(); },
     gl(d) { if (gl.has(d.c)) gl.delete(d.c); else gl.add(d.c); pintarModal(); },
     comb() { combina = !combina; pintarModal(); },
+    prot(d) { prot = d.c; pintarModal(); },
+    fri(d) { fritas = d.c; pintarModal(); },
     async restaurar() {
       if (!confirm('Voltar ' + p.nome + ' ao original do cardápio A3?')) return;
       await salvarFixos(fc => { delete fc.edit[p.cod]; }, p.nome + ' voltou ao original');
@@ -1972,6 +2047,8 @@ function modalFixo(p, catNova) {
       if (!(preco > 0)) { toast('Ponha o preço'); return; }
       const campos = { nome, ab: (F.fxAb || '').trim().toUpperCase(), preco, precoDelivery: del || null, desc: (F.fxDesc || '').trim(), selo: (F.fxSelo || '').trim(), economia: (F.fxEco || '').trim() };
       if (temGl()) campos.gl = Array.from(gl).join(' ');
+      if (tipo() === 'burguer') campos.prot = JSON.parse(prot);
+      else if (temGl()) campos.fritas = fritas;
       if (tipo() === 'adicional') { campos.combina = combina; delete campos.desc; delete campos.precoDelivery; }
       if (novo) {
         const cod = parseInt(F.fxCod, 10);
@@ -2429,11 +2506,13 @@ TELAS.base = () => {
   if (CELULAR && S.eu.papel !== 'socio') return `<div class="pag-estreita" style="padding-top:48px"><div class="card plano" style="text-align:center"><h1>${ic('smartphone')} Base no celular: só sócio</h1><p class="sub">Use a base no computador ou o app do garçom pelo link da noite.</p><button class="bt" data-a="sair">${ic('logout')} Trocar de pessoa</button></div></div>`;
   const aba = S.ui.aba || 'mesas';
   const nPg = S.delivery.filter(d => ['frete', 'pagamento'].includes(colunaPedido(d))).length;
-  const abas = [['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
+  const abas = [['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['bebidas', 'local_bar', 'Bebidas', filaDe('bar').length], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
   let corpo;
   if (aba !== 'noite') assinarConsumo(noiteId());
   if (aba === 'mesas') corpo = S.ui.mesa ? `<div class="pag-estreita" style="padding:0">${S.ui.mesa === CI_ID ? telaConsumo() : telaMesa(S.ui.mesa)}</div>` : `<div class="entre"><h2>Mesas ao vivo</h2><span class="sub">Acesso total: abra qualquer mesa. Tudo fica registrado com o seu nome.</span></div>` + telaSlots();
   else if (aba === 'cozinha') return topoBase(abas, aba) + `<div class="tv" style="min-height:0">${telaFilaCozinha(true)}</div>`;
+  // Bebidas na base (JP, 24/11/2026): a mesma fila do bar do app do garçom, para o sócio ver e ajudar a preparar
+  else if (aba === 'bebidas') corpo = `<div class="pag-estreita" style="padding:0;max-width:900px"><p class="sub" style="margin:0 0 8px">A mesma fila do app do garçom. Fez a bebida? Toque Feito: some para todos.</p>${telaBebidas()}</div>`;
   else if (aba === 'whatsapp') corpo = telaWhatsApp();
   else if (aba === 'ifood') corpo = `<div class="pag-estreita" style="padding:0;max-width:760px">${telaIfood()}</div>`;
   else if (aba === 'noite') { if (!S.ui.noiteVer) { S.ui.noiteVer = noiteId(); } assinarVendas(S.ui.noiteVer); assinarConf(S.ui.noiteVer); assinarConsumo(S.ui.noiteVer); corpo = telaNoite(); }
