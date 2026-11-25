@@ -1800,7 +1800,7 @@ function telaNoite() {
       <td>${v.itens.map(i => `${esc(i.nome)} <span class="sub">${i.descPct ? `<s>${R(i.cheio)}</s> ` : ''}${R(i.preco)}</span>${i.descPct ? ` <span class="tag desc">−${pctTxt(i.descPct)}</span>` : ''}`).join('<br>')}${v.frete ? `<br><span class="sub">frete ${R(v.frete)} (fora da nota)</span>` : ''}</td><td class="n">${R(v.subtotal)}</td><td class="n">${R(v.dez)}</td><td class="n"><b>${R(v.total)}</b></td>
       <td>${(v.pagamentos || []).map(p => `${esc(p.forma)} ${R(p.valor)}`).join('<br>')}${v.comprovante ? '<br><span class="tag ok">comprovante</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhuma venda fechada ainda.</td></tr>'}</table></div>
     <p class="sub">iFood entra pelo preço do cardápio (referência); o valor real e as taxas ficam na planilha de Gestão do iFood. O 10% está dentro do total da NFC-e até a contadora responder.</p>`;
-  return h + telaRelConsumo() + telaConferencia();
+  return h + telaRelConsumo() + telaRelCompras() + telaConferencia();
 }
 // --- relatório: consumo interno e perdas (vai para o fiscal, aba Consumo interno da planilha de controle) ---
 function inicioDaNoite(id) {
@@ -2537,6 +2537,258 @@ function modalInsumo(ins) {
   });
 }
 
+// ================= compras e tarefas do dia seguinte (JP, 25/11/2026) =================
+// JP lança a lista de compras do próximo dia por local e as tarefas. Cada item ganha o preço provável, que vem
+// do fiscal como o CMV da ficha técnica: o script pc_build.ps1 lê as notinhas lançadas no Controle financeiro e
+// grava lojas/<loja>/precos/main (último preço de cada item em cada local, apelidos, estimativas e a precisão do
+// previsto). A lista fica em lojas/<loja>/compras/<aaaa-mm-dd>; o relatório da noite a leva ao fechamento do fiscal.
+let PRECOS = undefined, precosOff = null, comprasOff = null;
+S.compras = [];
+function assinarPrecos() { if (precosOff) return; precosOff = DB.listenDoc('precos', 'main', d => { PRECOS = d; PC_ALIAS = null; render(); }); }
+function assinarCompras() { if (comprasOff) return; comprasOff = DB.listen('compras', a => { S.compras = a; render(); }); }
+const pcDoc = id => S.compras.find(d => d.id === id) || null;
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+// O dia da operação vira às 6 h (a noite passa da meia-noite): a lista padrão é a do dia seguinte ao da operação
+function pcDiaSeguinte(ts) { const d = new Date((ts || agora()) - 6 * 3600000); d.setDate(d.getDate() + 1); return ymd(d); }
+function pcSomaDias(id, n) { const d = new Date(id + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); }
+const pcRotuloDia = id => { const s = new Date(id + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }); return s.charAt(0).toUpperCase() + s.slice(1); };
+const pcDM = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
+const brN = v => { const [i, d] = (Math.round((+v || 0) * 100) / 100).toFixed(2).split('.'); return i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
+const RS = v => 'R$ ' + brN(v);
+
+// --- leitura de cada linha da lista ("2x Couve", "3kg proteína de soja", "15R$ alho torrado", "200(3)") ---
+const PC_FORA = ['de', 'da', 'do', 'das', 'dos', 'e', 'com', 'o', 'a', 'os', 'as', 'p', 'para'];
+function pcSing(w) { if (w.length <= 3 || /\d/.test(w)) return w; if (/[oa]es$/.test(w)) return w.slice(0, -3) + 'ao'; if (/[^s]s$/.test(w)) return w.slice(0, -1); return w; }
+function pcTokens(s) { return norm(s).replace(/(\d)\s+(ml|g|kg|l)\b/g, '$1$2').replace(/[^a-z0-9.,°\s]/g, ' ').split(/\s+/).map(w => w.replace(/^[.,]+|[.,]+$/g, '')).filter(Boolean).map(pcSing).filter(w => !PC_FORA.includes(w)); }
+function pcLimpa(s) { return String(s || '').replace(/[⁠​-‍﻿]/g, '').replace(/\s+/g, ' ').trim(); }
+function pcLer(txt) {
+  let t = pcLimpa(txt), obs = '', m; const bar = t.indexOf('|'); if (bar >= 0) { obs = t.slice(bar + 1).trim(); t = t.slice(0, bar).trim(); }
+  let qtd = 1, un = '', valorFixo = null;
+  if ((m = t.match(/(\d+(?:[.,]\d+)?)\s*r\$/i)) || (m = t.match(/r\$\s*(\d+(?:[.,]\d+)?)/i))) { valorFixo = numBR(m[1]); t = (t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length)).trim(); }
+  if ((m = t.match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml)\.?\s+(?:de\s+)?(.+)$/i))) { qtd = numBR(m[1]); un = m[2].toLowerCase(); t = m[3]; if (un === 'g') { qtd /= 1000; un = 'kg'; } if (un === 'ml') { qtd /= 1000; un = 'l'; } }
+  else if ((m = t.match(/^(\d+(?:[.,]\d+)?)\s*x\s*(.+)$/i))) { qtd = numBR(m[1]); t = m[2]; }
+  else if ((m = t.match(/^(.+?)\s*\((\d+(?:[.,]\d+)?)\)\s*$/))) { t = m[1]; qtd = numBR(m[2]); }
+  else if ((m = t.match(/^(\d+)\s+(.+)$/))) { qtd = +m[1]; t = m[2]; }
+  else if ((m = t.match(/^(.+?)\s+(\d+)\s*x$/i))) { t = m[1]; qtd = +m[2]; }
+  if ((m = t.match(/cada\s*\(([^)]+)\)/i))) qtd = (qtd || 1) * m[1].split(/,|\s+e\s+/).map(s => s.trim()).filter(Boolean).length;
+  t = t.replace(/^(pac|pacs|pacote|pacotes|pct|pcts|fardo|fardos|un|und|unid|unidades?)\.?\s+/i, '').trim();
+  return { nome: t, qtd: qtd > 0 ? qtd : 1, un, valorFixo, obs };
+}
+// --- catálogo do fiscal: qual item é, e quanto custa em cada local ---
+let PC_ALIAS = null;
+function pcAliases() {
+  if (PC_ALIAS) return PC_ALIAS; PC_ALIAS = [];
+  ((PRECOS && PRECOS.itens) || []).forEach(it => (it.apelidos || []).concat([it.nome]).forEach(a => { const tk = pcTokens(a); if (tk.length) PC_ALIAS.push({ it, tk, len: a.length }); }));
+  return PC_ALIAS;
+}
+function pcAchar(nome) {
+  const tk = pcTokens(nome); if (!tk.length) return null; let best = null, bs = 0;
+  pcAliases().forEach(a => { if (!a.tk.every(w => tk.includes(w))) return; const s = a.tk.length * 10 + (a.tk[0] === tk[0] ? 5 : 0) + a.len / 100; if (s > bs) { bs = s; best = a.it; } });
+  return best;
+}
+function pcLocalCanon(nome) {
+  const n = norm(pcLimpa(nome)); if (!n) return '';
+  for (const l of ((PRECOS && PRECOS.locais) || [])) { if ((l.apelidos || []).concat([norm(l.nome)]).some(a => a === n || (a.length > 3 && n.includes(a)))) return l.nome; }
+  return pcLimpa(nome);
+}
+function pcQtd(L, cat) {
+  if (cat.un === 'kg') return L.un === 'kg' ? L.qtd : L.qtd * (cat.peso || 1);
+  if (L.un === 'kg' && cat.peso) return L.qtd / cat.peso;
+  return L.qtd;
+}
+// Preço provável de uma linha num local: valor que JP digitou > valor escrito na lista > nota daquele local >
+// nota de outro local > estimativa do catálogo > nota parecida (sem catálogo) > sem preço
+function pcPreco(it, local) {
+  const L = pcLer(it.txt);
+  if (it.manual != null && it.manual !== '') return { total: r2(it.manual), fonte: 'voce', L };
+  if (L.valorFixo != null) return { total: r2(L.valorFixo), fonte: 'fixo', L };
+  const cat = pcAchar(L.nome);
+  if (cat) {
+    const q = pcQtd(L, cat); const ps = cat.precos || []; const aqui = ps.find(p => p.local === local); const outro = ps[0];
+    const menor = ps.slice().sort((a, b) => a.preco - b.preco)[0];
+    const barato = menor && (aqui || outro) && menor.preco <= (aqui || outro).preco * 0.85 && menor.local !== local ? menor : null;
+    if (aqui) return { total: r2(aqui.preco * q), un: aqui.preco, q, cat, fonte: 'nota', info: 'nota de ' + pcDM(aqui.data), barato, L };
+    if (outro) return { total: r2(outro.preco * q), un: outro.preco, q, cat, fonte: 'outro', info: outro.local + ' ' + pcDM(outro.data), barato, L };
+    if (cat.est != null) return { total: r2(cat.est * q), un: cat.est, q, cat, fonte: 'est', L };
+    return { fonte: 'sem', cat, L };
+  }
+  // sem catálogo: procura nas notas um item com as mesmas palavras (prefere o mesmo local e a nota mais nova)
+  const tk = pcTokens(L.nome).filter(w => !/^\d/.test(w));
+  if (tk.length && PRECOS && PRECOS.notas) {
+    const c = PRECOS.notas.filter(n => n.u !== 'kg' || L.un === 'kg').map(n => ({ n, ntk: pcTokens(n.n) })).filter(x => tk.every(w => x.ntk.includes(w)))
+      .sort((a, b) => (b.n.l === local) - (a.n.l === local) || a.ntk.length - b.ntk.length || String(b.n.d).localeCompare(String(a.n.d)))[0];
+    if (c) return { total: r2(c.n.p * L.qtd), un: c.n.p, q: L.qtd, fonte: 'parecido', info: c.n.n + ' · ' + c.n.l + ' ' + pcDM(c.n.d), L };
+  }
+  return { fonte: 'sem', L };
+}
+const PC_TAG = { nota: ['ok', 'nota'], outro: ['salao', 'outro local'], est: ['aviso', 'estimativa'], parecido: ['salao', 'nota parecida'], voce: ['combo', 'você'], fixo: ['cinza', 'valor da lista'], sem: ['ifood', 'sem preço'] };
+const pcTag = f => { const t = PC_TAG[f] || PC_TAG.sem; return `<span class="tag ${t[0]}">${t[1]}</span>`; };
+function pcTotais(d) {
+  const out = { total: 0, itens: 0, sem: 0, locais: [] };
+  ((d && d.locais) || []).forEach(l => { let t = 0, sem = 0; (l.itens || []).forEach(i => { const p = pcPreco(i, l.nome); if (p.total != null) t += p.total; else sem++; }); t = r2(t); out.total = r2(out.total + t); out.itens += (l.itens || []).length; out.sem += sem; out.locais.push({ l, total: t, sem }); });
+  return out;
+}
+// Grava a lista com o previsto da hora (é o que o fiscal compara depois com o gasto real)
+async function pcSalvar(id, fn, log) {
+  await DB.mutate('compras', id, c => {
+    const d = c || { data: id, locais: [], tarefas: [] }; d.locais = d.locais || []; d.tarefas = d.tarefas || [];
+    if (fn(d) === false) return undefined;
+    let tot = 0; d.locais.forEach(l => { let t = 0; (l.itens || []).forEach(i => { const p = pcPreco(i, l.nome); i.fonte = p.fonte; i.prev = p.total == null ? null : p.total; if (p.total != null) t += p.total; }); l.previsto = r2(t); tot += t; });
+    d.previstoTotal = r2(tot); d.precosDe = (PRECOS && PRECOS.geradoEm) || null; d.atualizadoEm = agora(); d.por = quem();
+    if (log) d.log = [{ t: agora(), quem: quem(), o: log }].concat(d.log || []).slice(0, 100);
+    return d;
+  });
+}
+function pcNovoLocal(d, nome, quemCompra) {
+  const canon = pcLocalCanon(nome); let l = d.locais.find(x => norm(x.nome) === norm(canon));
+  if (!l) { l = { id: uid(), nome: canon, quem: quemCompra || '', itens: [] }; d.locais.push(l); } else if (quemCompra && !l.quem) l.quem = quemCompra;
+  return l;
+}
+// --- colar a lista do WhatsApp: "> Local | quem", itens um por linha, "- TAREFAS" e as tarefas numeradas ---
+function pcLerLista(txt) {
+  const out = { locais: [], tarefas: [] }; let atual = null, tarefas = false;
+  String(txt || '').split(/\r?\n/).forEach(raw => {
+    const s = pcLimpa(raw); if (!s) return;
+    let m;
+    if ((m = s.match(/^>\s*(.+)$/)) || (m = s.match(/^extras?\s*\|\s*(.+)$/i))) {
+      tarefas = false; const [nome, ...resto] = m[1].split('|');
+      atual = { nome: nome.trim(), quem: resto.join(' ').replace(/[^\p{L}\s]/gu, '').trim(), itens: [] }; out.locais.push(atual); return;
+    }
+    if (/^[-•*]*\s*tarefas\b/i.test(s)) { tarefas = true; return; }
+    if (tarefas) { const t = s.replace(/^\d+\s*[.)-]\s*/, '').replace(/^[-•*]\s*/, '').trim(); if (t) out.tarefas.push(t); return; }
+    if (!atual) { atual = { nome: 'Sem local', quem: '', itens: [] }; out.locais.push(atual); }
+    atual.itens.push(s.replace(/^[-•*]\s+/, ''));
+  });
+  return out;
+}
+
+function telaCompras() {
+  assinarPrecos(); assinarCompras();
+  const id = S.ui.pcDia || pcDiaSeguinte(); const d = pcDoc(id) || { data: id, locais: [], tarefas: [] };
+  const tt = pcTotais(d); const abertas = (d.tarefas || []).filter(t => !t.feita).length;
+  const prec = (PRECOS && PRECOS.precisao) || []; const erroMed = prec.length ? Math.round(prec.reduce((s, x) => s + Math.abs(x.erro), 0) / prec.length * 10) / 10 : null;
+  const dias = [...new Set(S.compras.map(x => x.id).concat([pcDiaSeguinte(), id]))].sort().reverse().slice(0, 14);
+  let h = `<div class="entre"><h2 style="margin:0">Compras e tarefas</h2><div class="linha">
+      <span class="pc-dia"><button class="bt-ic" data-a="pcDia" data-c="-1" title="Dia anterior">${ic('chevron_left')}</button>
+      <select class="inp" data-ch="pcDiaSel">${dias.map(x => `<option value="${x}" ${x === id ? 'selected' : ''}>${pcRotuloDia(x)}${x === pcDiaSeguinte() ? ' (próximo dia)' : ''}</option>`).join('')}</select>
+      <button class="bt-ic" data-a="pcDia" data-c="1" title="Dia seguinte">${ic('chevron_right')}</button></span>
+      <button class="bt" data-a="pcColar">${ic('content_paste')} Colar lista</button>${(d.locais || []).length ? `<button class="bt" data-a="pcCopiar">${ic('content_copy')} Copiar para o WhatsApp</button>` : ''}</div></div>
+    <p class="sub">A lista das compras de <b>${pcRotuloDia(id).toLowerCase()}</b>, por local, e as tarefas do dia. O preço de cada item é o provável, vindo das notinhas que o fiscal lança: a última nota daquele local; sem nota ali, a de outro local; sem nota nenhuma, a estimativa do catálogo. O relatório da noite leva tudo ao fechamento do fiscal.</p>
+    <p class="sub" style="margin-top:-4px">${PRECOS === undefined ? 'Carregando os preços do fiscal…' : PRECOS ? `${ic('sync')} Preços do fiscal de ${dataBR(PRECOS.geradoEm)} ${hora(PRECOS.geradoEm)} · ${(PRECOS.itens || []).filter(x => (x.precos || []).length).length} itens com nota · última nota ${pcDM(PRECOS.ultimaNota)}` : `${ic('warning')} O fiscal ainda não mandou preços para esta loja (rode pc_build.ps1 na pasta do fiscal). Sem eles, só vale o valor que você digitar.`}</p>
+    <div class="kpis" style="margin-top:12px">
+      <div class="kpi"><div class="v">${RS(tt.total)}</div><div class="l">previsto para as compras</div></div>
+      <div class="kpi"><div class="v">${(d.locais || []).length}</div><div class="l">locais</div></div>
+      <div class="kpi"${tt.sem ? ' style="border-color:var(--amarelo)"' : ''}><div class="v">${tt.itens}</div><div class="l">itens${tt.sem ? ' · ' + tt.sem + ' sem preço' : ''}</div></div>
+      <div class="kpi"><div class="v">${abertas}</div><div class="l">tarefas abertas</div></div>
+      ${erroMed != null ? `<div class="kpi"><div class="v">${nBR(erroMed, '%')}</div><div class="l">erro médio do previsto (${prec.length} compras)</div></div>` : ''}</div>`;
+  h += `<div class="pc-grade">${tt.locais.map(({ l, total, sem }) => {
+    const fk = 'pcAdd_' + l.id; const rk = 'pcReal_' + l.id; const real = numBR(F[rk] != null ? F[rk] : l.real);
+    return `<div class="card pc-local"><div class="entre" style="align-items:flex-start"><div><h3 style="margin:0">${esc(l.nome)}</h3>${l.quem ? `<span class="tag cinza">${ic('person')} ${esc(l.quem)}</span>` : ''}</div>
+        <div style="text-align:right"><div class="pc-total">${RS(total)}</div><span class="sub">${(l.itens || []).length} ite${(l.itens || []).length === 1 ? 'm' : 'ns'}${sem ? ' · ' + sem + ' sem preço' : ''}</span></div></div>
+      <div class="pc-itens">${(l.itens || []).map(i => { const p = pcPreco(i, l.nome); const L = p.L;
+        const qtxt = p.q != null && p.cat ? (p.cat.un === 'kg' ? nBR(Math.round(p.q * 100) / 100) + ' kg' : nBR(Math.round(p.q * 100) / 100) + ' ' + p.cat.un) + ' × ' + RS(p.un) : p.q != null ? nBR(p.q) + ' × ' + RS(p.un) : '';
+        return `<div class="pc-item ${i.feito ? 'feito' : ''}"><input type="checkbox" data-ch="pcFeito" data-l="${l.id}" data-i="${i.id}" ${i.feito ? 'checked' : ''} title="Comprado">
+          <div class="pc-txt"><b>${esc(L.nome || i.txt)}</b>${L.qtd !== 1 || L.un ? ` <span class="sub">${nBR(L.qtd)}${L.un ? ' ' + L.un : 'x'}</span>` : ''}${L.obs ? `<div class="sub">${esc(L.obs)}</div>` : ''}
+            <div class="sub">${p.cat ? esc(p.cat.nome) + (qtxt ? ' · ' + qtxt : '') : qtxt ? esc(p.info || '') + ' · ' + qtxt : ''}${p.info && p.cat ? ' · ' + esc(p.info) : ''}${p.barato ? ` · <span style="color:var(--verde)">${ic('south')} ${esc(p.barato.local)} ${RS(p.barato.preco)}</span>` : ''}</div></div>
+          <button class="pc-preco" data-a="pcPrecoItem" data-l="${l.id}" data-i="${i.id}" title="Ajustar o valor"><b>${p.total != null ? RS(p.total) : '—'}</b>${pcTag(p.fonte)}</button>
+          <button class="bt-ic" data-a="pcTiraItem" data-l="${l.id}" data-i="${i.id}" title="Tirar">${ic('close')}</button></div>`; }).join('') || '<div class="sub" style="padding:6px 0">Nenhum item ainda.</div>'}</div>
+      <div class="linha" style="margin-top:8px"><input id="${fk}" class="inp" style="flex:1" data-f="${fk}" data-enter="pcAddItem" data-l="${l.id}" placeholder="Acrescentar (ex.: 2x couve, 3kg grão de bico)" value="${esc(F[fk] || '')}" autocomplete="off"><button class="bt" data-a="pcAddItem" data-l="${l.id}">${ic('add')}</button></div>
+      <div class="entre pc-rodape"><label class="sub" for="${rk}">Gasto real</label><input id="${rk}" class="inp" style="width:110px;min-height:34px" inputmode="decimal" placeholder="R$" data-f="${rk}" data-ch="pcReal" data-l="${l.id}" value="${esc(F[rk] != null ? F[rk] : (l.real || ''))}">
+        ${real > 0 ? (Math.abs(real - total) < 0.01 ? '<span class="tag ok">bateu</span>' : `<span class="tag ${Math.abs(real - total) / real <= 0.1 ? 'ok' : 'aviso'}">${real > total ? '+' : '−'}${RS(Math.abs(real - total))}</span>`) : '<span class="sub">a nota confirma no fiscal</span>'}
+        <span style="flex:1"></span><button class="bt-ic" data-a="pcEditaLocal" data-l="${l.id}" title="Nome e quem compra">${ic('edit')}</button><button class="bt-ic" data-a="pcTiraLocal" data-l="${l.id}" title="Tirar o local">${ic('delete')}</button></div></div>`; }).join('')}
+    <div class="card pc-local pc-novo"><h3 style="margin:0 0 8px">${ic('add_business')} Novo local</h3><datalist id="dl-pc-locais">${((PRECOS && PRECOS.locais) || []).map(l => `<option value="${esc(l.nome)}">`).join('')}</datalist>
+      <div class="linha"><input id="pcLocalNovo" class="inp" style="flex:1" list="dl-pc-locais" data-f="pcLocalNovo" data-enter="pcAddLocal" placeholder="Ex.: Supermercados BH" value="${esc(F.pcLocalNovo || '')}" autocomplete="off"><button class="bt pri" data-a="pcAddLocal">${ic('add')}</button></div>
+      <p class="sub">Ou cole a lista inteira do WhatsApp em "Colar lista": "> Local | quem compra", um item por linha e "- TAREFAS" no fim.</p></div></div>`;
+  h += `<div class="secao-t">Tarefas do dia</div><div class="card">${(d.tarefas || []).map((t, i) => `<label class="pc-tarefa ${t.feita ? 'feito' : ''}"><input type="checkbox" data-ch="pcTarefa" data-i="${t.id}" ${t.feita ? 'checked' : ''}><span class="sub" style="min-width:22px">${i + 1}.</span><span style="flex:1">${esc(t.txt)}${t.feita ? `<br><span class="sub">feita · ${esc(t.feita.por)} ${dataBR(t.feita.em)} ${hora(t.feita.em)}</span>` : ''}</span><button class="bt-ic" data-a="pcTiraTarefa" data-i="${t.id}" title="Tirar">${ic('close')}</button></label>`).join('') || '<div class="sub">Nenhuma tarefa ainda.</div>'}
+    <div class="linha" style="margin-top:8px"><input id="pcTarefaNova" class="inp" style="flex:1" data-f="pcTarefaNova" data-enter="pcAddTarefa" placeholder="Nova tarefa" value="${esc(F.pcTarefaNova || '')}" autocomplete="off"><button class="bt" data-a="pcAddTarefa">${ic('add')}</button></div></div>`;
+  if (prec.length) h += `<div class="secao-t">Precisão do previsto (fiscal)</div><div class="card" style="overflow-x:auto"><p class="sub" style="margin-top:0">Cada compra das listas: o previsto contra o gasto real lançado no fiscal. Quanto mais notinhas, mais perto de zero.</p><table class="tab"><tr><th>Dia</th><th>Local</th><th class="n">Previsto</th><th class="n">Real</th><th class="n">Erro</th></tr>
+    ${prec.slice(0, 10).map(x => `<tr><td>${pcDM(x.data)}</td><td>${esc(x.local)}</td><td class="n">${RS(x.previsto)}</td><td class="n">${RS(x.real)}</td><td class="n"><span class="tag ${Math.abs(x.erro) <= 10 ? 'ok' : Math.abs(x.erro) <= 25 ? 'aviso' : 'ifood'}">${x.erro > 0 ? '+' : ''}${nBR(x.erro, '%')}</span></td></tr>`).join('')}</table></div>`;
+  if ((d.log || []).length) h += `<div class="secao-t">Últimas mudanças</div><div class="card sub" style="line-height:1.7">${d.log.slice(0, 6).map(l => `${dataBR(l.t)} ${hora(l.t)} · ${esc(l.quem)} · ${esc(l.o)}`).join('<br>')}</div>`;
+  return h;
+}
+const pcId = () => S.ui.pcDia || pcDiaSeguinte();
+A.pcDia = d => { S.ui.pcDia = pcSomaDias(pcId(), +d.c); render(); };
+CH.pcDiaSel = el => { S.ui.pcDia = el.value; render(); };
+A.pcAddLocal = () => { const n = pcLimpa(F.pcLocalNovo); if (!n) { toast('Escreva o nome do local'); return; } F.pcLocalNovo = ''; pcSalvar(pcId(), d => { pcNovoLocal(d, n); }, 'novo local ' + n); };
+A.pcAddItem = dd => { const k = 'pcAdd_' + dd.l; const linhas = String(F[k] || '').split(/\r?\n/).map(pcLimpa).filter(Boolean); if (!linhas.length) return; F[k] = '';
+  pcSalvar(pcId(), d => { const l = d.locais.find(x => x.id === dd.l); if (!l) return false; linhas.forEach(t => l.itens.push({ id: uid(), txt: t })); }, 'acrescentou ' + linhas.join(', ')); };
+A.pcTiraItem = dd => pcSalvar(pcId(), d => { const l = d.locais.find(x => x.id === dd.l); if (!l) return false; const i = l.itens.findIndex(x => x.id === dd.i); if (i < 0) return false; l.itens.splice(i, 1); }, 'tirou um item');
+CH.pcFeito = (el, dd) => pcSalvar(pcId(), d => { const l = d.locais.find(x => x.id === dd.l); const i = l && l.itens.find(x => x.id === dd.i); if (!i) return false; i.feito = el.checked ? { por: quem(), em: agora() } : null; });
+CH.pcReal = (el, dd) => { const v = el.value; pcSalvar(pcId(), d => { const l = d.locais.find(x => x.id === dd.l); if (!l) return false; l.real = String(v).trim(); }, 'gasto real ' + v); };
+A.pcTiraLocal = dd => { const d0 = pcDoc(pcId()); const l0 = d0 && d0.locais.find(x => x.id === dd.l); if (!l0 || !confirm('Tirar ' + l0.nome + ' e os ' + (l0.itens || []).length + ' itens da lista?')) return; pcSalvar(pcId(), d => { const i = d.locais.findIndex(x => x.id === dd.l); if (i < 0) return false; d.locais.splice(i, 1); }, 'tirou o local ' + l0.nome); };
+A.pcEditaLocal = dd => {
+  const d0 = pcDoc(pcId()); const l0 = d0 && d0.locais.find(x => x.id === dd.l); if (!l0) return; F.pcLNome = l0.nome; F.pcLQuem = l0.quem || '';
+  abrirModal({ foco: 'pcLNome', render: () => `<div class="entre"><h2>${esc(l0.nome)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>${campo('Local', 'pcLNome', 'Ex.: Supermercados BH')}${campo('Quem compra', 'pcLQuem', 'Ex.: Yuri')}
+      <div class="linha"><span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok">${ic('save')} Salvar</button></div>`,
+    async ok() { const n = pcLimpa(F.pcLNome); if (!n) { toast('Ponha o nome'); return; } await pcSalvar(pcId(), d => { const l = d.locais.find(x => x.id === dd.l); if (!l) return false; l.nome = pcLocalCanon(n); l.quem = pcLimpa(F.pcLQuem); }, 'local ' + n); fecharModal(); } });
+};
+A.pcPrecoItem = dd => {
+  const d0 = pcDoc(pcId()); const l0 = d0 && d0.locais.find(x => x.id === dd.l); const i0 = l0 && l0.itens.find(x => x.id === dd.i); if (!i0) return;
+  const p = pcPreco(Object.assign({}, i0, { manual: null }), l0.nome); F.pcItTxt = i0.txt; F.pcItVal = i0.manual != null && i0.manual !== '' ? String(i0.manual).replace('.', ',') : '';
+  const ps = (p.cat && p.cat.precos) || [];
+  abrirModal({ foco: 'pcItVal', largo: true, render: () => `<div class="entre"><h2>${esc(p.L.nome || i0.txt)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+      <p class="sub">${p.cat ? 'No catálogo do fiscal: <b>' + esc(p.cat.nome) + '</b> (preço por ' + esc(p.cat.un) + ').' : 'O catálogo do fiscal ainda não conhece este item: no próximo fechamento ele entra (pc_pendentes.txt).'} Automático agora: <b>${p.total != null ? RS(p.total) : 'sem preço'}</b> ${pcTag(p.fonte)}${p.info ? ' · ' + esc(p.info) : ''}</p>
+      ${ps.length ? `<div style="overflow-x:auto"><table class="tab"><tr><th>Local</th><th class="n">Último preço</th><th>Nota</th><th class="n">Compras</th></tr>${ps.map(x => `<tr><td>${esc(x.local)}${x.local === l0.nome ? ' <span class="tag ok">aqui</span>' : ''}</td><td class="n">${RS(x.preco)}</td><td class="sub">${pcDM(x.data)} · ${esc(x.nota || '')}</td><td class="n">${x.n}</td></tr>`).join('')}</table></div>` : ''}
+      ${campo('Como está na lista', 'pcItTxt', 'Ex.: 2x couve')}${campo('Valor desta linha (R$), se você já sabe; vazio = automático', 'pcItVal', 'Automático', 'decimal')}
+      <div class="linha"><span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok">${ic('save')} Salvar</button></div>`,
+    async ok() { const t = pcLimpa(F.pcItTxt); if (!t) { toast('Escreva o item'); return; } const v = String(F.pcItVal || '').trim();
+      await pcSalvar(pcId(), d => { const l = d.locais.find(x => x.id === dd.l); const i = l && l.itens.find(x => x.id === dd.i); if (!i) return false; i.txt = t; if (v) i.manual = numBR(v); else delete i.manual; }, 'item ' + t + (v ? ' (valor R$ ' + v + ')' : '')); fecharModal(); } });
+};
+A.pcAddTarefa = () => { const t = pcLimpa(F.pcTarefaNova); if (!t) return; F.pcTarefaNova = ''; pcSalvar(pcId(), d => { d.tarefas.push({ id: uid(), txt: t }); }, 'nova tarefa ' + t); };
+A.pcTiraTarefa = dd => pcSalvar(pcId(), d => { const i = d.tarefas.findIndex(x => x.id === dd.i); if (i < 0) return false; d.tarefas.splice(i, 1); }, 'tirou uma tarefa');
+CH.pcTarefa = (el, dd) => pcSalvar(pcId(), d => { const t = d.tarefas.find(x => x.id === dd.i); if (!t) return false; t.feita = el.checked ? { por: quem(), em: agora() } : null; }, (el.checked ? 'concluiu' : 'reabriu') + ' uma tarefa');
+A.pcColar = () => {
+  F.pcColaTxt = '';
+  abrirModal({ foco: 'pcColaTxt', largo: true, render: () => { const r = pcLerLista(F.pcColaTxt);
+    return `<div class="entre"><h2>${ic('content_paste')} Colar a lista</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+      <p class="sub">Cole a lista do jeito que você escreve no WhatsApp: cada local começa com "> Nome do local | quem compra", um item por linha (2x couve, 3kg grão de bico, 15R$ alho torrado) e, no fim, "- TAREFAS" com as tarefas numeradas.</p>
+      <textarea id="pcColaTxt" class="inp" data-f="pcColaTxt" data-vivo rows="12" style="width:100%;font-family:inherit" placeholder="> Supermercado BH | Yuri&#10;2x Couve&#10;20x batatas inglesas&#10;&#10;> HGP&#10;3kg grão de bico&#10;&#10;- TAREFAS&#10;1. Ficha técnica">${esc(F.pcColaTxt || '')}</textarea>
+      <p class="sub">${r.locais.length ? `Vai entrar: ${r.locais.map(l => esc(pcLocalCanon(l.nome)) + ' (' + l.itens.length + ')').join(', ')}${r.tarefas.length ? ' · ' + r.tarefas.length + ' tarefa(s)' : ''}.` : 'Nada para juntar ainda.'}</p>
+      <div class="linha"><span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt" data-a="trocar">${ic('swap_horiz')} Trocar a lista do dia</button><button class="bt pri" data-a="juntar">${ic('playlist_add')} Juntar à lista</button></div>`; },
+    campo() { pintarModal(); },
+    async juntar() { await this.gravar(false); }, async trocar() { if (!confirm('Trocar a lista inteira do dia pela colada?')) return; await this.gravar(true); },
+    async gravar(trocar) { const r = pcLerLista(F.pcColaTxt); if (!r.locais.length && !r.tarefas.length) { toast('Nada para juntar'); return; }
+      await pcSalvar(pcId(), d => { if (trocar) { d.locais = []; d.tarefas = []; }
+        r.locais.forEach(x => { const l = pcNovoLocal(d, x.nome, x.quem); x.itens.forEach(t => l.itens.push({ id: uid(), txt: t })); });
+        r.tarefas.forEach(t => { if (!d.tarefas.some(y => norm(y.txt) === norm(t))) d.tarefas.push({ id: uid(), txt: t }); }); }, (trocar ? 'trocou a lista pela colada' : 'colou a lista') + ' (' + r.locais.reduce((s, l) => s + l.itens.length, 0) + ' itens, ' + r.tarefas.length + ' tarefas)');
+      fecharModal(); F.pcColaTxt = ''; toast('Lista gravada'); }
+  });
+};
+// Texto para o WhatsApp (equipe, quem compra): o formato de JP, com o previsto de cada linha
+function pcTextoWhats(id) {
+  const d = pcDoc(id); if (!d) return ''; const tt = pcTotais(d);
+  const L = [`*Compras de ${pcRotuloDia(id).toLowerCase()}* · previsto ${RS(tt.total)}`];
+  tt.locais.forEach(({ l, total }) => { L.push('', `> ${l.nome}${l.quem ? ' | ' + l.quem : ''} · ~${RS(total)}`); (l.itens || []).forEach(i => { const p = pcPreco(i, l.nome); L.push(`${pcLimpa(i.txt)}${p.total != null ? ' · ~' + RS(p.total) : ''}`); }); });
+  if ((d.tarefas || []).length) { L.push('', '- TAREFAS'); d.tarefas.forEach((t, i) => L.push(`${i + 1}. ${t.txt}${t.feita ? ' ✓' : ''}`)); }
+  return L.join('\n');
+}
+A.pcCopiar = () => A.copiar({ c: pcTextoWhats(pcId()) });
+// No padrão do grupo do fiscal (mensagem fixada): LISTA, uma linha L por local e uma T por tarefa
+function pcTextoFiscal(id) {
+  const d = pcDoc(id); if (!d) return ''; const tt = pcTotais(d);
+  const L = [`LISTA | ${pcDM(id)} | ${brN(tt.total)} | previsto pela base`];
+  const semBarra = s => String(s || '').replace(/\s*\|\s*/g, ' — ');
+  tt.locais.forEach(({ l, total, sem }) => { const n = (l.itens || []).length; L.push(`L | ${semBarra(l.nome)} | ${brN(total)} | ${semBarra(l.quem) || '—'} | ${n} ${n === 1 ? 'item' : 'itens'}${sem ? ' (' + sem + ' sem preço)' : ''}${numBR(l.real) > 0 ? ' | real ' + brN(numBR(l.real)) : ''}`); });
+  (d.tarefas || []).forEach(t => L.push(`T | ${semBarra(t.txt)}${t.feita ? ' | feita' : ''}`));
+  return L.join('\n');
+}
+// --- relatório da noite: a lista do dia seguinte vai ao fechamento de caixa do fiscal ---
+function telaRelCompras() {
+  assinarPrecos(); assinarCompras();
+  const id = pcDiaSeguinte(inicioDaNoite(S.ui.noiteVer || noiteId())); const d = pcDoc(id);
+  let h = `<div class="entre" style="margin:28px 0 10px"><h2 style="margin:0">${ic('shopping_cart')} Compras e tarefas de ${pcRotuloDia(id).toLowerCase()}</h2><span class="sub">vai ao fechamento do fiscal</span></div>`;
+  if (!d || (!(d.locais || []).length && !(d.tarefas || []).length)) return h + `<div class="card sub">Nenhuma lista para ${pcDM(id)} ainda. Lance na aba Compras e tarefas: o previsto de cada local aparece aqui para o fiscal separar o dinheiro.</div>`;
+  const tt = pcTotais(d); const porQuem = {}; tt.locais.forEach(({ l, total }) => { const k = l.quem || 'sem responsável'; porQuem[k] = r2((porQuem[k] || 0) + total); });
+  const txt = pcTextoFiscal(id);
+  h += `<div class="kpis"><div class="kpi"><div class="v">${RS(tt.total)}</div><div class="l">previsto para as compras</div></div>${Object.entries(porQuem).map(([k, v]) => `<div class="kpi"><div class="v">${RS(v)}</div><div class="l">${k === 'sem responsável' ? 'compras ainda sem quem compra' : 'dinheiro para ' + esc(k)}</div></div>`).join('')}${tt.sem ? `<div class="kpi" style="border-color:var(--amarelo)"><div class="v">${tt.sem}</div><div class="l">itens sem preço (somam fora)</div></div>` : ''}</div>
+    <div class="card" style="overflow-x:auto"><table class="tab"><tr><th>Local</th><th>Quem compra</th><th class="n">Itens</th><th class="n">Previsto</th><th class="n">Gasto real</th></tr>
+    ${tt.locais.map(({ l, total, sem }) => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.quem || '—')}</td><td class="n">${(l.itens || []).length}${sem ? ` <span class="sub">(${sem} sem preço)</span>` : ''}</td><td class="n">${RS(total)}</td><td class="n">${l.real ? RS(numBR(l.real)) : '<span class="sub">na nota</span>'}</td></tr>`).join('')}</table>
+    ${(d.tarefas || []).length ? `<div class="secao-t" style="margin-top:12px">Tarefas</div>${d.tarefas.map((t, i) => `<div>${i + 1}. ${esc(t.txt)}${t.feita ? ' <span class="tag ok">feita</span>' : ''}</div>`).join('')}` : ''}</div>
+    <div class="grade nao-imprimir" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));margin-top:10px">
+      <div class="card"><h3>${ic('forum')} Padrão do grupo do fiscal</h3><p class="sub">Cole no grupo do fiscal antes do CAIXA: o fechamento separa o dinheiro de cada compra e, amanhã, compara a nota com a lista.</p><div class="copia" style="white-space:pre-wrap">${esc(txt)}</div><button class="bt" style="margin-top:8px" data-a="copiar" data-c="${esc(txt)}">${ic('content_copy')} Copiar</button></div></div>`;
+  return h;
+}
+
 // ================= telas =================
 const TELAS = {};
 TELAS.inicio = () => `<div class="pag-estreita" style="padding-top:40px"><div class="card plano"><h1>${esc(NOME_CURTO)}</h1><p class="sub">Sistema de atendimento</p>
@@ -2552,7 +2804,7 @@ TELAS.base = () => {
   if (CELULAR && S.eu.papel !== 'socio') return `<div class="pag-estreita" style="padding-top:48px"><div class="card plano" style="text-align:center"><h1>${ic('smartphone')} Base no celular: só sócio</h1><p class="sub">Use a base no computador ou o app do garçom pelo link da noite.</p><button class="bt" data-a="sair">${ic('logout')} Trocar de pessoa</button></div></div>`;
   const aba = S.ui.aba || 'mesas';
   const nPg = S.delivery.filter(d => ['frete', 'pagamento'].includes(colunaPedido(d))).length;
-  const abas = [['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['bebidas', 'local_bar', 'Bebidas', filaDe('bar').length], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
+  const abas = [['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['bebidas', 'local_bar', 'Bebidas', filaDe('bar').length], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['compras', 'shopping_cart', 'Compras e tarefas'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
   let corpo;
   if (aba !== 'noite') assinarConsumo(noiteId());
   if (aba === 'mesas') corpo = S.ui.mesa ? `<div class="pag-estreita" style="padding:0">${S.ui.mesa === CI_ID ? telaConsumo() : telaMesa(S.ui.mesa)}</div>` : `<div class="entre"><h2>Mesas ao vivo</h2><span class="sub">Acesso total: abra qualquer mesa. Tudo fica registrado com o seu nome.</span></div>` + telaSlots();
@@ -2562,6 +2814,7 @@ TELAS.base = () => {
   else if (aba === 'whatsapp') corpo = telaWhatsApp();
   else if (aba === 'ifood') corpo = `<div class="pag-estreita" style="padding:0;max-width:760px">${telaIfood()}</div>`;
   else if (aba === 'noite') { if (!S.ui.noiteVer) { S.ui.noiteVer = noiteId(); } assinarVendas(S.ui.noiteVer); assinarConf(S.ui.noiteVer); assinarConsumo(S.ui.noiteVer); corpo = telaNoite(); }
+  else if (aba === 'compras') corpo = telaCompras();
   else if (aba === 'cardapio') corpo = telaCardapio();
   else if (aba === 'ficha') corpo = telaFicha();
   else corpo = telaEquipe();
