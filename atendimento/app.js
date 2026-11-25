@@ -2219,7 +2219,11 @@ const numBR = v => { const n = parseFloat(String(v == null ? '' : v).replace(/\s
 const nBR = (v, d) => String(r2(v)).replace('.', ',') + (d || '');
 let FICHA_DB; // undefined = carregando · null = ainda não gravada (vale a inicial)
 let fichaOff = null;
-function assinarFicha() { if (fichaOff) return; fichaOff = DB.listenDoc('fichas', 'main', d => { FICHA_DB = d; render(); }); }
+// Quando o script de terça do fiscal importa preços sozinho (R60), ele marca resumoPendente: a base de um gerente ou
+// sócio recalcula o resumo da ficha (custo e CMV de cada produto) na primeira vez que abre.
+let resumoRefeito = false;
+function assinarFicha() { if (fichaOff) return; fichaOff = DB.listenDoc('fichas', 'main', d => { FICHA_DB = d; render();
+  if (d && d.resumoPendente && !resumoRefeito && VIEW === 'base' && S.eu && ACESSO_TOTAL.includes(S.eu.papel)) { resumoRefeito = true; salvarFicha(f => { delete f.resumoPendente; }, 'resumo recalculado depois da importação do fiscal'); } }); }
 function fichaAtual() { return FICHA_DB || { insumos: FI.insumos, fichas: FI.fichas }; }
 function insMapa(fa) { const m = {}; ((fa || fichaAtual()).insumos || []).forEach(i => { m[i.id] = i; }); return m; }
 // R$ por g, ml ou un (null = sem preço). Preparo com receita e rendimento: soma da receita ÷ rendimento.
@@ -3018,43 +3022,14 @@ function telaRelCompras() {
 // Volta (sistema → fiscal): "Relatório do sistema para o fiscal" da semana (aba Noite), com vendas, pagamentos,
 // descontos, consumo interno, conferências do caixa, listas de compras e o resumo da ficha técnica.
 // Os dois formatos estão descritos no dossiê do ST - Fiscal e controle financeiro e se refinam semana a semana.
-const FISCAL_TIPO = 'seu-trem/fiscal-para-sistema', SISTEMA_TIPO = 'seu-trem/sistema-para-fiscal';
-const pesoNome = nome => { const m = norm(nome).match(/(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l)\b/); if (!m) return null; let q = numBR(m[1]); if (m[2] === 'kg' || m[2] === 'l') q *= 1000; return { q, u: (m[2] === 'kg' || m[2] === 'g') ? 'g' : 'ml' }; };
-const qtdPacote = nome => { const m = norm(nome).match(/\((?:pacote |pct |cx |caixa |fardo )?(\d+)(?: un)?\)/); return m ? +m[1] : null; };
-// Acha o item do catálogo do fiscal com as palavras do nome (o mesmo critério da lista de compras)
-function catalogoAchar(nome, doc) {
-  const tk = pcTokens(nome); if (!tk.length) return null; let best = null, bs = 0;
-  ((doc && doc.itens) || []).forEach(it => (it.apelidos || []).concat([it.nome]).forEach(a => { const at = pcTokens(a); if (!at.length || !at.every(w => tk.includes(w))) return; const s = at.length * 10 + (at[0] === tk[0] ? 5 : 0); if (s > bs) { bs = s; best = it; } }));
-  return best;
-}
-// Preço de compra de um insumo da ficha pela última nota do item no catálogo, na unidade do insumo (g, ml ou un)
-function insumoPeloFiscal(ins, doc) {
-  if (ins.tipo === 'Preparo da casa') return null;
-  const cat = (ins.catalogo && ((doc.itens || []).find(x => x.nome === ins.catalogo))) || catalogoAchar(ins.nome, doc);
-  if (!cat) return null;
-  // Produto diferente apesar das palavras: "água com gás" não é o fardo de água comum, "zero" não é a normal
-  const txtCat = norm(cat.nome + ' ' + (cat.apelidos || []).join(' ')); const txtIns = norm(ins.nome);
-  const marca = ['com gas', 'sem gluten', 'zero', 'diet', 'integral'].find(f => txtIns.includes(f) && !txtCat.includes(f));
-  if (marca && !ins.catalogo) return { cat, sem: 'produto diferente (' + marca + ')' };
-  const tI = pesoNome(ins.nome), tC = pesoNome(cat.nome);
-  if (tI && tC && tI.u === tC.u && tI.q !== tC.q && !ins.catalogo) return { cat, sem: 'tamanho diferente' };
-  const ps = (cat.precos || []).slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  if (!ps.length) return { cat, sem: 'sem nota ainda' };
-  const p = ps[0]; let compra = null; const pac = qtdPacote(cat.nome) || 1; const embSemQtd = /pacote|\bpct\b|caixa|\bcx\b|fardo|bandeja/.test(norm(cat.nome)) && !qtdPacote(cat.nome);
-  if (ins.un === 'g' && cat.un === 'kg') compra = { qtd: 1000, preco: p.preco };
-  else if (ins.un === 'g' && cat.peso > 0) compra = { qtd: Math.round(cat.peso * 1000), preco: p.preco };
-  else if ((ins.un === 'g' || ins.un === 'ml') && pesoNome(cat.nome) && pesoNome(cat.nome).u === ins.un) compra = { qtd: pesoNome(cat.nome).q * pac, preco: p.preco };
-  else if (ins.un === 'un' && cat.un === 'un' && !pesoNome(cat.nome) && !embSemQtd) compra = { qtd: 1, preco: p.preco };
-  else if (ins.un === 'un' && qtdPacote(cat.nome)) compra = { qtd: qtdPacote(cat.nome), preco: p.preco };
-  if (!compra) return { cat, sem: embSemQtd || (ins.un === 'un' && pesoNome(cat.nome)) ? 'embalagem sem a quantidade de unidades' : 'unidade diferente (' + cat.un + ' x ' + ins.un + ')' };
-  return { cat, p, compra: { qtd: compra.qtd, preco: r2(compra.preco) } };
-}
+// A lógica que casa os preços com os insumos e monta a semana mora em conversa-fiscal.js, o mesmo arquivo que o
+// script de terça do fiscal usa (conversa_semanal.js): os dois lados fazem a mesma conta.
+const CF = window.ConversaFiscal;
+const FISCAL_TIPO = CF.FISCAL_TIPO, SISTEMA_TIPO = CF.SISTEMA_TIPO;
+const insumoPeloFiscal = (ins, doc) => CF.insumoPeloFiscal(ins, doc);
 function trocasInsumos(doc) {
   const fa = fichaAtual(); const m = insMapa(fa);
-  return (fa.insumos || []).map(ins => { const r = insumoPeloFiscal(ins, doc); if (!r) return null;
-    const antes = custoUn(ins, m); const depois = r.compra ? r.compra.preco / r.compra.qtd : null;
-    const igual = r.compra && numBR((ins.compra || {}).qtd) === r.compra.qtd && Math.abs(numBR((ins.compra || {}).preco) - r.compra.preco) < 0.005;
-    return Object.assign({ ins, antes, depois, igual }, r); }).filter(Boolean);
+  return CF.trocasDoFiscal(fa.insumos, doc).map(x => Object.assign(x, { antes: custoUn(x.ins, m) }));
 }
 const porUn = (ins, cu) => cu == null ? '—' : ins.un === 'un' ? R(cu) + '/un' : R(cu * 1000) + (ins.un === 'ml' ? '/L' : '/kg');
 A.fiscalImportar = () => {
@@ -3082,7 +3057,7 @@ A.fiscalImportar = () => {
       const d = F.fiDoc; if (!d) return; const pr = d.precos || {}; const tr = trocasInsumos(pr).filter(x => x.compra && !x.igual && F.fiMarca[x.ins.id] !== false);
       const loja = LOJA; const precos = Object.assign({}, pr, { importadoEm: agora(), importadoPor: quem() });
       await DB.set('precos', 'main', precos);
-      if (tr.length) await salvarFicha(fa => { tr.forEach(x => { const i = fa.insumos.find(y => y.id === x.ins.id); if (!i) return; i.compra = { qtd: x.compra.qtd, preco: x.compra.preco }; i.compraFonte = { item: x.cat.nome, local: x.p.local, data: x.p.data, nota: x.p.nota || '', importadoEm: agora() }; }); }, 'importou do fiscal o preço de ' + tr.length + ' insumo(s)');
+      if (tr.length) await salvarFicha(fa => { tr.forEach(x => { const i = fa.insumos.find(y => y.id === x.ins.id); if (i) CF.aplicarTroca(i, x, agora()); }); }, 'importou do fiscal o preço de ' + tr.length + ' insumo(s)');
       await DB.mutate('config', 'main', c => { if (!c) return undefined; c.fiscal = { importadoEm: agora(), por: quem(), geradoEm: d.geradoEm || null, periodo: d.periodo || null, taxas: d.taxas || (c.fiscal || {}).taxas || null, itens: (pr.itens || []).length, insumos: tr.length };
         c.logLoja = [{ t: agora(), quem: quem(), o: `importou o relatório do fiscal de ${dataBR(d.geradoEm)} (preços das compras e ${tr.length} insumo(s))` }].concat(c.logLoja || []).slice(0, 100); return c; });
       fecharModal(); toast('Relatório do fiscal importado na loja ' + loja);
@@ -3098,7 +3073,7 @@ function fiscalLinha() {
 }
 // --- volta: o relatório da semana para o fiscal ---
 function lerUmaVez(c, filtro) { return new Promise(ok => { let off = null, feito = false; off = DB.listen(c, a => { if (feito) return; feito = true; ok(a); setTimeout(() => { if (off) off(); }, 0); }, filtro); }); }
-function semanaPassada() { const d = new Date(agora() - 6 * 3600000); const dow = d.getDay(); const ate = new Date(d); ate.setDate(d.getDate() - ((dow + 6) % 7 || 7)); const de = new Date(ate); de.setDate(ate.getDate() - 5); return { de: ymd(de), ate: ymd(ate) }; }
+const semanaPassada = () => CF.semanaPassada(agora());
 A.fiscalExportar = () => {
   const s = semanaPassada(); F.feDe = F.feDe || s.de; F.feAte = F.feAte || s.ate;
   abrirModal({ render: () => `<div class="entre"><h2>${ic('outbox')} Relatório do sistema para o fiscal</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
@@ -3110,28 +3085,18 @@ A.fiscalExportar = () => {
       await DB.mutate('config', 'main', c => { if (!c) return undefined; c.fiscalEnvio = { em: agora(), por: quem(), de: F.feDe, ate: F.feAte }; c.logLoja = [{ t: agora(), quem: quem(), o: `gerou o relatório do sistema para o fiscal (${pcDM(F.feDe)} a ${pcDM(F.feAte)})` }].concat(c.logLoja || []).slice(0, 100); return c; });
       fecharModal(); toast(`${d.resumo.vendas} vendas, ${d.resumo.noites} noites: arquivo baixado`); } });
 };
-// O dia da operação de uma noite: o dia em que ela começou (a noite que passa da meia-noite conta no dia anterior)
-const diaOperacao = ts => ymd(new Date(ts - 6 * 3600000));
+// Junta os dados da semana na base e monta o relatório com a mesma função do script de terça (conversa-fiscal.js)
 async function relatorioParaFiscal(de, ate) {
-  const c = cfg(); const todas = [{ id: (c.noite || {}).id, inicio: (c.noite || {}).inicio }].concat(c.noites || []).filter(n => n.id && n.inicio);
-  const noites = todas.filter(n => { const d = diaOperacao(n.inicio); return d >= de && d <= ate; });
+  const noites = CF.noitesDoPeriodo(cfg(), de, ate);
   const vendas = [], consumo = [], conferencias = [];
   for (const n of noites) {
     (await lerUmaVez('vendas', ['noiteId', n.id])).forEach(v => vendas.push(v));
     (await lerUmaVez('consumo', ['noiteId', n.id])).forEach(x => consumo.push(x));
     const cf = await DB.get('conferencias', n.id); if (cf) conferencias.push(cf);
   }
-  const compras = (await lerUmaVez('compras')).filter(x => x.id >= de && x.id <= pcSomaDias(ate, 1)).map(x => { const o = clone(x); delete o.chave; return o; });
+  const compras = (await lerUmaVez('compras')).filter(x => x.id >= de && x.id <= pcSomaDias(ate, 1));
   const fichas = await DB.get('fichas', 'main');
-  const ok = vendas.filter(v => !v.cancelado); const formas = {}, canais = {};
-  ok.forEach(v => { (v.pagamentos || []).forEach(p => { formas[p.forma] = r2((formas[p.forma] || 0) + p.valor); }); canais[v.canal] = r2((canais[v.canal] || 0) + v.total); });
-  const descontos = []; ok.forEach(v => (v.itens || []).forEach(i => { if (i.descPct) descontos.push({ noiteId: v.noiteId, venda: v.ref, item: i.nome, pct: i.descPct, cheio: i.cheio, preco: i.preco, valor: r2((i.cheio || 0) - (i.preco || 0)) }); }));
-  const listas = compras.reduce((a, x) => { (x.locais || []).forEach(l => { a.previsto = r2(a.previsto + (l.previsto || 0)); a.real = r2(a.real + numBR(l.real)); (l.itens || []).forEach(i => { if (i.falta) a.faltas.push({ dia: x.id, local: l.nome, item: i.txt }); }); }); return a; }, { previsto: 0, real: 0, faltas: [] });
-  return { tipo: SISTEMA_TIPO, versao: 1, loja: LOJA, geradoEm: agora(), geradoPor: quem(), periodo: { de, ate },
-    resumo: { noites: noites.length, vendas: ok.length, canceladas: vendas.length - ok.length, total: r2(ok.reduce((s, v) => s + (v.total || 0), 0)), dez: r2(ok.reduce((s, v) => s + (v.dez || 0), 0)), frete: r2(ok.reduce((s, v) => s + (v.frete || 0), 0)), porForma: formas, porCanal: canais,
-      descontos: { n: descontos.length, valor: r2(descontos.reduce((s, x) => s + x.valor, 0)) }, consumo: consumo.filter(x => !x.apagado).length, listas: { dias: compras.length, previsto: listas.previsto, real: listas.real, naoTinha: listas.faltas.length } },
-    noites: noites.map(n => ({ id: n.id, inicio: n.inicio, dia: diaOperacao(n.inicio) })), vendas, descontos, consumo, conferencias, compras, faltasNasCompras: listas.faltas,
-    fichaTecnica: fichas && fichas.resumo ? { geradoEm: fichas.resumo.geradoEm, produtos: fichas.resumo.produtos.map(p => ({ cod: p.cod, nome: p.nome, preco: p.preco, custo: p.custo, cmv: p.cmv, completa: p.completa })) } : null };
+  return CF.montarRelatorioSistema({ loja: LOJA, de, ate, noites, vendas, consumo, conferencias, compras, fichas, geradoEm: agora(), geradoPor: quem() });
 }
 
 // ================= telas =================
@@ -3148,6 +3113,7 @@ TELAS.base = () => {
   // No celular, a base completa é só para o sócio (JP, 23/11/2026)
   if (!S.eu) return telaLogin('Plataforma base', CELULAR ? ['socio'] : ACESSO_TOTAL, CELULAR ? '<p class="sub" style="color:var(--azul-esc)">No celular, a base completa abre só com código de sócio.</p>' : '');
   if (CELULAR && S.eu.papel !== 'socio') return `<div class="pag-estreita" style="padding-top:48px"><div class="card plano" style="text-align:center"><h1>${ic('smartphone')} Base no celular: só sócio</h1><p class="sub">Use a base no computador ou o app do garçom pelo link da noite.</p><button class="bt" data-a="sair">${ic('logout')} Trocar de pessoa</button></div></div>`;
+  assinarFicha(); if (FICHA_DB && FICHA_DB.resumoPendente && !resumoRefeito && ACESSO_TOTAL.includes(S.eu.papel)) { resumoRefeito = true; salvarFicha(f => { delete f.resumoPendente; }, 'resumo recalculado depois da importação do fiscal'); }
   const aba = S.ui.aba || 'mesas';
   const nPg = S.delivery.filter(d => ['frete', 'pagamento'].includes(colunaPedido(d))).length;
   const abas = [['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['bebidas', 'local_bar', 'Bebidas', filaDe('bar').length], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['compras', 'shopping_cart', 'Compras e tarefas'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
