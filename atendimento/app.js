@@ -1941,8 +1941,8 @@ A.novaNoite = () => {
 function telaEquipe() {
   const c = cfg();
   return `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))"><div class="card"><h2>Equipe</h2>
-    <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco).</p>
-    <table class="tab"><tr><th>Nome</th><th>Função</th><th>Código</th><th></th></tr>${equipeOrdenada().map(p => `<tr><td>${esc(p.nome)}</td><td><select class="inp" style="min-height:34px;padding:4px 8px;width:auto" data-ch="papelPessoa" data-id="${p.id}">${PAPEIS.map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td>••••</td><td class="n"><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}">${ic('delete')}</button></td></tr>`).join('')}</table>
+    <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco). Para trocar o código de alguém, toque na chave: só um sócio autoriza.</p>
+    <table class="tab"><tr><th>Nome</th><th>Função</th><th class="n">Código</th></tr>${equipeOrdenada().map(p => `<tr><td style="min-width:84px;word-break:normal">${esc(p.nome)}</td><td style="width:100%"><select class="inp" style="min-height:34px;padding:4px 8px;width:100%;min-width:0" data-ch="papelPessoa" data-id="${p.id}">${PAPEIS.map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td class="n" style="white-space:nowrap"><button class="bt-ic" data-a="trocarCodigo" data-id="${p.id}" title="Alterar código">${ic('key')}</button><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}" title="Tirar da equipe">${ic('delete')}</button></td></tr>`).join('')}</table>
     <div class="secao-t">Acrescentar</div>${campo('Nome', 'pNome', 'Nome')}${campo('Código (4 números)', 'pPin', '', 'numeric')}
     <div class="chips" style="margin-bottom:10px">${[['socio', 'Sócio'], ['gerente', 'Gerente'], ['cozinha', 'Chefe de chapa'], ['fritura', 'Chefe de fritura'], ['garcom', 'Gerente de mesas']].map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
     <button class="bt pri" data-a="addPessoa">${ic('person_add')} Acrescentar</button></div>
@@ -1967,6 +1967,36 @@ A.addPessoa = async () => {
   const p = { id: uid(), nome: F.pNome.trim(), h: await hashPin(F.pPin), papel: S.ui.pPapel || 'garcom' };
   await DB.mutate('config', 'main', c => { c.pessoas.push(p); return c; });
   F.pNome = ''; F.pPin = ''; toast(p.nome + ' na equipe');
+};
+// Alterar o código de acesso de qualquer pessoa da equipe (JP, 25/11/2026): só com o código de um sócio.
+// Primeiro o sócio autoriza; depois digita o código novo duas vezes. Grava só a impressão (SHA-256) e fica no log da loja.
+A.trocarCodigo = d => {
+  const alvo = (cfg().pessoas || []).find(p => p.id === d.id); if (!alvo) return;
+  pedirPIN('Alterar o código de ' + alvo.nome, ['socio'], socio => {
+    F.novoPin = ''; F.novoPin2 = '';
+    abrirModal({
+      foco: 'novoPin',
+      render: () => `<h2>Novo código de ${esc(alvo.nome)}</h2><p class="sub">Autorizado por ${esc(socio.nome)}. Escolha 4 números que ninguém da equipe use. O código antigo deixa de valer na hora; avise ${esc(alvo.nome)} do código novo.</p>
+        <div class="campo"><label for="novoPin">Código novo (4 números)</label>${inputPin('novoPin', 'okNovo')}</div>
+        <div class="campo"><label for="novoPin2">Repita o código novo</label>${inputPin('novoPin2', 'okNovo')}</div>
+        <div class="linha"><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="okNovo">${ic('key')} Salvar código</button></div>`,
+      async okNovo() {
+        const n = String(F.novoPin || '').trim();
+        if (!/^\d{4}$/.test(n)) { toast('O código tem 4 números'); return; }
+        if (n !== String(F.novoPin2 || '').trim()) { toast('Os dois códigos não são iguais'); return; }
+        const dono = await pessoaPorPin(n);
+        if (dono && dono.id !== alvo.id) { toast('Esse código já é de outra pessoa'); return; }
+        const h = await hashPin(n);
+        await DB.mutate('config', 'main', c => {
+          const p = (c.pessoas || []).find(x => x.id === alvo.id); if (!p) return undefined;
+          p.h = h; delete p.pin;
+          c.logLoja = [{ t: agora(), quem: socio.nome, o: 'código de acesso de ' + p.nome + ' alterado' }].concat(c.logLoja || []).slice(0, 100);
+          return c;
+        });
+        F.novoPin = ''; F.novoPin2 = ''; fecharModal(); toast('Código de ' + alvo.nome + ' alterado por ' + socio.nome);
+      }
+    });
+  });
 };
 A.tirarPessoa = d => { if (d.id === (S.eu || {}).id) { toast('Você não pode se tirar'); return; } if (!confirm('Tirar da equipe?')) return; DB.mutate('config', 'main', c => { c.pessoas = c.pessoas.filter(p => p.id !== d.id); return c; }); };
 A.salvarLoja = async () => {
