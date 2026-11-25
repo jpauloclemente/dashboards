@@ -961,6 +961,7 @@ function telaConsumo() {
   const lista = (S.consumo || []).slice().reverse(); const val = consumoValidos(); const porTipo = contarPorTipo(val);
   let h = `<div class="mesa-topo"><button class="bt-ic" data-a="voltarMesas">${ic('arrow_back')}</button><h1 style="margin:0;flex:1">Consumo interno e perdas</h1></div>
     <p class="sub" style="margin-top:-6px">Não é venda: não cobra, não entra no caixa. Sem preço: o fiscal valora pelo custo (preço do mercado ou ficha técnica). Tudo fica com o seu nome e a hora.</p>
+    <div class="ci-foto"><label class="bt pri">${ic('photo_camera')} Foto da prancheta ou do recado<input type="file" accept="image/*" data-ch="ciFoto" style="display:none"></label><span class="sub">${esc(F.ciFotoSt || 'A IA lê a foto e prepara os lançamentos para você conferir e lançar de uma vez.')}</span></div>
     <div class="card ci-form">`;
   // 1. item
   if (f.item) h += `<div class="secao-t" style="margin-top:0">Item</div><div class="ci-item">${f.item.cod ? `<span class="cod">${f.item.cod}</span>` : `<span class="tag cinza">item livre</span>`}<b style="flex:1">${esc(f.item.nome)}</b><button class="bt-ic" data-a="ciTirarItem">${ic('close')}</button></div>`;
@@ -1009,6 +1010,36 @@ A.ciLancar = async () => {
   S.ui.ci = { item: null, qtd: 1, tipo: f.tipo, para: f.para }; F.ciNome = ''; F.ciMotivo = ''; F.ciPedido = ''; F.ciBusca = '';
   toast(doc.tipo + ' lançado: ' + doc.qtd + ' × ' + doc.item); render();
 };
+// Foto da prancheta ou do recado de substituição (JP, 25/11/2026): a IA lê, o sistema acha o item no cardápio e mostra
+// os lançamentos para conferir (tipo e para quem se trocam ali mesmo); um toque lança todos, com o seu nome e a hora.
+CH.ciFoto = async el => {
+  const f = el.files && el.files[0]; if (!f) return; el.value = ''; F.ciFotoSt = 'A IA está lendo a foto… (uns segundos)'; render();
+  let lista;
+  try { lista = await iaLerConsumo(f); } catch (e) { F.ciFotoSt = 'A IA não conseguiu ler agora (' + (e.message || e) + '). Lance à mão abaixo.'; render(); return; }
+  F.ciFotoSt = ''; render();
+  if (!lista.length) { toast('A IA não achou lançamentos na foto'); return; }
+  const tipos = CI_TIPOS.map(x => x[0]);
+  const L = lista.map(x => { const p = melhorProduto(String(x.item)); const tipo = tipos.find(t => norm(t) === norm(x.tipo)) || '';
+    return { on: true, item: p ? p.nome : String(x.item).trim(), cod: p ? p.cod : null, ab: p ? p.ab || '' : '', lido: String(x.item).trim(), qtd: Math.max(1, Math.min(99, parseInt(x.qtd, 10) || 1)), tipo, para: CI_PARA.find(t => norm(t) === norm(x.para)) || '', nome: String(x.nome || '').trim(), motivo: String(x.motivo || '').trim(), pedido: String(x.pedido || '').trim() }; });
+  abrirModal({ largo: true, L, render() {
+      const ok = L.filter(x => x.on); const falta = ok.filter(x => !x.tipo || (!x.para && x.tipo !== 'Perda')).length;
+      return `<div class="entre"><h2>${ic('photo_camera')} Lançamentos da foto</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+        <p class="sub">A IA leu ${L.length} lançamento${L.length > 1 ? 's' : ''}. Confira o tipo e para quem; desmarque o que não for lançar.</p>
+        <div class="ci-lidos">${L.map((x, i) => `<div class="ci-lido ${x.on ? '' : 'fora'}"><input type="checkbox" data-ch="ciLidoOn" data-i="${i}" ${x.on ? 'checked' : ''}>
+          <div style="min-width:0;flex:1"><b>${x.qtd} × ${esc(x.item)}</b> ${x.cod ? `<span class="cod">${x.cod}</span>` : '<span class="tag cinza">item livre</span>'}${x.lido && norm(x.lido) !== norm(x.item) ? ` <span class="sub">(na foto: ${esc(x.lido)})</span>` : ''}
+            <div class="linha" style="margin-top:6px;flex-wrap:wrap"><select class="inp" data-ch="ciLidoTipo" data-i="${i}" style="width:auto">${['<option value="">Tipo?</option>'].concat(tipos.map(t => `<option ${x.tipo === t ? 'selected' : ''}>${t}</option>`)).join('')}</select>
+            <select class="inp" data-ch="ciLidoPara" data-i="${i}" style="width:auto">${['<option value="">Para quem?</option>'].concat(CI_PARA.map(t => `<option ${x.para === t ? 'selected' : ''}>${t}</option>`)).join('')}</select></div>
+            <div class="sub">${[x.nome, x.motivo, x.pedido ? 'pedido ' + x.pedido : ''].filter(Boolean).map(esc).join(' · ')}</div></div></div>`).join('')}</div>
+        <div class="entre" style="margin-top:12px"><span class="sub">${falta ? 'Falta escolher tipo ou para quem em ' + falta : ok.length + ' para lançar'}</span><span class="linha"><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok" ${falta || !ok.length ? 'disabled' : ''}>${ic('add_task')} Lançar ${ok.length}</button></span></div>`; },
+    async ok() {
+      const ok = L.filter(x => x.on); let n = 0;
+      for (const x of ok) { const t = agora() + n; const id = 'ci-' + t + '-' + uid().slice(0, 4);
+        await DB.set('consumo', id, { id, noiteId: noiteId(), ts: t, item: x.item, cod: x.cod, ab: x.ab, livre: !x.cod, qtd: x.qtd, tipo: x.tipo, para: x.para || '', nome: x.nome, motivo: [x.motivo, 'pela foto'].filter(Boolean).join(' · '), pedido: ['Cortesia', 'Bonificação', 'Desconto'].includes(x.tipo) ? x.pedido : '', por: quem(), foto: true }); n++; }
+      fecharModal(); toast(n + ' lançamento' + (n > 1 ? 's' : '') + ' da foto'); render(); } });
+};
+CH.ciLidoOn = (el, d) => { MODAL.L[+d.i].on = el.checked; pintarModal(); };
+CH.ciLidoTipo = (el, d) => { MODAL.L[+d.i].tipo = el.value; pintarModal(); };
+CH.ciLidoPara = (el, d) => { MODAL.L[+d.i].para = el.value; pintarModal(); };
 A.ciApagar = d => {
   const c = (S.consumo || []).find(x => x.id === d.id); if (!c) return;
   pedirAutorizacao('Apagar ' + c.qtd + ' × ' + c.item + ' (' + c.tipo + ')?', async (p, motivo) => {
@@ -1660,7 +1691,30 @@ A.cancelarPedido = d => pedirAutorizacao('Cancelar o pedido?', async (pe, motivo
 // Lê o texto copiado do Gestor de Pedidos do iFood (ou o texto de um print). Formato do gestor (noite teste de 23/11):
 // o nº do pedido sozinho na 1ª linha, "Feito às 20:05" e, depois de "Itens no pedido", cada item em 3 linhas
 // (nome / R$ preço / quantidade); complemento = nome / R$ preço sem quantidade; texto solto = observação.
+// Texto que a IA transcreveu do print (começa com [IA]): formato fixo, então a leitura é direta:
+// "Nx nome" é item, "- algo" é complemento (adicional do cardápio quando acha, senão observação), "- Obs: …" é observação.
+function lerIfoodIA(txt) {
+  const L = String(txt).split(/\r?\n/).map(l => l.trim()).filter(Boolean).slice(1);
+  const out = { num: '', hora: '', marca: /lado\s*b/i.test(L[0] || '') ? 'ladob' : 'st', itens: [], obs: [] };
+  const mn = (L[0] || '').match(/(\d{3,6})/); if (mn) out.num = mn[1];
+  const mh = String(txt).match(/feito\s*(?:às|as|a)?\s*([01]?\d|2[0-3])[:h]([0-5]\d)/i); if (mh) out.hora = mh[1].padStart(2, '0') + ':' + mh[2];
+  let grupo = null;
+  L.forEach(l => {
+    let m;
+    if ((m = l.match(/^(\d{1,2})\s*x\s+(.+)$/i))) { const nome = m[2].trim(); const p = melhorProduto(nome); grupo = []; for (let k = 0; k < Math.min(Math.max(1, +m[1]), 20); k++) { const it = { texto: nome, cod: p ? p.cod : null }; out.itens.push(it); grupo.push(it); } return; }
+    if (/^[-•]/.test(l) && grupo) {
+      const c = l.replace(/^[-•+*\s]+/, '').trim(); if (!c) return;
+      const o = c.match(/^obs\.?\s*:?\s*(.+)$/i);
+      const a = o ? null : melhorProduto(c, 'adicional');
+      grupo.forEach(it => { if (a) it.adds = (it.adds || []).concat(a.cod); else it.obs = [it.obs, o ? o[1] : c].filter(Boolean).join(', '); });
+      return;
+    }
+    if (/^obs\.?\s*:/i.test(l)) out.obs.push(l.replace(/^obs\.?\s*:\s*/i, ''));
+  });
+  return out;
+}
 function lerIfood(txt) {
+  if (/^\[IA\]/.test(String(txt || '').trim())) return lerIfoodIA(txt);
   const L = String(txt || '').split(/\r?\n/).map(l => l.replace(/[ \s]+/g, ' ').trim()).filter(l => l && l !== '●' && l !== '•');
   const out = { num: '', hora: '', marca: /lado\s*b/i.test(txt) ? 'ladob' : 'st', itens: [], obs: [] };
   const l0 = L.slice(0, 8).find(l => /^#?\d{3,5}$/.test(l)) || (L.slice(0, 8).join('\n').match(/^#?(\d{3,5}) [A-Za-zÀ-ú]/m) || [])[1];
@@ -1723,8 +1777,11 @@ function melhorProduto(nome, tipo) {
   return bs >= 50 ? best : null;
 }
 let ocr = null;
+// Print do iFood (JP, 25/11/2026): primeiro a IA, que devolve o pedido no formato do Gestor; se falhar, o Tesseract
 async function lerPrint(arquivo) {
-  toast('Lendo o print…');
+  toast('A IA está lendo o print…');
+  try { const t = await iaLerIfood(arquivo); if (/itens no pedido/i.test(t)) return '[IA] lido pela IA\n' + t; } catch (e) { console.warn('iFood pela IA', e); }
+  toast('Lendo o print com o leitor do navegador…');
   if (!window.Tesseract) await new Promise((ok, erro) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = ok; s.onerror = erro; document.head.appendChild(s); });
   const r = await Tesseract.recognize(arquivo, 'por');
   return r.data.text;
@@ -1818,8 +1875,40 @@ function telaNoite() {
       <td>${v.itens.map(i => `${esc(i.nome)} <span class="sub">${i.descPct ? `<s>${R(i.cheio)}</s> ` : ''}${R(i.preco)}</span>${i.descPct ? ` <span class="tag desc">−${pctTxt(i.descPct)}</span>` : ''}`).join('<br>')}${v.frete ? `<br><span class="sub">frete ${R(v.frete)} (fora da nota)</span>` : ''}</td><td class="n">${R(v.subtotal)}</td><td class="n">${R(v.dez)}</td><td class="n"><b>${R(v.total)}</b></td>
       <td>${(v.pagamentos || []).map(p => `${esc(p.forma)} ${R(p.valor)}`).join('<br>')}${v.comprovante ? '<br><span class="tag ok">comprovante</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhuma venda fechada ainda.</td></tr>'}</table></div>
     <p class="sub">iFood entra pelo preço do cardápio (referência); o valor real e as taxas ficam na planilha de Gestão do iFood. O 10% está dentro do total da NFC-e até a contadora responder.</p>`;
-  return h + telaRelConsumo() + telaRelCompras() + telaConferencia();
+  return h + telaResumoIA() + telaRelConsumo() + telaRelCompras() + telaConferencia();
 }
+// --- resumo da noite pela IA (JP, 25/11/2026): para ler em 30 segundos. Vai para a IA só o que é da operação
+// (itens, valores, canais, horários, descontos, consumo, cancelamentos, compras de amanhã); nome e telefone de cliente não.
+let resumoOff = null, resumoNoite = null; S.resumoIA = undefined;
+function assinarResumo(id) { if (resumoNoite === id) return; resumoNoite = id; if (resumoOff) resumoOff(); S.resumoIA = undefined; resumoOff = DB.listenDoc('resumos', id, d => { S.resumoIA = d; render(); }); }
+function dadosDaNoite() {
+  const vs = S.vendas; const ok = vs.filter(v => !v.cancelado); const itens = {}; const porHora = {};
+  ok.forEach(v => { (v.itens || []).forEach(i => { itens[i.nome] = (itens[i.nome] || 0) + 1; }); const hh = hora(v.fechadaEm).slice(0, 2) + 'h'; porHora[hh] = (porHora[hh] || 0) + 1; });
+  const formas = {}, canais = {}; ok.forEach(v => { (v.pagamentos || []).forEach(p => { formas[p.forma] = r2((formas[p.forma] || 0) + p.valor); }); canais[v.canal] = r2((canais[v.canal] || 0) + v.total); });
+  const descs = descontosDaNoite(); const ci = consumoValidos();
+  const amanha = pcDoc(pcDiaSeguinte(inicioDaNoite(S.ui.noiteVer || noiteId()))); const tt = amanha ? pcTotais(amanha) : null;
+  return { noite: S.ui.noiteVer || noiteId(), inicio: dataBR(inicioDaNoite(S.ui.noiteVer || noiteId())), vendas: ok.length, canceladas: vs.length - ok.length, total: r2(ok.reduce((s, v) => s + v.total, 0)), dezPorCento: r2(ok.reduce((s, v) => s + (v.dez || 0), 0)),
+    ticketMedio: ok.length ? r2(ok.reduce((s, v) => s + v.total, 0) / ok.length) : 0, porCanal: canais, porForma: formas, vendasPorHora: porHora,
+    maisVendidos: Object.entries(itens).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([n, q]) => n + ' ×' + q),
+    descontos: descs.map(x => (x.nome || '') + ' ' + (x.pct || '') + '% (' + R(x.valor || 0) + ')' + (x.motivo ? ' · ' + x.motivo : '')),
+    consumoInterno: ci.map(c => c.qtd + '× ' + c.item + ' · ' + c.tipo + (c.motivo ? ' · ' + c.motivo : '')),
+    comprasDeAmanha: tt ? { previsto: tt.total, locais: tt.locais.length, itens: tt.itens, semPreco: tt.sem, tarefas: (amanha.tarefas || []).length } : null };
+}
+function telaResumoIA() {
+  const id = S.ui.noiteVer || noiteId(); assinarResumo(id); const d = S.resumoIA;
+  return `<div class="card resumo-ia nao-imprimir" style="margin-top:14px"><div class="entre"><h3 style="margin:0">${ic('auto_awesome')} Resumo da noite</h3>
+      <span class="linha">${d && d.texto ? `<button class="bt" data-a="copiar" data-c="${esc(d.texto)}">${ic('content_copy')} Copiar</button>` : ''}<button class="bt ${d && d.texto ? '' : 'pri'}" data-a="resumoIA" ${S.ui.resumindo ? 'disabled' : ''}>${ic('auto_awesome')} ${S.ui.resumindo ? 'Escrevendo…' : d && d.texto ? 'Refazer' : 'Gerar com a IA'}</button></span></div>
+    ${d && d.texto ? `<div class="resumo-txt">${esc(d.texto)}</div><p class="sub" style="margin:6px 0 0">Gerado ${dataBR(d.em)} ${hora(d.em)} por ${esc(d.por || '')} · ${esc(d.modelo || 'IA')} · com os números do relatório desta noite.</p>` : `<p class="sub" style="margin:6px 0 0">Em 30 segundos: quanto vendeu e por onde, o que mais saiu, descontos, consumo, cancelamentos, o que chama atenção e uma sugestão para a próxima noite. Só com os números do relatório (sem nome nem telefone de cliente).</p>`}</div>`;
+}
+A.resumoIA = async () => {
+  const dados = dadosDaNoite(); if (!dados.vendas && !dados.consumoInterno.length) { toast('Ainda não há vendas nesta noite'); return; }
+  S.ui.resumindo = true; render();
+  try {
+    const txt = await iaPerguntar('texto', [IA_CASA + 'Escreva o resumo desta noite de operação para o dono, em português do Brasil, para ler em 30 segundos no celular. Até 8 tópicos curtos, cada um começando com "• ": total e por canal (salão, WhatsApp, iFood), ticket médio e horário de pico; o que mais saiu; descontos, consumo interno e cancelamentos (só se houver); o que chama atenção; e, por último, uma sugestão prática para a próxima noite. Use só os números abaixo, em reais com vírgula; não invente nada nem faça conta que os dados não permitam. Pule o tópico que estiver zerado ou vazio; se não houve venda, diga isso em uma linha e fale só do que houve. Dados da noite (JSON):\n' + JSON.stringify(dados)], false);
+    await DB.set('resumos', dados.noite, { texto: txt, em: agora(), por: quem(), modelo: 'Gemini (Firebase AI Logic)', dados });
+  } catch (e) { toast('A IA não conseguiu escrever agora: ' + (e.message || e)); }
+  S.ui.resumindo = false; render();
+};
 // --- relatório: consumo interno e perdas (vai para o fiscal, aba Consumo interno da planilha de controle) ---
 function inicioDaNoite(id) {
   const n = cfg().noite || {}; if (!id || id === n.id) return n.inicio || agora();
@@ -2851,7 +2940,13 @@ async function prepararFoto(arquivo) {
 }
 CH.pcFoto = async el => {
   const f = el.files && el.files[0]; if (!f) return; el.value = '';
-  F.pcFotoUrl = URL.createObjectURL(f); F.pcFotoSt = 'Lendo a foto… (uns segundos)'; pintarModal();
+  F.pcFotoUrl = URL.createObjectURL(f); F.pcFotoSt = 'A IA está lendo a foto… (uns segundos)'; pintarModal();
+  // Primeiro a IA (lê letra à mão); se ela falhar, o leitor do navegador (Tesseract) de reserva
+  try {
+    const t = await iaLerQuadro(f); const linhas = t.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    if (linhas.length) { F.pcColaTxt = [F.pcColaTxt || ''].concat(linhas).join('\n').trim(); F.pcFotoSt = `A IA leu ${linhas.length} linha${linhas.length > 1 ? 's' : ''} do quadro: confira e corrija antes de gravar${/\[\?\]/.test(t) ? ' ([?] = não deu para ler)' : ''}.`; if (MODAL) pintarModal(); return; }
+  } catch (e) { console.warn('quadro pela IA', e); }
+  F.pcFotoSt = 'A IA não respondeu; lendo com o leitor do navegador…'; if (MODAL) pintarModal();
   try {
     if (!window.Tesseract) await new Promise((ok, erro) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = ok; s.onerror = erro; document.head.appendChild(s); });
     const r = await Tesseract.recognize(await prepararFoto(f), 'por');
@@ -3012,6 +3107,62 @@ function telaRelCompras() {
     <div class="grade nao-imprimir" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));margin-top:10px">
       <div class="card"><h3>${ic('forum')} Padrão do grupo do fiscal</h3><p class="sub">Cole no grupo do fiscal antes do CAIXA: o fechamento separa o dinheiro de cada compra e, amanhã, compara a nota com a lista.</p><div class="copia" style="white-space:pre-wrap">${esc(txt)}</div><button class="bt" style="margin-top:8px" data-a="copiar" data-c="${esc(txt)}">${ic('content_copy')} Copiar</button></div></div>`;
   return h;
+}
+
+// ================= IA: Firebase AI Logic, API Gemini Developer, plano gratuito (JP, 25/11/2026) =================
+// Lê fotos (quadro de compras, print do iFood, prancheta de consumo interno, recado de substituição) e escreve o resumo
+// da noite. Sem chave no site: o acesso passa pelo App Check (Fraud Defense, chave de site pública abaixo), que só
+// libera o domínio do sistema e o localhost. Plano gratuito do Firebase (Spark): cota diária limitada; no gratuito o
+// Google pode usar o que é enviado para melhorar os produtos dele, então nome e telefone de cliente nunca vão para a IA.
+// Modelos (página de modelos do Firebase AI Logic, 25/11/2026): para foto, o gemini-3.8-flash (melhor com letra à mão),
+// com o gemini-3.5-flash-lite de reserva; para texto, o contrário.
+const IA_SDK = '12.12.0';
+const IA_SITE_KEY = '6Lfk8zEuAAAAAIQxsuz5BppzQVSzk001DH5tD1bt';
+const IA_MODELOS = { foto: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], texto: ['gemini-3.5-flash-lite', 'gemini-3.8-flash'] };
+let IA = null;
+async function iaPronta() {
+  if (IA) return IA;
+  if (!window.FIREBASE_CONFIG) throw new Error('a IA só funciona com a nuvem ligada');
+  const b = `https://www.gstatic.com/firebasejs/${IA_SDK}/`;
+  const [ap, ac, ai] = await Promise.all([import(b + 'firebase-app.js'), import(b + 'firebase-app-check.js'), import(b + 'firebase-ai.js')]);
+  const app = ap.initializeApp(window.FIREBASE_CONFIG, 'seu-trem-ia');
+  ac.initializeAppCheck(app, { provider: new ac.ReCaptchaEnterpriseProvider(IA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+  IA = { ai, inst: ai.getAI(app, { backend: new ai.GoogleAIBackend() }) };
+  return IA;
+}
+// tipo: 'foto' ou 'texto' · partes: [texto, imagem…] · json: resposta em JSON
+async function iaPerguntar(tipo, partes, json) {
+  const { ai, inst } = await iaPronta(); let ultimo = null;
+  for (const m of IA_MODELOS[tipo]) {
+    try {
+      const model = ai.getGenerativeModel(inst, Object.assign({ model: m }, json ? { generationConfig: { responseMimeType: 'application/json' } } : {}));
+      const r = await model.generateContent(partes); const t = String(r.response.text() || '').trim();
+      if (!json) return t;
+      return JSON.parse(t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
+    } catch (e) { ultimo = e; console.warn('IA (' + m + '):', e); }
+  }
+  throw ultimo || new Error('IA sem resposta');
+}
+// Foto reduzida para no máximo 1800 px, em JPEG (mais rápida e cabe na cota)
+async function iaImagem(arquivo) {
+  const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = URL.createObjectURL(arquivo); });
+  const k = Math.min(1, 1800 / Math.max(img.width, img.height)); const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  return { inlineData: { data: cv.toDataURL('image/jpeg', 0.85).split(',')[1], mimeType: 'image/jpeg' } };
+}
+const IA_CASA = 'Contexto: Seu Trem, restaurante 100% vegano em Belo Horizonte (burguers, aperitivos, quesadillas, bebidas). ';
+// 1. Quadro de compras e tarefas da cozinha
+async function iaLerQuadro(arquivo) {
+  return iaPerguntar('foto', [IA_CASA + 'A foto é do quadro de compras e tarefas da cozinha, escrito à mão durante a noite. Transcreva com fidelidade, uma coisa por linha, sem inventar nada. Mantenha as quantidades como estão escritas (2x, 3kg, 200(3), 15R$). Quando um grupo de itens tiver o nome de um mercado ou local como título, escreva antes dele a linha "> Nome do local". O que for tarefa (algo a fazer, não a comprar) vai no fim, depois da linha "- TAREFAS", uma por linha. Ignore o título do quadro, desenhos e o que estiver riscado. Palavra que não der para ler: escreva [?]. Responda só com as linhas, sem comentário.', await iaImagem(arquivo)], false);
+}
+// 2. Print do pedido no Gestor de Pedidos do iFood: devolve no formato que lerIfood já entende
+async function iaLerIfood(arquivo) {
+  return iaPerguntar('foto', [IA_CASA + 'A imagem é a captura de tela de um pedido no Gestor de Pedidos do iFood. Transcreva só o pedido, exatamente neste formato, sem comentário:\nlinha 1: o número do pedido (só os dígitos); se a loja for "Seu Trem Lado B", acrescente " Lado B"\nlinha 2: Feito às HH:MM\nlinha 3: Itens no pedido\nem seguida, cada item como "<quantidade>x <nome do item como está na tela>" e, logo abaixo dele, cada complemento ou adicional em uma linha começando com "- " e cada observação do item com "- Obs: "\nlinha final: Subtotal\nNão inclua preços, taxas, endereço nem dados do cliente.', await iaImagem(arquivo)], false);
+}
+// 3. Prancheta de consumo interno ou recado de substituição: devolve os lançamentos
+async function iaLerConsumo(arquivo) {
+  const r = await iaPerguntar('foto', [IA_CASA + 'A foto é da prancheta de consumo interno e perdas da cozinha ou de um recado de substituição de pedido, escritos à mão. Liste cada lançamento. Tipos possíveis: ' + CI_TIPOS.map(([t, s]) => t + ' (' + s + ')').join('; ') + '. Para quem: Sócio, Equipe, Freela ou Cliente (vazio se não der para saber). No recado de substituição, o que foi no lugar e o bônus prometido para o próximo pedido são Bonificação para Cliente, com o número do pedido. Não invente: o que não estiver escrito fica vazio. Responda em JSON: {"lancamentos":[{"item":"","qtd":1,"tipo":"","para":"","nome":"","motivo":"","pedido":""}]}', await iaImagem(arquivo)], true);
+  return (r && Array.isArray(r.lancamentos) ? r.lancamentos : []).filter(x => x && x.item);
 }
 
 // ================= conversa com o fiscal, toda semana (JP, 25/11/2026) =================
