@@ -650,3 +650,29 @@ body.teste .carrinho-bar{background:#fef7e0}
 .jr-ac{flex:none;min-height:34px;padding:4px 12px;font-size:13px}
 .jr-ac .ms{font-size:16px}
 @media(max-width:600px){.jr-barra{flex-basis:100%}.jr-et{flex-basis:92px}.jr-ic{width:44px;height:44px}.jr-it{flex-wrap:wrap;row-gap:4px}.jr-tx{flex:1 1 calc(100% - 52px)}.jr-ac{margin-left:44px}}
+/* v21 (26/11/2026): trocas do cliente, em destaque na cozinha */
+.chip.ing.sem{background:var(--vermelho-cl);border-color:var(--vermelho);color:var(--vermelho);font-weight:700;text-decoration:line-through}
+.chip.ing.sem .ms{font-size:17px;text-decoration:none}
+.tag.troca-tag{background:var(--laranja);color:#fff;font-weight:700;text-transform:uppercase;font-size:11px;margin-left:4px;vertical-align:middle}
+.troca-parte{margin-bottom:6px}
+.kc.com-troca{box-shadow:0 0 0 4px var(--laranja) inset}
+.kc.com-alergia.com-troca{box-shadow:0 0 0 4px var(--vermelho) inset,0 0 0 8px var(--laranja) inset}
+.kc .ktroca-t{background:var(--laranja);color:#fff;font-weight:900;font-size:18px;letter-spacing:.04em;border-radius:8px;padding:4px 10px;display:flex;align-items:center;gap:8px;margin-top:4px}
+.kc .ktroca-t .ms{font-size:24px}
+.kx{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+.kx span{display:inline-block;background:var(--laranja);color:#fff;font-weight:900;font-size:20px;text-transform:uppercase;border-radius:4px;padding:2px 8px;overflow-wrap:anywhere}
+.kx.kx-m span{font-size:15px}
+.bx{display:inline-flex;align-items:center;gap:4px;background:var(--laranja);color:#fff;font-weight:700;font-size:14px;border-radius:4px;padding:1px 6px;margin-top:2px;text-transform:uppercase}
+.bx .ms{font-size:16px}
+/* v21: contas a enviar pelo computador (WhatsApp Business da casa) */
+.fila-contas{background:var(--verde-cl);border:2px solid var(--verde-v);border-radius:var(--raio);padding:10px 12px;margin:0 0 14px}
+.fila-contas .fc-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700;color:var(--verde)}
+.fila-contas .fc-t .esp{flex:1}
+.fila-contas .fc-l{display:flex;align-items:center;gap:10px;background:#fff;border-radius:10px;padding:8px 10px;margin-top:8px;flex-wrap:wrap}
+.fila-contas .fc-l .nm{flex:1;min-width:160px;display:flex;flex-direction:column}
+.fila-contas .fc-l .nm small{color:var(--txt2);font-size:12px;overflow-wrap:anywhere}
+.fila-contas .fc-l .bt{flex:none}
+.fc-modo{font-size:12px;font-weight:400;color:var(--txt2);display:inline-flex;gap:4px;align-items:center}
+.fc-modo .chip{min-height:28px;padding:3px 8px;font-size:12px}
+.entrou.fila{background:var(--amarelo-cl)}
+.entrou.fila > .ms{color:var(--amarelo)}

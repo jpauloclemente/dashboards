@@ -47,9 +47,12 @@ const wa = (tel, txt) => `https://wa.me/${telWa(tel)}?text=${encodeURIComponent(
 const WA_CASA = '31993096150';
 const ANDROID = /Android/i.test(navigator.userAgent || '');
 const TOQUE = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();
+function modoWaPC() { try { return localStorage.getItem('st-wa-pc') === 'app' ? 'app' : 'web'; } catch (e) { return 'web'; } }
 function abrirWaCasa(tel, txt) {
   const n = telWa(tel);
   if (ANDROID) { location.href = `intent://send/?phone=${n}&text=${encodeURIComponent(txt)}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(wa(tel, txt))};end`; return; }
+  // v21: no computador, o WhatsApp Web (aba "st-whatsapp", reaproveitada) ou o app do WhatsApp instalado (abre direto na conversa)
+  if (!TOQUE && modoWaPC() === 'app') { location.href = `whatsapp://send?phone=${n}&text=${encodeURIComponent(txt)}`; return; }
   if (!TOQUE) { const w = window.open(`https://web.whatsapp.com/send?phone=${n}&text=${encodeURIComponent(txt)}`, 'st-whatsapp'); if (w) return; }
   abrir(wa(tel, txt));
 }
@@ -193,13 +196,16 @@ function subtotal(itens) { return r2(itensValidos(itens).reduce((s, i) => s + pr
 function descItem(it) {
   const linhas = [];
   (it.partes || []).forEach(p => {
-    const extra = [...(p.adds || []).map(a => '+ ' + a.nome), p.det, p.obs, p.alergia].filter(Boolean);
+    const extra = [...(p.adds || []).map(a => '+ ' + a.nome), p.det, p.obs, ...trocasParte(p), p.alergia].filter(Boolean);
     if (it.combo || (it.partes.length > 1)) linhas.push(p.nome + (extra.length ? ' (' + extra.join(', ') + ')' : ''));
     else if (extra.length) linhas.push(extra.join(', '));
   });
   if (temDesc(it)) linhas.push('desconto de ' + txtDesc(it.desconto) + ' (de ' + R(precoCheio(it)) + ')');
   return linhas;
 }
+// Trocas do cliente (v21, JP 26/11/2026): "sem alface", "com tomate no lugar". Ficam na parte do item e vão em destaque na TV.
+function trocasParte(p) { return [...(p.sem || []).map(s => 'sem ' + s), p.troca].filter(Boolean); }
+function temTroca(it) { return (it.partes || []).some(p => trocasParte(p).length); }
 function ehBebida(it) { return (it.partes || []).every(p => p.setor === 'bar'); }
 function temSetor(it, s) { return (it.partes || []).some(p => p.setor === s); }
 
@@ -569,8 +575,13 @@ function assinar(cols) {
 let MESAS_OK = false;
 function avisarEntradas(antes, lista) {
   if (!['base', 'garcom'].includes(VIEW)) return;
-  lista.forEach(m => { const a = antes[m.id]; const cs = m.clientes || []; if (!a || cs.length <= (a.clientes || []).length) return; const c = cs[cs.length - 1]; if (c.manual) return;
-    toast(c.nome + ' entrou pela conta da ' + (m.label || rotuloMesa(m.id))); bip(1); try { navigator.vibrate && navigator.vibrate(150); } catch (e) {} });
+  // v21: na base, toda conta que entra na fila (QR do cliente ou pedido do garçom) avisa com bip duplo
+  lista.forEach(m => { const a = antes[m.id]; if (!a) return; const rot = m.label || rotuloMesa(m.id);
+    const novos = (m.clientes || []).filter(c => contaNaFila(c) && !(a.clientes || []).some(x => soDig(x.tel) === soDig(c.tel) && contaNaFila(x) && x.pediuEm === c.pediuEm));
+    if (!novos.length) return; const c = novos[novos.length - 1];
+    if (VIEW === 'base') { toast('Conta da ' + rot + ' para enviar · ' + c.nome); bip(2); return; }
+    if (c.manual) return;
+    toast(c.nome + ' entrou pela conta da ' + rot); bip(1); try { navigator.vibrate && navigator.vibrate(150); } catch (e) {} });
 }
 let vendasOff = null, vendasNoite = null;
 function assinarVendas(id) {
@@ -742,7 +753,7 @@ function blocosDe(itens, setor) {
     if (!ps.length) return null;
     return {
       item: it.uid, combo: it.combo ? it.nome : null, comboAb: it.combo ? (it.comboAb || '') : '',
-      linhas: ps.map(p => ({ nome: p.nome, ab: p.ab || '', alergia: p.alergia || '', trocas: [...(p.adds || []).map(a => '+ ' + a.nome), p.det, p.obs].filter(Boolean), grupo: p.grupo || 0, chapa: p.chapa || null, discos: p.discos || 0, cod: p.cod || null, fritas: p.fritas || null, esc: p.esc || p.det || '', adds: (p.adds || []).map(a => a.cod) }))
+      linhas: ps.map(p => ({ nome: p.nome, ab: p.ab || '', alergia: p.alergia || '', troca: trocasParte(p), trocas: [...(p.adds || []).map(a => '+ ' + a.nome), p.det, p.obs].filter(Boolean), grupo: p.grupo || 0, chapa: p.chapa || null, discos: p.discos || 0, cod: p.cod || null, fritas: p.fritas || null, esc: p.esc || p.det || '', adds: (p.adds || []).map(a => a.cod) }))
     };
   }).filter(Boolean);
 }
@@ -1388,7 +1399,7 @@ function telaMesa(id) {
   if (pend.length) {
     h += `<div class="secao-t">A enviar · marque o que sai primeiro</div><div class="itens">` + pend.map(it => `
       <div class="item"><input type="checkbox" class="ck" data-ch="selItem" data-id="${id}" data-u="${it.uid}" ${it.sel ? 'checked' : ''}>
-        <div class="corpo"><div class="nm toca" data-a="descontoItem" data-id="${id}" data-u="${it.uid}">${esc(it.nome)}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}${tagDesconto(it)}
+        <div class="corpo"><div class="nm toca" data-a="trocasItem" data-id="${id}" data-u="${it.uid}" title="Trocas: sem isso, com aquilo no lugar">${esc(it.nome)}${temTroca(it) ? ' <span class="tag troca-tag">troca</span>' : ''}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}${tagDesconto(it)}
         ${temSetor(it, 'bar') ? `<label class="sub" style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" data-ch="comPrato" data-id="${id}" data-u="${it.uid}" ${it.comPrato ? 'checked' : ''}> bebida vai com o prato (${cfg().minPrato || 15} min)</label>` : ''}</div>
         ${precoHtml(it, id)}<button class="bt-ic" data-a="tirarItem" data-id="${id}" data-u="${it.uid}">${ic('close')}</button></div>`).join('') + '</div>';
     h += `<div class="barra-acao"><button class="bt pri grande" style="flex:1" data-a="enviarMesa" data-id="${id}">${ic('send')} Enviar ${pend.length} ${pend.length > 1 ? 'itens' : 'item'}</button></div>
@@ -1396,11 +1407,11 @@ function telaMesa(id) {
   }
   if (env.length) {
     h += `<div class="secao-t">Na produção e servidos</div><div class="itens">` + env.map(it => `
-      <div class="item enviado"><div class="corpo"><div class="nm toca" data-a="descontoItem" data-id="${id}" data-u="${it.uid}">${esc(it.nome)}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}${tagDesconto(it)}<div style="margin-top:4px">${statusItem(it)}</div></div>
+      <div class="item enviado"><div class="corpo"><div class="nm toca" data-a="trocasItem" data-id="${id}" data-u="${it.uid}" title="Trocas: sem isso, com aquilo no lugar">${esc(it.nome)}${temTroca(it) ? ' <span class="tag troca-tag">troca</span>' : ''}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}${tagDesconto(it)}<div style="margin-top:4px">${statusItem(it)}</div></div>
       ${precoHtml(it, id)}<button class="bt-ic" data-a="cancelarItem" data-id="${id}" data-u="${it.uid}" title="Cancelar (pede código do gerente)">${ic('delete')}</button></div>`).join('') + '</div>';
   }
   if (!val.length) h += `<div class="vazio">${ic('restaurant_menu')}<br>Digite o código ou o nome do prato acima.<br><span class="sub">Anotou no papel? Lance tudo em sequência e toque Enviar uma vez.</span></div>`;
-  else h += `<p class="sub" style="margin-top:6px">${ic('sell')} Desconto: toque no item. d50 tira 50%, c5,40 tira R$ 5,40 (código de gerente ou sócio).</p>`;
+  else h += `<p class="sub" style="margin-top:6px">${ic('swap_horiz')} Toque no <b>nome</b> do prato para trocas (sem isso, com aquilo no lugar), antes de enviar. ${ic('sell')} Toque no <b>preço</b> para desconto: d50 tira 50%, c5,40 tira R$ 5,40 (código de gerente ou sócio).</p>`;
   const tot = subtotal(m.itens); const pago = totalPago(m);
   h += `<div class="card" style="margin-top:16px"><div class="total-linha"><span>Subtotal</span><b>${R(tot)}</b></div>
     ${pago ? `<div class="total-linha"><span>Já recebido</span><span>${R(pago)}</span></div>` : ''}
@@ -1563,7 +1574,58 @@ A.descontoItem = d => {
       fecharModal(); if (txt) toast(txt[0].toUpperCase() + txt.slice(1));
     }
   });
-};A.limparBusca = () => { F.busca = ''; render(); setTimeout(() => { const b = $('#busca'); b && b.focus(); }, 0); };
+};
+// --- trocas no item (v21, JP 26/11/2026): toca no nome do prato, abre os ingredientes (da ficha técnica); toque num
+// ingrediente = "sem" ele; a caixa de texto diz o que vai no lugar. Só antes de enviar: depois, a cozinha já tem o card.
+// Na TV a troca sai em destaque laranja, com a faixa "TEM TROCA" no card.
+function ingredientesDe(pt) {
+  if (!pt || !pt.cod) return [];
+  try {
+    const r = calcFicha(pt.cod); const vis = new Set();
+    return r.linhas.filter(x => x.ins && x.ins.tipo !== 'Embalagem').map(x => x.ins.nome).filter(n => { const k = norm(n); if (vis.has(k)) return false; vis.add(k); return true; });
+  } catch (e) { return []; }
+}
+A.trocasItem = d => {
+  const id = d.id, u = d.u; const m0 = S.mesas[id]; const it0 = m0 && m0.itens.find(i => i.uid === u); if (!it0 || it0.cancelado) return;
+  assinarFicha();
+  const sem = (it0.partes || []).map(p => (p.sem || []).slice());
+  (it0.partes || []).forEach((p, k) => { F['trc' + k] = p.troca || ''; });
+  abrirModal({
+    foco: it0.enviado ? null : 'trc0',
+    render() {
+      const m = S.mesas[id]; const it = m && m.itens.find(i => i.uid === u); if (!it) return '<div class="vazio">Item não está mais na mesa.</div><button class="bt bloco" data-a="fecharModal">OK</button>';
+      const ro = !!it.enviado; const varias = (it.partes || []).length > 1;
+      let h = `<div class="entre"><h2>Trocas</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+        <p class="sub" style="margin:0 0 10px">${esc(it.nome)}${ro ? '' : ' · toque no que sai e escreva o que vai no lugar'}</p>`;
+      if (ro) h += `<div class="card" style="background:var(--amarelo-cl, #fef7e0);border:0;padding:10px 12px;margin-bottom:10px">${ic('info')} Este item já foi para a cozinha. Para mudar agora, avise a chapa; se precisar, cancele e lance de novo.</div>`;
+      (it.partes || []).forEach((p, k) => {
+        const ings = ingredientesDe(p); const desc = p.cod && P[p.cod] && P[p.cod].desc;
+        h += `<div class="troca-parte">${varias ? `<div class="secao-t" style="margin-top:6px">${esc(p.nome)}</div>` : ''}`;
+        if (ro) { const t = trocasParte(p); h += t.length ? `<div class="kx kx-m">${t.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : '<p class="sub">Sem troca.</p>'; h += '</div>'; return; }
+        if (ings.length) h += `<div class="chips">${ings.map(n => { const on = sem[k].includes(n); return `<button class="chip ing ${on ? 'sem' : ''}" data-a="togIng" data-k="${k}" data-c="${esc(n)}">${on ? ic('block') + ' sem ' : ''}${esc(n)}</button>`; }).join('')}</div>`;
+        else h += `<p class="sub" style="margin:0 0 6px">${desc ? esc(desc) + '<br>' : ''}Sem ingredientes na ficha técnica: escreva a troca abaixo.</p>`;
+        h += `<input id="trc${k}" class="inp" style="margin-top:8px" data-f="trc${k}" autocomplete="off" placeholder="${ings.length ? 'O que vai no lugar? Ex.: com tomate no lugar' : 'Ex.: sem alface, com tomate no lugar'}" value="${esc(F['trc' + k] || '')}" data-enter="okT"></div>`;
+      });
+      h += ro ? `<button class="bt bloco" style="margin-top:12px" data-a="fecharModal">OK</button>`
+        : `<div class="linha" style="margin-top:12px"><button class="bt" data-a="fecharModal">Voltar</button><button class="bt txt" data-a="limparT">Sem troca</button><span style="flex:1"></span><button class="bt pri" data-a="okT">${ic('swap_horiz')} Salvar troca</button></div>`;
+      return h;
+    },
+    togIng(dd) { const k = +dd.k, n = dd.c; const a = sem[k]; const i = a.indexOf(n); if (i >= 0) a.splice(i, 1); else a.push(n); pintarModal(); },
+    limparT() { sem.forEach(a => a.splice(0)); (it0.partes || []).forEach((p, k) => { F['trc' + k] = ''; }); pintarModal(); },
+    async okT() {
+      const novos = sem.map((a, k) => ({ sem: a.slice(), troca: String(F['trc' + k] || '').trim() }));
+      let txt = ''; fecharModal();
+      const r = await DB.mutate('mesas', id, mm => {
+        const it = mm && mm.itens.find(i => i.uid === u); if (!it || it.enviado) return undefined;
+        (it.partes || []).forEach((p, k) => { const n = novos[k] || { sem: [], troca: '' }; if (n.sem.length) p.sem = n.sem; else delete p.sem; if (n.troca) p.troca = n.troca; else delete p.troca; });
+        const t = (it.partes || []).map(trocasParte).flat(); txt = t.length ? 'troca em ' + it.nome + ': ' + t.join(', ') : 'tirou a troca de ' + it.nome;
+        mm.log = (mm.log || []).concat(logLinha(txt)); return mm;
+      });
+      if (!r || !txt) toast('O item já foi enviado: avise a cozinha'); else toast(txt[0].toUpperCase() + txt.slice(1));
+    }
+  });
+};
+A.limparBusca = () => { F.busca = ''; render(); setTimeout(() => { const b = $('#busca'); b && b.focus(); }, 0); };
 A.addPrimeiro = d => { const r = buscar(qtdBusca(F.busca).q); if (r[0]) return A.addProd({ id: d.id, c: r[0].cod }); };
 // Brownie e alfajor a R$ 10 só como extra de uma sobremesa montada (JP, 25/11/2026): avulso é R$ 13 (83 e 84).
 // Sem sobremesa montada na mesa ou na sacola, o 88 vira o 83 e o 89 vira o 84, com aviso.
@@ -1719,11 +1781,11 @@ function contaTexto(m, n) {
 // Logo abaixo, o QR do PIX da casa com o valor certo.
 const urlMesaCli = (id, m) => `${BQ}v=mesa&m=${encodeURIComponent(id)}&k=${m.abertaEm}`;
 A.conta = d => {
-  const id = d.id; const m0 = S.mesas[id]; if (!m0) return; S.ui.nDiv = Math.max(1, (m0.nomes || []).length); S.ui.pixV = 'com'; F.telConta = '';
+  const id = d.id; const m0 = S.mesas[id]; if (!m0) return; S.ui.nDiv = nDivMesa(m0); S.ui.pixV = 'com'; F.telConta = '';
   abrirModal({
     render() {
       const m = S.mesas[id]; if (!m) return '<div class="vazio">Mesa fechada.</div><button class="bt bloco" data-a="fecharModal">OK</button>';
-      const tot = subtotal(m.itens), dez = r2(tot * 0.1), n = S.ui.nDiv, cls = m.clientes || [];
+      const tot = subtotal(m.itens), dez = r2(tot * 0.1), n = S.ui.nDiv, cls = m.clientes || [], pc = VIEW === 'base';
       const pago = r2((m.pagamentos || []).reduce((s, p) => s + p.valor, 0));
       const vals = { com: r2(tot + dez - pago), sem: r2(tot - pago), cada: r2((tot + dez) / n) };
       const vPix = Math.max(0, vals[S.ui.pixV] != null ? vals[S.ui.pixV] : vals.com);
@@ -1740,31 +1802,116 @@ A.conta = d => {
         <div class="secao-t">1 · A conta no WhatsApp do cliente</div>
         <div class="conta-qr"><div class="qr" data-qr="${esc(urlMesaCli(id, m))}"></div>
           <p class="sub">O cliente lê com a câmera, põe o nome e o WhatsApp e a conta chega na conversa dele com a casa (${esc(cfg().whatsapp || WA_CASA)}).</p></div>
-        ${cls.length ? `<div class="entraram">${cls.map((c, i) => `<div class="entrou"><span class="ms">check_circle</span><span class="nm"><b>${esc(c.nome)}</b> entrou<small>${esc(c.tel)}${c.contaEm ? ' · conta no WhatsApp ' + hora(c.contaEm) : ''}</small></span><button class="bt verde" data-a="enviarConta" data-i="${i}">${ic('send')} ${c.contaEm ? 'Reenviar' : 'Enviar'}</button></div>`).join('')}</div>` : '<p class="sub" style="margin:4px 0 0">Ninguém entrou ainda: quando o cliente ler o QR, o nome aparece aqui na hora.</p>'}
-        <div class="linha" style="margin-top:10px"><input id="telConta" class="inp" style="flex:1;min-width:0" data-f="telConta" inputmode="tel" autocomplete="off" placeholder="QR não deu? WhatsApp do cliente (DDD + número)" value="${esc(F.telConta || '')}" data-enter="enviarConta" data-i="-1"><button class="bt verde" data-a="enviarConta" data-i="-1">${ic('send')} Enviar</button></div>
-        <p class="sub" style="margin:6px 0 0">${ic('verified')} Sai pelo WhatsApp Business da casa${ANDROID ? '' : ' (no computador, pelo WhatsApp Web conectado na casa)'}.</p>
+        ${cls.length ? `<div class="entraram">${cls.map((c, i) => { const fila = contaNaFila(c); return `<div class="entrou ${fila ? 'fila' : ''}"><span class="ms">${fila ? 'schedule_send' : 'check_circle'}</span><span class="nm"><b>${esc(c.nome)}</b> ${fila ? 'na fila do computador' : c.contaEm ? 'recebeu a conta' : 'entrou'}<small>${esc(c.tel)}${fila ? ' · pedida ' + hora(c.pediuEm) : c.contaEm ? ' · enviada ' + hora(c.contaEm) + (c.contaPor ? ' por ' + esc(c.contaPor) : '') : ''}</small></span>${pc ? `<button class="bt verde" data-a="enviarConta" data-i="${i}">${ic('send')} ${c.contaEm && !fila ? 'Reenviar' : 'Enviar'}</button>` : fila ? '' : `<button class="bt" data-a="enviarConta" data-i="${i}">${ic('replay')} Pedir de novo</button>`}</div>`; }).join('')}</div>` : '<p class="sub" style="margin:4px 0 0">Ninguém entrou ainda: quando o cliente ler o QR, o nome aparece aqui na hora.</p>'}
+        <div class="linha" style="margin-top:10px"><input id="telConta" class="inp" style="flex:1;min-width:0" data-f="telConta" inputmode="tel" autocomplete="off" placeholder="QR não deu? WhatsApp do cliente (DDD + número)" value="${esc(F.telConta || '')}" data-enter="enviarConta" data-i="-1"><button class="bt verde" data-a="enviarConta" data-i="-1">${ic('send')} ${pc ? 'Enviar' : 'Pedir'}</button></div>
+        <p class="sub" style="margin:6px 0 0">${ic('verified')} ${pc ? 'Abre a conversa do cliente no WhatsApp Business da casa, com a conta escrita: é só apertar Enter.' : 'A conta sai do computador da casa, pelo WhatsApp Business: o pedido aparece no topo da base e o gerente envia com um clique. O garçom não precisa do WhatsApp da loja.'}</p>
         <div class="secao-t">2 · PIX da casa</div>
         <div class="chips">${[['com', 'Total com 10%'], ['sem', 'Sem 10%'], ['cada', 'Cada um (1/' + n + ')']].map(([k, l]) => `<button class="chip ${S.ui.pixV === k ? 'on' : ''}" data-a="pixV" data-c="${k}">${l} · ${R(Math.max(0, vals[k]))}</button>`).join('')}</div>
         ${pix ? `<div class="qr" data-qr="${esc(pix)}"></div><p class="sub" style="text-align:center;margin:0">PIX de <b>${R(vPix)}</b> · chave ${esc(chave)}. O cliente lê com o app do banco e mostra a tela de pago.</p>` : `<p class="sub">${vPix > 0 ? 'Cadastre a chave PIX em Equipe e loja.' : 'Nada a receber.'}</p>`}
+        ${pc ? `<button class="bt bloco" style="margin-top:12px" data-a="pdfConta">${ic('picture_as_pdf')} Baixar PDF da conta</button>` : ''}
         <div style="margin-top:14px"><button class="bt pri bloco grande" data-a="irReceber">${ic('payments')} Registrar o pagamento</button></div>`;
     },
     nDiv(dd) { S.ui.nDiv = Math.max(1, S.ui.nDiv + (+dd.c)); pintarModal(); },
     pixV(dd) { S.ui.pixV = dd.c; pintarModal(); },
     enviarConta(dd) {
-      const m = S.mesas[id]; if (!m) return; const i = +dd.i; const cl = i >= 0 ? (m.clientes || [])[i] : null; const tel = cl ? cl.tel : F.telConta;
-      if (soDig(tel).length < 10) { toast('Digite o WhatsApp com DDD'); const el = $('#telConta'); if (el) el.focus(); return; }
-      abrirWaCasa(tel, contaTexto(m, S.ui.nDiv));
-      const t = agora();
+      // v21 (JP, 26/11/2026): a conta sai sempre do computador. Na base, envia na hora; no celular do garçom, vira um
+      // pedido na fila "Contas para enviar" do topo da base (o garçom nunca precisa do WhatsApp Business da loja).
+      const m = S.mesas[id]; if (!m) return; const i = +dd.i; const cl = i >= 0 ? (m.clientes || [])[i] : null; const tel = soDig(cl ? cl.tel : F.telConta);
+      if (tel.length < 10) { toast('Digite o WhatsApp com DDD'); const el = $('#telConta'); if (el) el.focus(); return; }
+      const pc = VIEW === 'base', t = agora(), nD = S.ui.nDiv, eu = quem();
+      if (pc) abrirWaCasa(tel, contaTexto(m, nD));
       return DB.mutate('mesas', id, mm => {
         if (!mm) return undefined;
-        if (cl) mm.clientes = (mm.clientes || []).map(c => soDig(c.tel) === soDig(tel) ? Object.assign({}, c, { contaEm: t }) : c);
-        else if (!(mm.clientes || []).some(c => soDig(c.tel) === soDig(tel))) mm.clientes = (mm.clientes || []).concat({ nome: 'Cliente', tel: soDig(tel), ts: t, contaEm: t, manual: true });
-        mm.log = (mm.log || []).concat(logLinha('enviou a conta para ' + tel + ' (WhatsApp Business)')); return mm;
-      }).then(() => { if (!cl) F.telConta = ''; });
+        mm.nDiv = nD;
+        const marca = c => Object.assign({}, c, pc ? { contaEm: t, contaPor: eu } : { pediuEm: t, pediuPor: eu });
+        if ((mm.clientes || []).some(c => soDig(c.tel) === tel)) mm.clientes = mm.clientes.map(c => soDig(c.tel) === tel ? marca(c) : c);
+        else mm.clientes = (mm.clientes || []).concat(marca({ nome: 'Cliente', tel, ts: t, manual: true }));
+        mm.log = (mm.log || []).concat({ t, quem: eu, o: pc ? 'enviou a conta para ' + tel + ' pelo WhatsApp Business do computador' : 'pediu ao computador a conta para ' + tel });
+        return mm;
+      }).then(() => { if (!cl) F.telConta = ''; if (!pc) toast('Pedido no computador: a conta sai pelo WhatsApp da casa'); pintarModal(); });
     },
+    pdfConta() { return pdfConta(id, '', S.ui.nDiv); },
     irReceber() { fecharModal(); A.receber({ id }); }
   });
-};A.receber = d => {
+};
+// ================= contas para enviar pelo computador (v21, JP 26/11/2026) =================
+// O computador da casa fica logado no WhatsApp Business (31 99309-6150). O cliente entra na fila lendo o QR da conta
+// (deixa nome e WhatsApp e manda "quero a conta" para a casa: a conversa fica com a mesa no texto) ou o garçom digita o
+// número e toca Pedir. No topo da base aparece "Contas para enviar": um clique abre a conversa do cliente com a conta
+// já escrita, Enter envia. O pagamento segue como já é: PIX da casa no QR do slot ou cartão na maquininha, e o garçom registra.
+function contaNaFila(c) { return !!(c && c.pediuEm) && !(c.contaEm >= c.pediuEm); }
+function nDivMesa(m) { return Math.max(1, (m && m.nDiv) || (m && m.nomes || []).length || 1); }
+function contasNaFila() {
+  const out = [];
+  Object.values(S.mesas || {}).forEach(m => { if (!m || m.vinculo || m.comandas) return; (m.clientes || []).forEach(c => { if (contaNaFila(c)) out.push({ m, c }); }); });
+  return out.sort((a, b) => a.c.pediuEm - b.c.pediuEm);
+}
+function faixaContas() {
+  const l = contasNaFila(); if (!l.length) return '';
+  return `<div class="fila-contas"><div class="fc-t">${ic('send_to_mobile')} Contas para enviar (${l.length})<span class="esp"></span><span class="fc-modo">abrir no ${[['web', 'WhatsApp Web'], ['app', 'app do WhatsApp']].map(([k, t]) => `<button class="chip ${modoWaPC() === k ? 'on' : ''}" data-a="modoWa" data-c="${k}">${t}</button>`).join('')}</span></div>`
+    + l.map(({ m, c }) => { const tot = subtotal(m.itens); return `<div class="fc-l"><span class="nm"><b>${esc(m.label || rotuloMesa(m.id))} · ${esc(c.nome)}</b><small>${esc(c.tel)} · ${c.manual ? 'pedida por ' + esc(c.pediuPor || 'garçom') : 'leu o QR'} às ${hora(c.pediuEm)} · total com 10% ${R(r2(tot + r2(tot * 0.1)))}${nDivMesa(m) > 1 ? ' (÷' + nDivMesa(m) + ')' : ''}</small></span><button class="bt" data-a="pdfConta" data-id="${esc(m.id)}" data-c="${esc(c.nome === 'Cliente' ? '' : c.nome)}" title="Reserva: baixa a conta em PDF para mandar à mão">${ic('picture_as_pdf')} Baixar PDF</button><button class="bt verde" data-a="enviarContaPC" data-id="${esc(m.id)}" data-c="${esc(c.tel)}">${ic('send')} Enviar conta</button></div>`; }).join('')
+    + `<p class="sub" style="margin:8px 0 0">Enviar conta abre a conversa do cliente no WhatsApp Business da casa com a conta já escrita: aperte Enter e ela sai, e a linha some sozinha. Deu erro? Baixar PDF salva a conta para você anexar na conversa à mão.</p></div>`;
+}
+A.enviarContaPC = async d => {
+  const id = d.id, tel = soDig(d.c); const m = S.mesas[id]; if (!m) return;
+  abrirWaCasa(tel, contaTexto(m, nDivMesa(m)));
+  const t = agora(), eu = quem();
+  await DB.mutate('mesas', id, mm => { if (!mm) return undefined; mm.clientes = (mm.clientes || []).map(c => soDig(c.tel) === tel ? Object.assign({}, c, { contaEm: t, contaPor: eu }) : c); mm.log = (mm.log || []).concat({ t, quem: eu, o: 'enviou a conta para ' + tel + ' pelo WhatsApp Business do computador' }); return mm; });
+};
+// PDF da conta (v21, JP 26/11/2026): reserva para quando o WhatsApp falhar. Baixa um PDF com a conta (itens, trocas,
+// descontos, 10%, divisão, PIX com QR e copia e cola) para mandar à mão na conversa do cliente.
+let JSPDF_P = null;
+function carregarJsPDF() {
+  if (window.jspdf) return Promise.resolve();
+  if (!JSPDF_P) JSPDF_P = new Promise((ok, erro) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload = ok; s.onerror = () => { JSPDF_P = null; erro(new Error('Sem internet para gerar o PDF')); }; document.head.appendChild(s); });
+  return JSPDF_P;
+}
+function qrPng(txt) {
+  if (!window.QRCode || !txt) return null;
+  const div = document.createElement('div'); new QRCode(div, { text: txt, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.M });
+  const c = div.querySelector('canvas'); return c ? c.toDataURL('image/png') : null;
+}
+async function pdfConta(id, nomeCli, nDiv) {
+  const m = S.mesas[id]; if (!m) return;
+  try { await carregarJsPDF(); } catch (e) { toast(e.message); return; }
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a5' });
+  const W = 148, X = 12, D = W - 12; let y = 0;
+  const rot = m.label || rotuloMesa(id); const val = itensValidos(m.itens); const tot = subtotal(m.itens), dez = r2(tot * 0.1), n = nDiv || nDivMesa(m);
+  const pago = totalPago(m); const falta = r2(tot + dez - pago);
+  const pagina = need => { if (y + need > 198) { doc.addPage(); y = 14; } };
+  const linha = (esq, dir, o) => { o = o || {}; doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.t || 10); doc.setTextColor(...(o.cor || [32, 33, 36]));
+    const ls = doc.splitTextToSize(esq, dir ? 92 : D - X); pagina(ls.length * (o.t || 10) * 0.42 + 1); doc.text(ls, o.x || X, y); if (dir) doc.text(dir, D, y, { align: 'right' }); y += ls.length * (o.t || 10) * 0.42 + (o.esp != null ? o.esp : 1.6); };
+  const traco = () => { pagina(4); doc.setDrawColor(218, 220, 224); doc.line(X, y, D, y); y += 4.5; };
+  // topo azul
+  doc.setFillColor(26, 115, 232); doc.rect(0, 0, W, 26, 'F'); doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text(NOME_CURTO, X, 11);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.text('Conta · ' + rot + (nomeCli ? ' · ' + nomeCli : ''), X, 19);
+  doc.setFontSize(9); doc.text(dataBR(agora()) + ' ' + hora(agora()), D, 19, { align: 'right' });
+  y = 34;
+  if ((m.nomes || []).length) linha('Na mesa: ' + m.nomes.join(', '), '', { t: 9, cor: [95, 99, 104], esp: 3 });
+  val.forEach(it => { linha(it.nome, R(precoItem(it)), { t: 10.5 }); descItem(it).forEach(l => linha(l, '', { t: 8.5, cor: [176, 96, 0], x: X + 3, esp: 1.2 })); y += 1; });
+  traco();
+  linha('Subtotal', R(tot)); linha('10% (opcional)', R(dez)); linha('Total com 10%', R(r2(tot + dez)), { b: true, t: 13, esp: 2.5 });
+  if (n > 1) linha('Dividido por ' + n + ': ' + R(r2((tot + dez) / n)) + ' cada (sem 10%: ' + R(r2(tot / n)) + ')', '', { t: 9.5 });
+  if (pago) { linha('Já recebido', R(pago)); linha(falta > 0.004 ? 'Falta' : 'Tudo pago', R(Math.max(0, falta)), { b: true }); }
+  linha(AVISO_10, '', { t: 8.5, cor: [95, 99, 104], esp: 2 });
+  traco();
+  const p = cfg().pix || {}; const chave = p.chave || WA_CASA; const vPix = falta > 0.004 ? falta : 0;
+  const cc = vPix ? pixCopiaCola(vPix, 'ST' + String(id).replace(/\W/g, '') + 'C' + Math.round(vPix * 100)) : null;
+  linha('Para pagar', '', { b: true, t: 12, esp: 2 });
+  linha('PIX, chave (celular): ' + chave + (p.nome ? ' · ' + p.nome : ''), '', { t: 10 });
+  const img = cc && qrPng(cc);
+  if (img) { pagina(52); doc.addImage(img, 'PNG', X, y, 44, 44); doc.setFontSize(9); doc.setTextColor(95, 99, 104); doc.text(doc.splitTextToSize('Leia com o app do banco: PIX de ' + R(vPix) + ' (total com 10%' + (pago ? ', menos o já recebido' : '') + ').', D - X - 50), X + 50, y + 8); y += 48; }
+  if (cc) { linha('PIX copia e cola:', '', { t: 9, b: true, esp: 1 }); linha(cc, '', { t: 7.5, cor: [95, 99, 104], esp: 2.5 }); }
+  linha('Cartão: na maquininha, com o garçom.', '', { t: 10, esp: 3 });
+  linha(FRASE, '', { t: 9, cor: [26, 115, 232] });
+  const d = new Date(); const arq = `Conta ${rot}${nomeCli ? ' - ' + nomeCli : ''} - ${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}h${String(d.getMinutes()).padStart(2, '0')}.pdf`;
+  doc.save(arq.replace(/[\\/:*?"<>|]/g, ''));
+  toast('PDF baixado: mande no WhatsApp do cliente');
+}
+A.pdfConta = d => pdfConta(d.id, d.c || '');
+A.modoWa = d => { try { localStorage.setItem('st-wa-pc', d.c === 'app' ? 'app' : 'web'); } catch (e) {} render(); };
+A.receber = d => {
   const id = d.id; F.valorR = ''; S.ui.forma = null;
   abrirModal({
     render() {
@@ -1861,7 +2008,7 @@ function telaBebidas() {
   h += '<div class="grade">' + fila.map(c => {
     const t0 = cardInicio(c); const m = minDesde(t0); const veio = c.status === 'espera';
     return `<div class="bc ${corBar(m)}" data-cor="${t0}" data-esc="bar"><div class="entre"><span><span class="tag ${c.origem}">${c.origem === 'salao' ? 'salão' : c.origem}</span> <b>${esc(c.ref)}</b></span><b data-min="${t0}">${m} min</b></div>
-      ${c.blocos.map(b => b.linhas.map(l => `<div class="bl">${esc(l.ab || l.nome)}${l.trocas.length ? ` <span class="troca" style="color:#b06000;font-size:14px">${esc(l.trocas.join(', '))}</span>` : ''}</div>`).join('')).join('')}
+      ${c.blocos.map(b => b.linhas.map(l => { const tx = l.trocas.filter(t => !(l.troca || []).includes(t)); return `<div class="bl">${esc(l.ab || l.nome)}${tx.length ? ` <span class="troca" style="color:#b06000;font-size:14px">${esc(tx.join(', '))}</span>` : ''}${(l.troca || []).length ? `<div class="bx">${ic('swap_horiz')} ${esc(l.troca.join(' · '))}</div>` : ''}</div>`; }).join('')).join('')}
       ${c.pgPendente ? '<span class="tag aviso">pagamento a confirmar</span>' : ''}
       <div class="linha"><button class="bt verde" style="flex:1" data-a="feito" data-id="${c.id}">${ic('check')} Feito</button>${veio ? `<button class="bt" data-a="voltaEspera" data-id="${c.id}">${ic('undo')} Voltar p/ espera</button>` : ''}</div></div>`;
   }).join('') + '</div>';
@@ -1905,11 +2052,13 @@ function cardCozinha(c) {
   const cor = ag ? 'aguardando' : corCoz(m);
   const tagO = c.origem === 'salao' ? 'salão' : c.origem === 'ifood' ? 'iFood' : 'WhatsApp';
   const alergia = c.blocos.some(b => b.linhas.some(l => l.alergia));
-  let h = `<div class="kc ${cor} ${alergia ? 'com-alergia' : ''}" data-card="${c.id}"${ag ? '' : ` data-cor="${t0}"`}><div class="kh"><span class="tag ${c.origem}">${tagO}</span>${c.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<span class="ref">${esc(c.ref)}</span>${LEVAS_CARD[c.id] ? `<span class="tag leva-tag">${[...LEVAS_CARD[c.id]].map(x => 'L' + (x + 1)).join('/')}</span>` : ''}<span class="tempo" data-min="${t0}">${m} min</span></div>`;
+  const troca = c.blocos.some(b => b.linhas.some(l => (l.troca || []).length));
+  let h = `<div class="kc ${cor} ${alergia ? 'com-alergia' : ''} ${troca ? 'com-troca' : ''}" data-card="${c.id}"${ag ? '' : ` data-cor="${t0}"`}><div class="kh"><span class="tag ${c.origem}">${tagO}</span>${c.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<span class="ref">${esc(c.ref)}</span>${LEVAS_CARD[c.id] ? `<span class="tag leva-tag">${[...LEVAS_CARD[c.id]].map(x => 'L' + (x + 1)).join('/')}</span>` : ''}<span class="tempo" data-min="${t0}">${m} min</span></div>`;
   if (alergia) h += `<div class="kalerta">${ic('warning')} ALERGIA A GLÚTEN</div>`;
+  if (troca) h += `<div class="ktroca-t">${ic('swap_horiz')} TEM TROCA</div>`;
   if (c.nPedido) h += `<div class="npedido">${ordinal(c.nPedido)} pedido com a gente</div>`;
   // Na TV, a abreviação da linha de produção (como nas fichas de montagem); sem abreviação, o nome
-  const linhaK = (l, sep) => `<div class="kl ${sep ? 'sep' : ''}">${esc(l.ab || l.nome)}${l.trocas.length ? '<br>' + l.trocas.map(t => `<span class="kt">${esc(t)}</span>`).join('') : ''}${l.alergia ? `<br><span class="ka">${esc(l.alergia)}</span>` : ''}</div>`;
+  const linhaK = (l, sep) => `<div class="kl ${sep ? 'sep' : ''}">${esc(l.ab || l.nome)}${l.trocas.length ? '<br>' + l.trocas.filter(t => !(l.troca || []).includes(t)).map(t => `<span class="kt">${esc(t)}</span>`).join('') : ''}${(l.troca || []).length ? `<div class="kx">${l.troca.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}${l.alergia ? `<br><span class="ka">${esc(l.alergia)}</span>` : ''}</div>`;
   c.blocos.forEach(b => {
     if (b.combo) {
       let g = null;
@@ -3837,7 +3986,7 @@ TELAS.base = () => {
   if (aba !== 'noite') assinarConsumo(noiteId());
   if (aba === 'jornada') corpo = `<div class="pag-estreita" style="padding:0;max-width:980px">${telaJornada()}</div>`;
   else if (aba === 'mesas') corpo = S.ui.mesa ? `<div class="pag-estreita" style="padding:0">${S.ui.mesa === CI_ID ? telaConsumo() : telaMesa(S.ui.mesa)}</div>` : `<div class="entre"><h2>Mesas ao vivo</h2><span class="sub">Acesso total: abra qualquer mesa. Tudo fica registrado com o seu nome.</span></div>` + telaSlots();
-  else if (aba === 'cozinha') return topoBase(abas, aba) + `<div class="tv" style="min-height:0">${telaFilaCozinha(true)}</div>`;
+  else if (aba === 'cozinha') { const fc = faixaContas(); return topoBase(abas, aba) + (fc ? `<div class="pag" style="padding-bottom:0">${fc}</div>` : '') + `<div class="tv" style="min-height:0">${telaFilaCozinha(true)}</div>`; }
   // Bebidas na base (JP, 24/11/2026): a mesma fila do bar do app do garçom, para o sócio ver e ajudar a preparar
   else if (aba === 'bebidas') corpo = `<div class="pag-estreita" style="padding:0;max-width:900px"><p class="sub" style="margin:0 0 8px">A mesma fila do app do garçom. Fez a bebida? Toque Feito: some para todos.</p>${telaBebidas()}</div>`;
   else if (aba === 'whatsapp') corpo = telaWhatsApp();
@@ -3847,7 +3996,7 @@ TELAS.base = () => {
   else if (aba === 'cardapio') corpo = telaCardapio();
   else if (aba === 'ficha') corpo = telaFicha();
   else corpo = telaEquipe();
-  return topoBase(abas, aba) + `<div class="pag">${corpo}</div>`;
+  return topoBase(abas, aba) + `<div class="pag">${faixaContas()}${corpo}</div>`;
 };
 function topoBase(abas, aba) {
   return `<div class="topo"><div class="marca"><span class="logo">ST</span><b>${esc(NOME_CURTO)}</b><span class="longo">· base</span></div>
@@ -3887,8 +4036,8 @@ TELAS.mesa = () => {
   if (S.mesaCli === undefined || S.cfg === undefined) return topo + '<div class="carregando">Carregando…</div>';
   if (!m || String(m.abertaEm) !== k) return topo + `<div class="pag-estreita"><div class="card vazio">Este QR é de uma conta que já fechou. Peça um novo ao garçom.<br><br><a class="bt verde" href="${wa(casa, 'Olá!')}">${ic('chat')} Falar com o Seu Trem</a></div></div>`;
   const tot = subtotal(m.itens), dez = r2(tot * 0.1);
-  if (S.ui.feitoCli) return topo + `<div class="pag-estreita"><div class="card" style="text-align:center"><h2>${ic('check_circle')} Pronto, ${esc(S.ui.feitoCli)}!</h2><p>A conta vai na sua conversa com o Seu Trem: é só tocar em enviar no WhatsApp. Lá estão o PIX copia e cola e a chave.</p>
-    <a class="bt verde grande bloco" href="${esc(wa(casa, msgContaCli(m, S.ui.feitoCli)))}">${ic('chat')} Abrir a conversa com a conta</a></div></div>`;
+  if (S.ui.feitoCli) return topo + `<div class="pag-estreita"><div class="card" style="text-align:center"><h2>${ic('check_circle')} Pronto, ${esc(S.ui.feitoCli)}!</h2><p>Mande a mensagem que abriu no WhatsApp: a conta chega em seguida na sua conversa com o Seu Trem, com o PIX copia e cola e a chave.</p>
+    <a class="bt verde grande bloco" href="${esc(wa(casa, msgContaCli(m, S.ui.feitoCli)))}">${ic('chat')} Abrir a conversa com o Seu Trem</a></div></div>`;
   return topo + `<div class="pag-estreita"><div class="card"><h2>Sua conta no WhatsApp</h2>
     <div class="total-linha"><span>Total com 10%</span><b>${R(tot + dez)}</b></div><div class="total-linha"><span>Sem os 10% (opcional)</span><span>${R(tot)}</span></div>
     <p class="sub">Deixe seu nome e WhatsApp: a conta, com o PIX, chega na sua conversa com a casa.</p>
@@ -3896,13 +4045,14 @@ TELAS.mesa = () => {
     <label class="sub" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px"><input type="checkbox" data-f="cliLgpd" ${F.cliLgpd ? 'checked' : ''} style="margin-top:3px"> ${esc(LGPD)}</label>
     <button class="bt verde grande bloco" data-a="cliEntrar">${ic('chat')} Receber a conta no WhatsApp</button></div></div>`;
 };
-function msgContaCli(m, nome) { return `Olá! Sou ${nome}, da ${m.label || rotuloMesa(m.id)}. Quero a conta, por favor:\n\n` + contaTexto(m, Math.max(1, (m.nomes || []).length)); }
+// v21: o cliente só abre a conversa (com a mesa e um código no texto, para o computador achar); a conta vem da casa
+function msgContaCli(m, nome) { return `Olá! Sou ${nome}, da ${m.label || rotuloMesa(m.id)}. Pode me mandar a conta, por favor? (código ${String(m.id || '').replace(/\W/g, '')}-${String(m.abertaEm || '').slice(-4)})`; }
 A.cliEntrar = async () => {
   const id = PARAMS.get('m'); const nome = (F.cliNome || '').trim(); const tel = soDig(F.cliTel);
   if (!nome || tel.length < 10) { toast('Nome e WhatsApp com DDD'); return; }
   if (!F.cliLgpd) { toast('Marque a autorização para seguir'); return; }
   const t = agora();
-  await DB.mutate('mesas', id, m => { if (!m) return undefined; m.clientes = (m.clientes || []).filter(c => soDig(c.tel) !== tel).concat({ nome, tel, ts: t, contaEm: t }); m.log = (m.log || []).concat({ t, quem: nome, o: 'entrou pelo QR da conta e pediu a conta no WhatsApp (' + tel + ')' }); return m; });
+  await DB.mutate('mesas', id, m => { if (!m) return undefined; m.clientes = (m.clientes || []).filter(c => soDig(c.tel) !== tel).concat({ nome, tel, ts: t, pediuEm: t }); m.log = (m.log || []).concat({ t, quem: nome, o: 'entrou pelo QR da conta e pediu a conta no WhatsApp (' + tel + '): na fila do computador' }); return m; });
   DB.mutate('clientes', telWa(tel), x => { x = x || { nome, tel: telWa(tel), pedidos: 0, visitas: 0, criadoEm: agora() }; x.nome = nome; x.lgpd = true; x.lgpdEm = agora(); return x; }).catch(e => console.warn(e));
   S.ui.feitoCli = nome; render();
   location.href = wa(cfg().whatsapp || WA_CASA, msgContaCli(S.mesaCli, nome));
