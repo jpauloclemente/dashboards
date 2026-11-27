@@ -756,6 +756,9 @@ body.teste .carrinho-bar{background:#fef7e0}
 .dc-ent{display:flex;align-items:center;gap:6px;font-weight:900;font-size:18px;text-transform:uppercase;border-radius:8px;padding:6px 10px;background:#202124;color:#fff}
 .dc-ent.moto{background:var(--vermelho)}
 .dc-ent.indef{background:#fff;color:#b06000;border:2px dashed #f9ab00}
+.dc-cod{display:flex;align-items:center;gap:6px;border:3px solid var(--vermelho);border-radius:8px;padding:6px 10px;font-size:16px;font-weight:500}
+.dc-cod b{font-size:26px;letter-spacing:.08em;font-weight:900}
+.dc-cod.falta{border:2px dashed #f9ab00;color:#b06000;font-size:14px}
 .dc-saco{background:var(--amarelo-cl);border-radius:8px;padding:6px 10px;font-size:16px}
 .dc-saco b{font-size:20px;text-transform:uppercase}
 .dc-its{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}

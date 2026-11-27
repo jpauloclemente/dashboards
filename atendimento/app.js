@@ -122,7 +122,8 @@ function montarCardapio() {
   // Foto do produto (v10): arquivo fotos/<código>.jpg registrado em FOTOS no menu.js
   C.fixos.concat(ex).forEach(i => { const f = (C.FOTOS || {})[i.cod]; if (f && !i.foto) i.foto = f; });
   C.itens = C.fixos.filter(i => i.ativo !== false).concat(ex.filter(i => i.ativo !== false && P[i.cod] === i));
-  BURGUERS = C.itens.filter(i => i.tipo === 'burguer');
+  // O burguer do Lado B (loja do iFood) não entra na escolha dos combos da casa
+  BURGUERS = C.itens.filter(i => i.tipo === 'burguer' && i.marca !== 'ladob');
   ADICIONAIS = C.itens.filter(i => i.tipo === 'adicional');
 }
 montarCardapio();
@@ -1030,7 +1031,8 @@ function modalItem(p, onAdd, opts) {
         });
       } else if (p.tipo === 'comboFixo') {
         h += `<div class="passo"><div class="pt">${ic('star')} Vem no combo</div>${p.fixas.map(x => `<div>• ${esc(x.nome)} ${x.setor === 'bar' ? '<span class="tag cinza">bar</span>' : ''}</div>`).join('')}</div>`;
-        h += `<div class="passo"><div class="pt">${ic('add_circle')} Burguer Circuito 26: do jeito do cliente</div>${chipsAdds(0, false, true)}</div>`;
+        const fb = p.fixas.find(x => x.burguer);
+        if (fb) h += `<div class="passo"><div class="pt">${ic('add_circle')} ${esc(fb.nome)}: do jeito do cliente</div>${chipsAdds(0, false, true)}</div>`;
       } else if (p.tipo === 'bebida') {
         h += htmlEscolhasBebida(p, MI.ops, MI.mix, 'mi');
         if (p.pedeSabor) h += `<div class="passo"><div class="pt">${ic('local_bar')} ${esc(p.pedeSabor)}</div><input id="saborMI" class="inp" data-f="saborMI" value="${esc(MI.sabor)}" data-enter="miOk" placeholder="${esc(p.pedeSabor)} (opcional)"></div>`;
@@ -2081,7 +2083,7 @@ function telaEstudo() {
   const q = norm(F.estudo || '');
   const cats = [];
   C.itens.forEach(p => { if (q && !(norm(p.nome).includes(q) || String(p.cod).startsWith(q))) return; let c = cats.find(x => x.n === p.cat); if (!c) cats.push(c = { n: p.cat, i: [] }); c.i.push(p); });
-  return `<h2>Estudo · cardápio e códigos</h2><p class="sub">Burguers de 1 a 11 · aperitivos 21 a 28 · combo do burguer 30 a 33 · combos da mesa 41 a 46 · Circuito 50 a 53 · adicionais 61 a 73 · acompanhamentos e sobremesas 81 a 89 · bebidas 91 a 107 · combos do bar 108 a 110. Lance pelo código, pelo nome ou pela abreviação da linha (ex.: XT, B24, PILSEN, BELO GIN PIT).</p>
+  return `<h2>Estudo · cardápio e códigos</h2><p class="sub">Burguers de 1 a 11 · aperitivos 21 a 28 · combo do burguer 30 a 33 · combos da mesa 41 a 46 · Circuito 50 a 53 · Lado B 55 a 58 · adicionais 61 a 75 · acompanhamentos e sobremesas 81 a 89 · bebidas 91 a 107 · combos do bar 108 a 110. Lance pelo código, pelo nome ou pela abreviação da linha (ex.: XT, B24, PILSEN, BELO GIN PIT).</p>
     <div class="busca" style="margin:12px 0">${ic('search')}<input id="estudo" data-f="estudo" data-vivo placeholder="Procurar" value="${esc(F.estudo || '')}"></div>
     ${cats.map(c => `<div class="secao-t">${esc(c.n)}</div><div class="card" style="padding:4px 12px">${c.i.map(p => `<div class="res" style="cursor:default"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}${p.ab ? ` <span class="tag cinza">${esc(p.ab)}</span>` : ''}${p.desc ? `<br><span class="sub">${esc(p.desc)}</span>` : ''}${p.grupos ? `<br><span class="sub">${esc(p.grupos.map(g => g.t + ': ' + g.ops.map(o => o.n + (o.ab ? ' (' + o.ab + ')' : '') + (o.mais ? ' + ' + Rc(o.mais) : '')).join(', ')).join(' · '))}</span>` : ''}</span><span class="pr">${p.precoLivre ? 'R$ 17 a 30' : R(p.preco)}${p.setor === 'bar' ? '<br><span class="tag cinza">bar</span>' : ''}</span></div>`).join('')}</div>`).join('')}
     <div class="secao-t">Regras de preço</div><div class="card sub" style="line-height:1.6">
@@ -2110,7 +2112,7 @@ function cardCozinha(c) {
   if (alergia) h += `<div class="kalerta">${ic('warning')} ALERGIA A GLÚTEN</div>`;
   if (troca) h += `<div class="ktroca-t">${ic('swap_horiz')} TEM TROCA</div>`;
   if (c.nPedido) h += `<div class="npedido">${ordinal(c.nPedido)} pedido com a gente</div>`;
-  if (c.origem !== 'salao') h += `<div class="kentrega ${tipoEntrega(c.entrega) || 'indef'}">${ic(icEntrega(c.entrega))} ${c.origem === 'ifood' && !c.entrega ? 'Entrega iFood' : rotEntrega(c.entrega)}</div>`;
+  if (c.origem !== 'salao') h += `<div class="kentrega ${tipoEntrega(c.entrega) || 'indef'}">${ic(icEntrega(c.entrega))} ${c.origem === 'ifood' && !c.entrega ? 'Entrega iFood' : rotEntrega(c.entrega)}${c.codMoto && tipoEntrega(c.entrega) === 'moto' ? ` · ${esc(c.codMoto)}` : ''}</div>`;
   (c.notas || []).forEach(n => { h += `<div class="knota">${ic('campaign')} ${esc(n.txt)}</div>`; });
   // Na TV, a abreviação da linha de produção (como nas fichas de montagem); sem abreviação, o nome
   const linhaK = (l, sep) => `<div class="kl ${sep ? 'sep' : ''}">${esc(l.ab || l.nome)}${l.trocas.length ? '<br>' + l.trocas.filter(t => !(l.troca || []).includes(t)).map(t => `<span class="kt">${esc(t)}</span>`).join('') : ''}${(l.troca || []).length ? `<div class="kx">${l.troca.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}${l.alergia ? `<br><span class="ka">${esc(l.alergia)}</span>` : ''}</div>`;
@@ -2236,7 +2238,7 @@ function despachoLista() {
     const todos = S.cards.filter(c => c.refId === r && !c.despachadoEm);
     if (!todos.length || todos.some(c => c.setor === 'cozinha' && c.status !== 'feito')) return; // ainda tem prato saindo
     const c0 = todos.find(c => c.setor === 'cozinha') || todos[0];
-    out.push({ tipo: c0.origem, id: r, ref: c0.ref, t: Math.max(...todos.map(c => c.feitoEm || c.criadoEm || 0)), cards: todos, entrega: c0.entrega, marca: c0.marca });
+    out.push({ tipo: c0.origem, id: r, ref: c0.ref, t: Math.max(...todos.map(c => c.feitoEm || c.criadoEm || 0)), cards: todos, entrega: c0.entrega, marca: c0.marca, codMoto: (todos.find(c => c.codMoto) || {}).codMoto || '' });
   });
   return out.sort((a, b) => a.t - b.t);
 }
@@ -2252,6 +2254,7 @@ function cardDesp(x) {
   const nomeSaco = x.tipo === 'whatsapp' ? String(x.ref || '').split(' · ')[0] : String(x.ref || '').replace(/^iFood\s*/, '');
   return `<div class="dc pacote"><div class="dc-h"><span class="tag ${x.tipo}">${x.tipo === 'ifood' ? 'iFood' : 'WhatsApp'}</span>${x.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<b class="dc-dest">${esc(x.ref)}</b><span class="dc-min" data-min="${x.t}">${m} min</span></div>
     <div class="dc-ent ${tipoEntrega(x.entrega) || 'indef'}">${ic(icEntrega(x.entrega))} ${x.tipo === 'ifood' && !x.entrega ? 'Entrega iFood' : rotEntrega(x.entrega)}</div>
+    ${x.tipo === 'whatsapp' && tipoEntrega(x.entrega) === 'moto' ? (x.codMoto ? `<div class="dc-cod">${ic('pin')} Código da moto: <b>${esc(x.codMoto)}</b></div>` : `<div class="dc-cod falta">${ic('pending')} Código da moto: a base ainda não pôs</div>`) : ''}
     <div class="dc-saco">${ic('edit')} No saco: <b>${esc(nomeSaco)}</b></div>
     <ul class="dc-its">${ls.map(it).join('')}</ul><button class="dc-ok" data-a="despOk" data-id="${esc(x.id)}">✓ PACOTE PRONTO</button></div>`;
 }
@@ -2412,6 +2415,7 @@ function cardPedido(d, col) {
     <div class="sub">${d.itens.map(i => esc(i.nome)).join(' · ')}</div>
     ${d.entrega.rua ? `<div class="sub">${ic('location_on')} ${esc([d.entrega.rua, d.entrega.numero, d.entrega.compl, d.entrega.bairro].filter(Boolean).join(', '))}${d.entrega.ref ? ' · ' + esc(d.entrega.ref) : ''}</div>` : ''}
     ${['pagamento', 'preparo', 'pronto'].includes(col) ? `<div class="pd-sec">Entrega</div><div class="chips">${ENTREGAS.map(([k, l, i]) => `<button class="chip ${tipoEntrega(d.entrega.tipo) === k ? 'on' : ''}" data-a="pdEntrega" data-id="${d.id}" data-c="${k}">${ic(i)} ${l}</button>`).join('')}</div>` : ''}
+    ${tipoEntrega(d.entrega.tipo) === 'moto' && ['pagamento', 'preparo', 'pronto', 'despachado'].includes(col) ? campoCodMoto(d) : ''}
     <div><b>${R(tot)}</b>${d.frete ? ` <span class="sub">(frete ${R(d.frete)})</span>` : ''}</div>
     <div class="linha">${pg.ip && pg.ip.paid ? `<span class="tag ok">InfinitePay pago ✓</span>` : ''}${pg.comprovante ? '<span class="tag ok">comprovante ✓</span>' : ''}${pg.confirmado ? `<span class="tag ok">pago · ${esc(pg.forma || '')}</span>` : '<span class="tag aviso">pagamento a confirmar</span>'}</div>`;
   if (col === 'frete') {
@@ -2441,6 +2445,21 @@ A.pdEntrega = async d => {
   const ops = [{ op: 'update', c: 'delivery', id: d.id, data: { entrega: Object.assign({}, p.entrega, { tipo: novo || null }) } }];
   S.cards.filter(c => c.refId === d.id).forEach(c => ops.push({ op: 'update', c: 'cards', id: c.id, data: { entrega: novo || null } }));
   await DB.batch(ops);
+};
+// v23 (JP, 27/11/2026): pedido do WhatsApp que vai pela moto do iFood. Depois de pedir a moto, o iFood dá um código;
+// a base digita aqui e ele aparece no despacho (TV), para quem despacha entregar o pacote certo ao motoboy.
+function campoCodMoto(d) {
+  const k = 'cmoto-' + d.id; const cod = d.entrega.codigo || '';
+  const v = F[k] != null ? F[k] : cod;
+  return `<div class="pd-sec">Código da moto iFood</div><div class="linha"><input id="${k}" class="inp" style="flex:1;min-width:0" data-f="${k}" data-enter="pdCodMoto" data-id="${d.id}" autocomplete="off" placeholder="Código que o iFood deu ao pedir a moto" value="${esc(v)}"><button class="bt ${cod && v === cod ? '' : 'pri'}" data-a="pdCodMoto" data-id="${d.id}" title="Salvar o código">${ic(cod && v === cod ? 'check' : 'save')}</button></div>${cod ? `<div class="sub">${ic('package_2')} No despacho: código <b>${esc(cod)}</b></div>` : ''}`;
+}
+A.pdCodMoto = async d => {
+  const p = pedidoDe(d.id); if (!p) return;
+  const k = 'cmoto-' + d.id; const v = String(F[k] != null ? F[k] : (p.entrega.codigo || '')).trim().slice(0, 30);
+  const ops = [{ op: 'update', c: 'delivery', id: d.id, data: { entrega: Object.assign({}, p.entrega, { codigo: v || null }) } }];
+  S.cards.filter(c => c.refId === d.id).forEach(c => ops.push({ op: 'update', c: 'cards', id: c.id, data: { codMoto: v || null } }));
+  await DB.batch(ops); F[k] = null;
+  toast(v ? 'Código da moto salvo: ' + v : 'Código da moto apagado');
 };
 A.pdPgto = d => { const p = pedidoDe(d.id); if (!p) return; return DB.update('delivery', d.id, { pagamento: p.pagamento === d.c ? null : d.c }); };
 A.pdFrete = async d => {
@@ -2553,7 +2572,8 @@ function lerIfood(txt) {
   };
   if (sec.length) {
     for (let i = 0; i < sec.length; i++) {
-      const l = sec[i]; if (lixo.test(l) || ehPreco(l) || ehQtd(l)) continue;
+      // "Seu Trem Lado B" é o nome da loja e também do combo: com preço logo abaixo, é o item (v23)
+      const l = sec[i]; if ((lixo.test(l) && !ehPreco(sec[i + 1]) && !/R\$/.test(l)) || ehPreco(l) || ehQtd(l)) continue;
       const mq = l.match(/^(\d{1,2})\s*x\s+(.+)$/i);
       if (mq) { const nm = mq[2].replace(/R\$\s*[\d.,]+.*$/, '').trim(); if (ultimo == null || (melhorProduto(nm) && !melhorProduto(nm, 'adicional'))) novoItem(nm, mq[1]); else complemento(nm); continue; }
       if (ehPreco(sec[i + 1]) && ehQtd(sec[i + 2])) { novoItem(l, parseInt(sec[i + 2], 10)); i += 2; continue; }
@@ -2570,7 +2590,7 @@ function lerIfood(txt) {
     // No print, o OCR junta o que está na mesma linha da tela: "1x X-Trem R$ 52,90", "X-Trem R$ 52,90 1".
     const naoItem = /taxa|subtotal|total|incentivo|cobran|pago via|repassar|desconto|entrega|localizador|prepare|cancelar|problemas/i;
     L.forEach(l => {
-      if (/seu trem/i.test(l)) return;
+      if (/seu trem/i.test(l) && !/R\$/.test(l)) return;
       const lim = l.replace(/^[^\wÀ-ú]+/, '');
       const m = lim.match(/^(\d{1,2})\s*x\s*(.{3,})$/i) || lim.match(/^(\d{1,2})\s+(.{3,}?)\s+R\$\s*[\d.,]+$/i);
       if (m) { const nome = m[2].replace(/R\$\s*[\d.,]+.*$/g, '').trim(); if (melhorProduto(nome) || (/R\$/.test(l) && !naoItem.test(l))) novoItem(nome, m[1]); else if (ultimo != null) complemento(nome); return; }
@@ -2655,6 +2675,9 @@ function prepararIfood(txt) {
       if (p.tipo === 'burguer' || p.tipo === 'aperitivo' || p.tipo === 'simples' || p.tipo === 'bebida') {
         const MI = novoMI(p); MI.sel[0].adds = x.adds || []; MI.sel[0].obs = x.obs || ''; MI.obs = x.obs || ''; if (p.precoLivre) MI.preco = p.precoLivre[0];
         it = montarItem(MI);
+      } else if (p.tipo === 'comboFixo') {
+        // combo sem escolhas (Circuito, Lado B): entra direto, com os adicionais no burguer
+        const MI = novoMI(p); MI.sel[0].adds = x.adds || []; MI.sel[0].obs = x.obs || ''; it = montarItem(MI);
       } else return { texto: x.texto + ' (combo: lance pela busca para escolher)', item: null };
       return { texto: x.texto, item: it };
     })
@@ -3102,7 +3125,7 @@ A.fixoNovo = () => modalFixo(null, 'Burguers');
 // Glúten do prato (o pão brioche de trigo já entra sozinho em todo burguer)
 const GL_OPS = [['isca', 'Isca empanada (só no fubá)'], ['onion', 'Onion rings dentro (sai na alergia)'], ['trigo', 'Tortilha de trigo'], ['oniprato', 'O prato é de onion rings']];
 // Categorias em que se cria item novo, com o tipo que o sistema entende e a faixa de códigos
-const CATS_NOVO = { 'Burguers': { tipo: 'burguer', setor: 'cozinha', chapa: 'burguer', de: 12 }, 'Aperitivos': { tipo: 'aperitivo', setor: 'cozinha', de: 29 }, 'Adicionais': { tipo: 'adicional', setor: 'cozinha', combina: true, de: 74 }, 'Acompanhamentos e sobremesas': { tipo: 'simples', setor: 'cozinha', de: 88 } };
+const CATS_NOVO = { 'Burguers': { tipo: 'burguer', setor: 'cozinha', chapa: 'burguer', de: 12 }, 'Aperitivos': { tipo: 'aperitivo', setor: 'cozinha', de: 29 }, 'Adicionais': { tipo: 'adicional', setor: 'cozinha', combina: true, de: 76 }, 'Acompanhamentos e sobremesas': { tipo: 'simples', setor: 'cozinha', de: 88 } };
 function modalFixo(p, catNova) {
   const novo = !p; const base = p && C.FIXOS_BASE.find(b => b.cod === p.cod);
   let cat = p ? p.cat : catNova;
@@ -3329,9 +3352,9 @@ function produtosFicha() {
 }
 // Combos: o custo é a soma das fichas das partes. Onde há escolha (qual burguer, qual doce), mostra do mais barato ao mais caro.
 function slotsCombo(p) {
-  const burg = C.fixos.filter(x => x.tipo === 'burguer').map(x => x.cod);
+  const burg = C.fixos.filter(x => x.tipo === 'burguer' && x.marca !== 'ladob').map(x => x.cod);
   if (p.tipo === 'comboBurguer') { const beb = { sucoRefri: [91, 92], soda: [94], cerveja: [93], drink: [103, 104, 105, 106] }[p.bebida] || []; return [['Fritas', [81]], ['Doce', [83, 84]], ['Bebida', beb]]; }
-  if (p.tipo === 'comboFixo') return [['Filezinhos M', ['p-file-m']], ['Burguer Circuito 26', [52]], ['Sobremesa', [53]]];
+  if (p.tipo === 'comboFixo') return (p.fixas || []).filter(x => x.ficha).map(x => [x.nome, [x.ficha]]);
   if (p.tipo === 'comboMesa') return (p.partes || []).map(x => x.t === 'burguer' ? ['Burguer', p.semPremium ? burg.filter(c => c !== 10 && c !== 11) : burg] : x.t === 'quesadilla' ? ['Quesadilla', ['p-quesa-bol', 'p-quesa-teri']] : x.t === 'espeto' ? ['Espeto', ['p-espeto']] : ['Sobremesa', ['p-sobremesa-fam']]);
   return [];
 }
@@ -4394,7 +4417,9 @@ const CATS_PEDIDO = {
   'Acompanhamentos e sobremesas': { ic: 'icecream', cor: '#d01884', bg: '#fde7f3', titulo: 'Acompanhamentos e doces' },
   'Sobremesas': { ic: 'cake', cor: '#d01884', bg: '#fde7f3', titulo: 'Sobremesas da casa' },
   'Bebidas': { ic: 'local_bar', cor: '#007b83', bg: '#e4f7fb' },
-  'Combos do bar': { ic: 'liquor', cor: '#007b83', bg: '#e4f7fb', titulo: 'Combos do bar', sub: 'Para a mesa: sai mais em conta que separado.' }
+  'Combos do bar': { ic: 'liquor', cor: '#007b83', bg: '#e4f7fb', titulo: 'Combos do bar', sub: 'Para a mesa: sai mais em conta que separado.' },
+  // Lado B: só para o visual na base e no garçom; não está em ORDEM_CATS, então não aparece no link do WhatsApp
+  'Lado B': { ic: 'star', cor: '#6a1b9a', bg: '#f3e5f5', titulo: 'Seu Trem Lado B (iFood)' }
 };
 const ORDEM_CATS = ['Circuito 2026', 'Burguers', 'Combo do burguer', 'Aperitivos', 'Combos da mesa', 'Acompanhamentos e sobremesas', 'Sobremesas', 'Bebidas', 'Combos do bar'];
 function icProd(p) {
@@ -4405,7 +4430,7 @@ function icProd(p) {
   if (p.espeto) return 'kebab_dining';
   if ([21, 24, 51].includes(p.cod)) return 'eco';
   if ([22, 23, 25, 81, 82].includes(p.cod)) return 'fastfood';
-  if (p.cod === 83) return 'cake'; if (p.cod === 84) return 'cookie'; if (p.cod === 53) return 'icecream';
+  if (p.cod === 83) return 'cake'; if (p.cod === 84) return 'cookie'; if (p.cod === 53 || p.cod === 58) return 'icecream'; if (p.cod === 55) return 'star';
   if (p.cod === 41 || p.cod === 42) return 'dinner_dining'; if (p.cod === 43) return 'groups'; if (p.cod === 50) return 'emoji_events';
   if (p.cod === 89) return 'cookie';
   if (p.cat === 'Sobremesas') return 'cake';
@@ -4425,6 +4450,7 @@ function inclusosDe(p) {
   if (p.cod === 42) return [['lunch_dining', 'Burguer'], ['local_pizza', 'Quesadilla'], ['kebab_dining', 'Espeto']];
   if (p.cod === 43) return [['lunch_dining', '2 burguers'], ['local_pizza', '2 quesadillas'], ['kebab_dining', '2 espetos'], ['icecream', 'Sobremesa']];
   if (p.cod === 50) return [['eco', 'Filezinhos'], ['lunch_dining', 'Burguer'], ['icecream', 'Sobremesa']];
+  if (p.cod === 55) return [['local_pizza', 'Quesadilla'], ['lunch_dining', 'Burguer'], ['icecream', 'Sobremesa']];
   return null;
 }
 function precoCard(p) {

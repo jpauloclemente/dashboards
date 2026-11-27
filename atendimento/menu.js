@@ -60,6 +60,19 @@ window.CARDAPIO = (function () {
     { cod: 52, nome: 'Burguer Circuito 26', ab: 'B. VINHO', gl: 'isca', preco: 41.9, selo: 'Lançamento', desc: 'Molho branco, couve crispy, cebola roxa, iscas de shimeji empanadas, cream cheese e shimeji acebolado finalizado ao vinho branco.', cat: 'Circuito 2026', setor: 'cozinha', tipo: 'burguer', chapa: 'burguer' },
     { cod: 53, nome: 'Sobremesa Leite cond. & Ovomaltine', preco: 25, selo: 'Lançamento', desc: 'Alfajor fatiado, açaí, leite condensado veg, Ovomaltine e coco ralado.', cat: 'Circuito 2026', setor: 'bar', tipo: 'simples' },
 
+    // Seu Trem Lado B (JP, 27/11/2026): a loja do Lado B no iFood. Fica fora do link do WhatsApp (a categoria não está
+    // em ORDEM_CATS); entra pelo iFood colado, pela busca do garçom e da base. Abreviações das fichas de montagem:
+    // Q.VINHO (quesadilla de molho branco ao vinho) e B.PESTO (burguer de molho pesto).
+    { cod: 55, nome: 'Seu Trem Lado B', ab: 'LADO B', preco: 79.9, marca: 'ladob', desc: 'Quesadilla ao vinho + Burguer pesto + sobremesa mix de alfajor com brownie.', economia: 'Separado R$ 111,90 · economize R$ 32', cat: 'Lado B', setor: 'cozinha', tipo: 'comboFixo',
+      fixas: [
+        { cod: 56, ficha: 56, nome: 'Quesadilla Lado B', ab: 'Q.VINHO', gl: 'trigo isca', setor: 'cozinha', chapa: 'quesadilla' },
+        { cod: 57, ficha: 57, nome: 'Burguer Lado B', ab: 'B.PESTO', gl: 'pao isca', setor: 'cozinha', chapa: 'burguer', burguer: true },
+        { cod: 58, ficha: 58, nome: 'Sobremesa Lado B', setor: 'bar' }
+      ] },
+    { cod: 56, nome: 'Quesadilla Lado B', ab: 'Q.VINHO', gl: 'trigo isca', preco: 45, marca: 'ladob', desc: 'Molho branco, rúcula, tomate, iscas de shimeji e shimeji acebolado finalizado ao vinho.', cat: 'Lado B', setor: 'cozinha', tipo: 'aperitivo', chapa: 'quesadilla' },
+    { cod: 57, nome: 'Burguer Lado B', ab: 'B.PESTO', gl: 'isca', preco: 41.9, marca: 'ladob', desc: 'Molho pesto, cebola roxa com suco de limão, alface, tomate, iscas de shimeji e shimeji acebolado ao tempero do chef.', cat: 'Lado B', setor: 'cozinha', tipo: 'burguer', chapa: 'burguer' },
+    { cod: 58, nome: 'Sobremesa Lado B', preco: 25, marca: 'ladob', desc: 'Mix de alfajor com brownie, Ovomaltine, coco ralado e leite condensado veg.', cat: 'Lado B', setor: 'bar', tipo: 'simples' },
+
     // Adicionais (entram dentro de um item; avulsos só se a mesa pedir)
     { cod: 61, nome: 'Cream cheese', preco: 8, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', combina: true },
     { cod: 62, nome: 'Cheddar cremoso', preco: 8, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', combina: true },
@@ -76,6 +89,8 @@ window.CARDAPIO = (function () {
     { cod: 73, nome: 'Pão sem glúten', preco: 5, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional' },
     // JP, 26/11/2026: iscas de shimeji empanadas como adicional, R$ 8 (fritura: entra na conta das iscas da TV)
     { cod: 74, nome: 'Iscas de shimeji', preco: 8, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', combina: true, gl: 'isca' },
+    // JP, 27/11/2026: tomate seco como adicional, R$ 8
+    { cod: 75, nome: 'Tomate seco', preco: 8, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', combina: true },
 
     // Acompanhamentos e sobremesas
     { cod: 81, nome: 'Fritas (acompanha)', ab: 'FRI 100g', preco: 13, desc: 'Porção de fritas para acompanhar.', cat: 'Acompanhamentos e sobremesas', setor: 'cozinha', tipo: 'simples' },
@@ -90,10 +105,12 @@ window.CARDAPIO = (function () {
   // iscas e os 2 onion rings do burguer saem do glúten (gl 'isca' e 'onion'). fritas: o tamanho da porção que acompanha
   // (P no combo do burguer e no acompanhamento; M na shimentinha, quesadillas, espeto e filé do combo do Circuito;
   // G nas porções de iscas, cheddar e bacon, onion e coguporó, fritas ou onions e filé G).
-  const PROT = { 1: ['gb'], 2: ['soja'], 3: ['gb'], 4: ['soja'], 5: ['soja'], 6: ['gb'], 7: ['soja'], 8: [], 9: ['soja'], 10: ['gb'], 11: ['soja', 'gb'], 52: [] };
+  const PROT = { 1: ['gb'], 2: ['soja'], 3: ['gb'], 4: ['soja'], 5: ['soja'], 6: ['gb'], 7: ['soja'], 8: [], 9: ['soja'], 10: ['gb'], 11: ['soja', 'gb'], 52: [], 57: [] };
   const FRITAS = { 21: 'G', 22: 'G', 23: 'G', 24: 'M', 25: 'G', 26: 'M', 27: 'M', 28: 'M', 51: 'G', 81: 'P' };
   itens.forEach(i => { if (PROT[i.cod]) i.prot = PROT[i.cod]; if (FRITAS[i.cod]) i.fritas = FRITAS[i.cod]; });
   const fx50 = itens.find(i => i.cod === 50).fixas; fx50[0].fritas = 'M'; fx50[1].cod = 52;
+  // ficha: de onde sai o custo de cada parte do combo fixo na ficha técnica (código do produto ou parte de combo)
+  fx50[0].ficha = 'p-file-m'; fx50[1].ficha = 52; fx50[2].ficha = 53;
 
   // Bebidas e sobremesas da casa (JP, 23/11/2026, grupo Sistema). Editáveis na base: nome, abreviação, preço,
   // preço no delivery, ingredientes e opções. Cada opção soma a abreviação e, se tiver, o acréscimo no preço.
