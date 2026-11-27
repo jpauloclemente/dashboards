@@ -547,7 +547,7 @@ document.addEventListener('visibilitychange', () => {
 // Única exceção: quando o tempo muda o que está na fila (bebida "com o prato" que entra sozinha).
 const CORES_T = ['verde', 'amarelo', 'laranja', 'vermelho'];
 let SIG = '';
-function sigTempo() { return ['base', 'garcom', 'cozinha'].includes(VIEW) && S.cfg ? ['cozinha', 'bar'].map(s => filaDe(s).map(c => c.id).join(',')).join('|') : ''; }
+function sigTempo() { return ['base', 'garcom', 'cozinha'].includes(VIEW) && S.cfg ? ['cozinha', 'bar'].map(s => filaDe(s).map(c => c.id).join(',')).join('|') + '|v:' + filaDe('cozinha').filter(ehVerde).map(c => c.id).join(',') : ''; }
 function tique() {
   const antes = S.eu; tentarEu();
   if (S.eu !== antes || sigTempo() !== SIG) { render(); return; }
@@ -611,10 +611,19 @@ function bip(vezes) {
     }
   } catch (e) {}
 }
+// v22 (Yuri, 26/11/2026: "quando chegar pedido na TV, bip duplo"): o bip já existia, mas o navegador do celular da TV
+// só libera o som depois de um toque na tela. O primeiro toque destrava; até lá, a TV mostra o botão "Ligar o som".
+function somOk() { return !!(audio && audio.state === 'running'); }
+function destravarSom() {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state !== 'running') audio.resume().then(() => { if (VIEW === 'cozinha') render(); }).catch(() => {}); } catch (e) {}
+}
+document.addEventListener('pointerdown', destravarSom, true);
+document.addEventListener('keydown', destravarSom, true);
 let pendAnt = { cozinha: -1, bar: -1 };
 function aoMudarCards() {
-  const nc = filaDe('cozinha').length, nb = filaDe('bar').length;
-  if (VIEW === 'cozinha' && pendAnt.cozinha >= 0 && nc > pendAnt.cozinha) bip(2);
+  // conta só o que entrou para produzir (o card cinza de "aguardando pagamento" não bipa; bipa quando a base confirma)
+  const nc = filaDe('cozinha').filter(c => c.status !== 'aguardando').length, nb = filaDe('bar').length;
+  if (VIEW === 'cozinha' && pendAnt.cozinha >= 0 && nc > pendAnt.cozinha) { bip(2); setTimeout(() => bip(2), 900); }
   if (VIEW === 'garcom' && pendAnt.bar >= 0 && nb > pendAnt.bar) { try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} bip(1); }
   pendAnt = { cozinha: nc, bar: nb };
 }
@@ -675,9 +684,14 @@ async function checarIP(q) {
 
 // ================= equipe e acesso =================
 // Acesso total: gerente e sócio (os poderes de cada um serão refinados depois, a pedido de JP em 23/11)
-const ACESSO_TOTAL = ['gerente', 'socio'];
+// Sócio gestor do sistema (v22, JP 25/11/2026): "mudanças sensíveis, relatórios, recursos antifraude, essas coisas só
+// eu posso modificar, só eu posso ter acesso". Só JP; criar outro gestor pede o código de um gestor. Tem tudo o que o
+// sócio tem e, só ele: relatório da noite e conferência do caixa, equipe (funções, códigos, ver os códigos) e dados da loja.
+const ACESSO_TOTAL = ['gestor', 'gerente', 'socio'];
+const SOCIOS = ['gestor', 'socio'];
+const ehGestor = () => !!(S.eu && S.eu.papel === 'gestor');
 // Hierarquia da equipe (JP, 23/11): sócio > gerente > chefe de chapa e chefe de fritura (painel da cozinha) > gerente de mesas (app do garçom)
-const PAPEIS = [['socio', 'Sócio (acesso total)'], ['gerente', 'Gerente (acesso total)'], ['cozinha', 'Chefe de chapa (cozinha)'], ['fritura', 'Chefe de fritura (cozinha)'], ['garcom', 'Gerente de mesas (garçom)']];
+const PAPEIS = [['gestor', 'Sócio gestor do sistema'], ['socio', 'Sócio (acesso total)'], ['gerente', 'Gerente (acesso total)'], ['cozinha', 'Chefe de chapa (cozinha)'], ['fritura', 'Chefe de fritura (cozinha)'], ['garcom', 'Gerente de mesas (garçom)']];
 const PAPEIS_COZINHA = ['cozinha', 'fritura'];
 const ordemPapel = p => { const i = PAPEIS.findIndex(x => x[0] === p); return i < 0 ? 99 : i; };
 function equipeOrdenada() { return (cfg().pessoas || []).slice().sort((a, b) => ordemPapel(a.papel) - ordemPapel(b.papel) || a.nome.localeCompare(b.nome, 'pt-BR')); }
@@ -698,10 +712,10 @@ function faixaTeste() {
   const sair = ['base', 'cozinha', 'pedido'].includes(VIEW);
   return `<div class="faixa-teste">${ic('science')}<span class="t">Modo de teste<span class="d"> · ${DB && DB.modo === 'local' ? 'ensaio neste navegador' : 'loja de ensaio'} · nada aqui vale para a loja real</span></span>${sair ? `<button data-a="sairTeste">${ic('logout')} Sair do teste</button>` : ''}</div>`;
 }
-const acaoModoTeste = () => pedirPIN('Entrar no modo de teste', ['socio'], async (p, pin) => {
+const acaoModoTeste = () => pedirPIN('Entrar no modo de teste', SOCIOS, async (p, pin) => {
   const c = cfg();
   const ida = {
-    eu: { id: p.id, nome: p.nome, h: await hashPin(pin, LOJA_TESTE) },
+    eu: { id: p.id, nome: p.nome, h: await hashPin(pin, LOJA_TESTE), papel: p.papel },
     cardapio: { extras: Array.isArray(c.extras) ? c.extras : null, fixosCfg: c.fixosCfg || null },
     loja: { nome: c.nome || NOME_CURTO, frase: c.frase || FRASE, mesas: c.mesas || 14, minPrato: c.minPrato || 15, whatsapp: c.whatsapp || '', endereco: c.endereco || '', pix: c.pix || {}, infiniteTag: c.infiniteTag || 'seutrem' }
   };
@@ -715,7 +729,7 @@ async function chegadaTeste() {
   if (!ida || LOJA !== LOJA_TESTE) return;
   await DB.mutate('config', 'main', c => {
     c = c || Object.assign({}, ida.loja, { pessoas: [], noite: novaNoiteObj(), noites: [], seqPedido: 0, criadoEm: agora() });
-    c.pessoas = (c.pessoas || []).filter(x => x.id !== ida.eu.id).concat({ id: ida.eu.id, nome: ida.eu.nome, h: ida.eu.h, papel: 'socio' });
+    c.pessoas = (c.pessoas || []).filter(x => x.id !== ida.eu.id).concat({ id: ida.eu.id, nome: ida.eu.nome, h: ida.eu.h, papel: ida.eu.papel === 'gestor' ? 'gestor' : 'socio' });
     c.extras = ida.cardapio.extras; c.fixosCfg = ida.cardapio.fixosCfg;
     c.logLoja = [{ t: agora(), quem: ida.eu.nome, o: 'entrou no modo de teste (cardápio copiado da loja real)' }].concat(c.logLoja || []).slice(0, 100);
     return c;
@@ -833,7 +847,7 @@ function partesCombo(c, MI) {
   ];
 }
 function novoMI(p) {
-  const MI = { p, sel: [], combo: null, doce: null, bebTipo: null, sabor: '', obs: '', escolha: null, preco: null, ops: {}, mix: [], cbCod: null, cbOps: {}, cbMix: [], semGluten: false, delivery: false };
+  const MI = { p, sel: [], combo: null, doce: null, bebTipo: null, sabor: '', obs: '', escolha: null, preco: null, ops: {}, mix: [], cbCod: null, cbOps: {}, cbMix: [], semGluten: false, delivery: false, avulsos: [], meia: false };
   (p.grupos || []).forEach((g, i) => { if (/tamanho/i.test(g.t)) MI.ops[i] = 0; });
   const n = p.tipo === 'comboMesa' ? p.partes.length : 1;
   for (let i = 0; i < n; i++) MI.sel.push({ burg: p.tipo === 'burguer' ? p.cod : null, quesa: null, adds: [], obs: '' });
@@ -890,7 +904,11 @@ function montarItem(MI) {
     partes.push({ nome, ab: d.ab, setor: 'bar', adds: [], obs: MI.obs || '' });
   } else {
     const abE = p.abEscolha && MI.escolha && p.abEscolha[MI.escolha];
-    partes.push({ cod: p.cod, esc: MI.escolha || '', nome: p.nome, ab: abE || p.ab || '', gl: (p.glEscolha && MI.escolha && p.glEscolha[MI.escolha]) || p.gl || '', setor: p.setor, chapa: p.chapa || null, discos: 0, adds: addsObj(MI.sel[0].adds), espeto: !!p.espeto, det: abE ? '' : (MI.escolha || ''), obs: MI.sel[0].obs || MI.obs || '' });
+    const meia = !!(MI.meia && p.tipo === 'aperitivo');
+    if (meia) { base = r2(base / 2); nome = p.nome + ' (meia porção)'; }
+    const pt = { cod: p.cod, esc: MI.escolha || '', nome: p.nome, ab: abE || p.ab || '', gl: (p.glEscolha && MI.escolha && p.glEscolha[MI.escolha]) || p.gl || '', setor: p.setor, chapa: p.chapa || null, discos: 0, adds: addsObj(MI.sel[0].adds), espeto: !!p.espeto, det: [abE ? '' : (MI.escolha || ''), meia ? 'MEIA PORÇÃO' : ''].filter(Boolean).join(' · '), obs: MI.sel[0].obs || MI.obs || '' };
+    if (meia) { pt.meia = true; if (p.fritas) pt.fritas = { G: 'M', M: 'P', P: 'P' }[p.fritas] || p.fritas; }
+    partes.push(pt);
   }
   if (MI.semGluten) aplicarGluten(partes);
   return { uid: uid(), cod: p.cod, nome, base: r2(base), acresc, combo, comboAb, partes, tipo: p.tipo, sel: false, comPrato: false, enviado: false, cards: [], por: quem(), ts: agora() };
@@ -986,7 +1004,8 @@ function modalItem(p, onAdd, opts) {
         if (p.tipo === 'burguer') {
           h += `<div class="passo"><div class="pt">${ic('fastfood')} Completar com o combo?</div><div class="combo-ops">
             <button class="combo-op ${MI.combo === null ? 'on' : ''}" data-a="miCombo" data-c=""><b>Só o burguer</b><small>sem combo</small></button>` +
-            [30, 31, 32, 33].map(c => { const pc = P[c]; return `<button class="combo-op ${MI.combo === c ? 'on' : ''}" data-a="miCombo" data-c="${c}"><b>+ ${R(pc.preco)}</b>${htmlInclusos(inclusoCombo(pc))}${pc.economia ? `<small class="eco">${esc(pc.economia.split('·').pop().trim())}</small>` : ''}</button>`; }).join('') + '</div></div>';
+            [30, 31, 32, 33].map(c => { const pc = P[c]; return `<button class="combo-op ${MI.combo === c ? 'on' : ''}" data-a="miCombo" data-c="${c}"><b>+ ${R(pc.preco)}</b>${htmlInclusos(inclusoCombo(pc))}${pc.economia ? `<small class="eco">${esc(pc.economia.split('·').pop().trim())}</small>` : ''}</button>`; }).join('') + '</div>' +
+            (MI.combo === null ? `<div class="avulsos"><span class="sub">Ou só o acompanhamento, avulso:</span>${[81, 82].filter(c => P[c] && ativo(P[c])).map(c => `<button class="chip ${MI.avulsos.includes(c) ? 'on' : ''}" data-a="miAvulso" data-c="${c}">${ic(MI.avulsos.includes(c) ? 'check' : 'add')} ${esc(P[c].nome.replace(' (acompanha)', ''))} <span class="sub">${Rc(P[c].preco)}</span></button>`).join('')}</div>` : '') + '</div>';
         }
         if (MI.combo) {
           const c = P[MI.combo];
@@ -1021,7 +1040,7 @@ function modalItem(p, onAdd, opts) {
         if (abNow && !opts.cliente) h += `<p class="sub" style="margin-top:8px">No painel do bar: <b>${esc(abNow)}</b></p>`;
       } else {
         if (p.escolha) h += `<div class="passo ${MI.escolha ? '' : 'falta'}"><div class="pt">${esc(p.escolha.titulo)}</div><div class="chips">${p.escolha.opcoes.map(o => `<button class="chip ${MI.escolha === o ? 'on' : ''}" data-a="miEsc" data-c="${esc(o)}">${esc(o)}</button>`).join('')}</div></div>`;
-        if (p.tipo === 'aperitivo') h += `<div class="passo"><div class="pt">${ic('add_circle')} Do jeito do cliente</div>${chipsAdds(0, !!p.espeto, false)}</div>`;
+        if (p.tipo === 'aperitivo') h += `${opts.cliente ? '' : `<div class="passo"><div class="pt">${ic('contrast')} Tamanho</div><div class="chips"><button class="chip ${MI.meia ? '' : 'on'}" data-a="miMeia" data-c="0">Porção inteira <span class="sub">${Rc(p.preco)}</span></button><button class="chip ${MI.meia ? 'on' : ''}" data-a="miMeia" data-c="1">Meia porção <span class="sub">${Rc(r2(p.preco / 2))}</span></button></div></div>`}<div class="passo"><div class="pt">${ic('add_circle')} Do jeito do cliente</div>${chipsAdds(0, !!p.espeto, false)}</div>`;
         else h += `<input id="obsMI0" class="inp" placeholder="Observação (opcional)" data-f="obsMI0" data-mi="0" value="${esc(MI.sel[0].obs)}" data-enter="miOk">`;
       }
       // Checkpoint da alergia a glúten (garçom e base): a troca vai em destaque forte para a linha de produção
@@ -1037,14 +1056,16 @@ function modalItem(p, onAdd, opts) {
         h += `<div class="passo ${MI.semGluten ? 'alergia' : ''}"><div class="pt">${ic('warning')} Alergia ou intolerância a glúten?</div>
           <button class="chip ${MI.semGluten ? 'on verm' : ''}" data-a="miGl">${ic(MI.semGluten ? 'check_box' : 'check_box_outline_blank')} Sem glúten (alergia)</button>${av}</div>`;
       }
-      h += `<div class="entre rodape-m"><div><div class="sub">${falta.length ? 'Falta escolher: ' + esc(falta.join(', ')) : 'Preço'}</div><div style="font-size:22px;font-weight:500">${it ? R(precoItem(it)) : '—'}</div></div>
+      h += `<div class="entre rodape-m"><div><div class="sub">${falta.length ? 'Falta escolher: ' + esc(falta.join(', ')) : 'Preço'}</div><div style="font-size:22px;font-weight:500">${it ? R(precoItem(it) + MI.avulsos.reduce((s, c) => s + (P[c] ? P[c].preco : 0), 0)) : '—'}</div>${MI.avulsos.length ? `<div class="sub">com ${MI.avulsos.map(c => P[c].nome.replace(' (acompanha)', '').toLowerCase()).join(' e ')} avulsa${MI.avulsos.length > 1 ? 's' : ''}</div>` : ''}</div>
         <button class="bt pri grande" data-a="miOk" ${falta.length ? 'disabled' : ''}>${ic('add')} ${esc(opts.botao || 'Adicionar')}</button></div>`;
       return h;
     },
     miAdd(d) { const s = MI.sel[+d.i]; const c = +d.c; s.adds = s.adds.includes(c) ? s.adds.filter(x => x !== c) : s.adds.concat(c); pintarModal(); },
     miBurg(d) { MI.sel[+d.i].burg = +d.c; pintarModal(); },
     miQuesa(d) { MI.sel[+d.i].quesa = d.c; pintarModal(); },
-    miCombo(d) { MI.combo = d.c ? +d.c : null; MI.cbCod = null; MI.cbOps = {}; MI.cbMix = []; autoBebCombo(MI); pintarModal(); },
+    miCombo(d) { MI.combo = d.c ? +d.c : null; MI.cbCod = null; MI.cbOps = {}; MI.cbMix = []; if (MI.combo) MI.avulsos = []; autoBebCombo(MI); pintarModal(); },
+    miAvulso(d) { const c = +d.c; MI.avulsos = MI.avulsos.includes(c) ? MI.avulsos.filter(x => x !== c) : MI.avulsos.concat(c); pintarModal(); },
+    miMeia(d) { MI.meia = d.c === '1'; pintarModal(); },
     miDoce(d) { MI.doce = d.c; pintarModal(); },
     miBeb(d) { MI.bebTipo = d.c; pintarModal(); },
     miEsc(d) { MI.escolha = d.c; pintarModal(); },
@@ -1055,7 +1076,13 @@ function modalItem(p, onAdd, opts) {
     miCbOp(d) { const b = P[MI.cbCod]; MI.cbOps[+d.g] = +d.c; if (!ehMix(((b && b.grupos) || [])[+d.g] && b.grupos[+d.g].ops[+d.c])) MI.cbMix = []; pintarModal(); },
     miCbMix(d) { const i = +d.c; MI.cbMix = MI.cbMix.includes(i) ? MI.cbMix.filter(x => x !== i) : MI.cbMix.concat(i); pintarModal(); },
     miGl() { MI.semGluten = !MI.semGluten; pintarModal(); },
-    miOk() { if (faltaMI(MI).length) { toast('Falta escolher: ' + faltaMI(MI).join(', ')); return; } const it = montarItem(MI); fecharModal(); return onAdd(it); },
+    miOk() {
+      if (faltaMI(MI).length) { toast('Falta escolher: ' + faltaMI(MI).join(', ')); return; }
+      const it = montarItem(MI); const av = MI.avulsos.slice(); fecharModal();
+      if (!av.length) return onAdd(it);
+      // os avulsos entram como itens próprios, logo depois do burguer
+      return Promise.resolve(onAdd(it)).then(async () => { for (const c of av) { const m = novoMI(P[c]); m.delivery = MI.delivery; await onAdd(montarItem(m)); } });
+    },
     campo(k, v, el) {
       if (k === 'saborMI') MI.sabor = v;
       else if (k === 'obsBeb') { const antes = !!String(MI.obs || '').trim(); MI.obs = v; if (antes !== !!v.trim()) pintarModal(); }
@@ -1389,7 +1416,7 @@ function telaMesa(id) {
   const cls = m.clientes || [];
   let h = `<div class="mesa-topo"><button class="bt-ic" data-a="voltarMesas">${ic('arrow_back')}</button>
     <h1 style="margin:0;flex:1">${esc(m.label || rotuloMesa(id))} ${pontoMesa(id)}</h1>
-    ${m.grupo ? `<span class="tag combo">${ic('groups')} comanda</span>` : `<button class="bt ton" data-a="comandas" data-id="${id}" title="Grupo grande: uma comanda por pessoa">${ic('groups')}<span class="so-largo"> Comandas</span></button>`}</div>
+    ${m.grupo ? `<span class="tag combo">${ic('groups')} comanda</span>` : `<button class="bt" data-a="trocarMesa" data-id="${id}" title="A mesa toda mudou de lugar">${ic('move_down')}<span class="so-largo"> Trocar de mesa</span></button><button class="bt ton" data-a="comandas" data-id="${id}" title="Grupo grande: uma comanda por pessoa">${ic('groups')}<span class="so-largo"> Comandas</span></button>`}</div>
     <div class="nomes-mesa">${m.grupo ? '' : (m.nomes || []).map(n => `<span class="nome-p">${esc(n)}</span>`).join('') + `<button class="chip" data-a="editarNomes" data-id="${id}">${ic('edit')} nomes</button>`}
     ${cls.map(c => `<span class="tag whatsapp">${ic('check_circle')} ${esc(c.nome)} entrou</span>`).join('')}</div>
     <div class="busca">${ic('search')}<input id="busca" data-f="busca" data-vivo placeholder="Código ou nome · 2x 103 lança 2" autocomplete="off" value="${esc(F.busca || '')}" data-enter="addPrimeiro" data-id="${id}" inputmode="search" enterkeyhint="done">
@@ -1415,10 +1442,38 @@ function telaMesa(id) {
   const tot = subtotal(m.itens); const pago = totalPago(m);
   h += `<div class="card" style="margin-top:16px"><div class="total-linha"><span>Subtotal</span><b>${R(tot)}</b></div>
     ${pago ? `<div class="total-linha"><span>Já recebido</span><span>${R(pago)}</span></div>` : ''}
-    <div class="linha" style="margin-top:10px"><button class="bt pri" data-a="conta" data-id="${id}">${ic('qr_code_2')} Conta e QR</button><button class="bt" data-a="receber" data-id="${id}">${ic('payments')} Receber</button><span style="flex:1"></span>${vazia(m) ? `<button class="bt txt verm" data-a="liberarMesa" data-id="${id}">${ic('close')} Liberar (vazia)</button>` : `<button class="bt txt verm" data-a="zerarMesa" data-id="${id}" title="Só gerente ou sócio">${ic('restart_alt')} Zerar</button>`}</div></div>`;
+    <div class="linha" style="margin-top:10px"><button class="bt pri" data-a="conta" data-id="${id}">${ic('receipt')} Conta</button><button class="bt" data-a="receber" data-id="${id}">${ic('payments')} Receber</button><span style="flex:1"></span>${vazia(m) ? `<button class="bt txt verm" data-a="liberarMesa" data-id="${id}">${ic('close')} Liberar (vazia)</button>` : `<button class="bt txt verm" data-a="zerarMesa" data-id="${id}" title="Só gerente ou sócio">${ic('restart_alt')} Zerar</button>`}</div></div>`;
   h += `<details style="margin-top:14px"><summary class="sub">Histórico (${(m.log || []).length})</summary>${(m.log || []).slice().reverse().map(l => `<div class="sub">${hora(l.t)} · ${esc(l.quem)}: ${esc(l.o)}</div>`).join('')}</details>`;
   return h;
 }
+// Trocar de mesa (v22, JP 26/11/2026): a mesa inteira (itens, pagamentos, clientes, histórico) vai para outro slot
+// livre; os cards da cozinha e do bar passam a mostrar a mesa nova. Mesa de grupo (comandas) não troca.
+A.trocarMesa = d => {
+  const de = d.id; const m0 = S.mesas[de]; if (!m0 || m0.comandas || m0.grupo || m0.vinculo) return;
+  const livres = () => { const n = cfg().mesas || 14; const l = []; for (let i = 1; i <= n; i++) if (!S.mesas[String(i)] && String(i) !== de) l.push(String(i)); return l; };
+  abrirModal({
+    render: () => `<div class="entre"><h2>${ic('move_down')} Trocar ${esc(m0.label || rotuloMesa(de))} de lugar</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+      <p class="sub">Para qual mesa a turma foi? Tudo vai junto: itens, pagamentos, clientes e histórico. A cozinha e o bar passam a ver a mesa nova.</p>
+      <div class="chips mesas-chips">${livres().map(x => `<button class="chip" data-a="para" data-c="${x}">${x}</button>`).join('') || '<span class="sub">Nenhuma mesa livre.</span>'}</div>
+      <div class="linha" style="margin-top:12px"><button class="bt" data-a="novoSlotPara">${ic('add')} Para um slot extra (fila)</button></div>`,
+    para(dd) { return mover(dd.c, ''); },
+    novoSlotPara() { const n = Object.keys(S.mesas).filter(k => /^F/.test(k)).length + 1; let x = 'F' + n; while (S.mesas[x]) x = 'F' + (+x.slice(1) + 1); return mover(x, 'Fila ' + x.slice(1)); }
+  });
+  async function mover(para, label) {
+    if (S.mesas[para]) { toast('Essa mesa já está ocupada'); return; }
+    const rotNovo = label || rotuloMesa(para); const rotAntigo = m0.label || rotuloMesa(de);
+    const cs = S.cards.filter(c => c.refId === de && c.origem === 'salao');
+    fecharModal(); S.ui.mesa = para; render();
+    await DB.mutate('mesas', de, (mm, ops) => {
+      if (!mm) return undefined;
+      const nova = Object.assign({}, mm, { id: para, label: label || '', log: (mm.log || []).concat(logLinha('trocou de lugar: ' + rotAntigo + ' → ' + rotNovo)) });
+      ops.push({ op: 'set', c: 'mesas', id: para, data: nova });
+      cs.forEach(c => ops.push({ op: 'update', c: 'cards', id: c.id, data: { refId: para, ref: String(c.ref || '').replace(rotAntigo, rotNovo) || rotNovo } }));
+      return null;
+    });
+    toast(rotAntigo + ' agora é ' + rotNovo);
+  }
+};
 // ================= comandas individuais (v20, JP 26/11/2026) =================
 // Grupo grande (evento, aniversário): a mesa vira o "grupo", com as mesas que ele ocupa, e cada pessoa ganha a própria
 // comanda (uma mesa por dentro: itens, envio, conta, QR, pagamento e fechamento). O que já estava lançado vai para a
@@ -1435,7 +1490,7 @@ function telaGrupo(id, m) {
         <small>${p ? `<span style="color:var(--laranja);font-weight:700">${p} a enviar</span>` : itensValidos(c.itens).length ? itensValidos(c.itens).length + ' itens' : 'vazia'}${q ? ' · pago ✓' : ''}${(c.clientes || []).length ? ' · ' + ic('chat') : ''}</small></button>`; }).join('')}</div>
     <div class="linha" style="margin-top:12px"><input id="pessoasG" class="inp" style="flex:1;min-width:0" data-f="pessoasG" placeholder="Mais gente: Ana, Bruno" autocomplete="off" value="${esc(F.pessoasG || '')}" data-enter="addPessoas" data-id="${id}"><button class="bt" data-a="addPessoas" data-id="${id}">${ic('person_add')} Abrir</button></div>`;
   if (pendT) h += `<div class="barra-acao"><button class="bt pri grande" style="flex:1" data-a="enviarGrupo" data-id="${id}">${ic('send')} Enviar tudo do grupo (${pendT} ${pendT > 1 ? 'itens' : 'item'})</button></div>`;
-  h += `<p class="sub">Toque numa pessoa para lançar o que ela pediu (pode lançar várias e enviar tudo de uma vez aqui). Cada uma tem a própria conta, QR e pagamento.</p>`;
+  h += `<p class="sub">Toque numa pessoa para lançar o que ela pediu (pode lançar várias e enviar tudo de uma vez aqui). Cada uma tem a própria conta e pagamento.</p>`;
   if (!cs.length) h += `<button class="bt verm bloco" style="margin-top:8px" data-a="encerrarGrupo" data-id="${id}">${ic('done_all')} Encerrar o grupo e liberar as mesas</button>`;
   return h;
 }
@@ -1537,25 +1592,29 @@ function lerDesc(s) {
 }
 A.descontoItem = d => {
   const id = d.id, u = d.u; const m0 = S.mesas[id]; const it0 = m0 && m0.itens.find(i => i.uid === u); if (!it0 || it0.cancelado) return;
-  const d0 = it0.desconto; F.descM = d0 && d0.fixo != null ? 'c' + String(d0.fixo).replace('.', ',') : d0 && d0.pct > 0 ? 'd' + d0.pct : ''; F.motivoD = (d0 && d0.motivo) || ''; F.pinM = '';
+  const d0 = it0.desconto; S.ui.descTipo = d0 && d0.fixo != null ? 'c' : 'd'; F.descM = d0 && d0.fixo != null ? String(d0.fixo).replace('.', ',') : d0 && d0.pct > 0 ? String(d0.pct).replace('.', ',') : ''; F.motivoD = (d0 && d0.motivo) || ''; F.pinM = '';
+  // v22 (JP, 27/11/2026): teclado numérico direto. Escolhe % ou R$ no toque e digita só o número (d/c digitado ainda vale).
+  const lerUI = () => { const t = String(F.descM || '').trim(); return /^[dc]/i.test(t) ? lerDesc(t) : lerDesc((S.ui.descTipo === 'c' ? 'c' : 'd') + t); };
   abrirModal({
     foco: 'descM',
     render() {
       const m = S.mesas[id]; const it = m && m.itens.find(i => i.uid === u); if (!it) return '<div class="vazio">Item não está mais na mesa.</div><button class="bt bloco" data-a="fecharModal">OK</button>';
-      const c = precoCheio(it); const x = lerDesc(F.descM); const ok = !!x;
+      const c = precoCheio(it); const x = lerUI(); const ok = !!x; const tp = S.ui.descTipo === 'c' ? 'c' : 'd';
       const tira = x ? (x.fixo != null ? Math.min(c, x.fixo) : c * x.pct / 100) : 0; const zero = x && ((x.fixo != null && x.fixo === 0) || x.pct === 0);
       return `<div class="entre"><h2>Desconto</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
         <p class="sub" style="margin:0 0 10px">${esc(it.nome)} · ${R(c)}</p>
-        <input id="descM" class="inp" style="font-size:24px;text-align:center;letter-spacing:.06em" data-f="descM" data-vivo inputmode="text" autocomplete="off" autocapitalize="off" placeholder="d50 ou c5,40" value="${esc(F.descM)}" data-enter="okD">
-        <div class="chips" style="justify-content:center;margin-top:8px">${['d100', 'd50', 'd10', 'c5', 'c10'].map(v => `<button class="chip" data-a="descRapido" data-c="${v}">${v}</button>`).join('')}</div>
-        <div class="desc-prev">${!String(F.descM || '').trim() ? '<b>d</b> e a porcentagem (d50 = 50%) ou <b>c</b> e o valor em reais (c5,40 = R$ 5,40). d0 ou c0 tira o desconto.' : !ok ? '<span style="color:var(--vermelho)">Use d e um número de 0 a 100 (d50) ou c e o valor (c5,40)</span>' : zero ? 'Sem desconto: volta a ' + R(c) : `${x.fixo != null ? '<b>' + R(Math.min(c, x.fixo)) + '</b> de desconto' : '<b>' + pctTxt(x.pct) + '</b> de desconto'}: ${R(c)} → <b>${R(c - tira)}</b> <span class="sub">(−${R(tira)})</span>${x.fixo != null && x.fixo > c ? '<br><span class="sub">o desconto não passa do preço do item</span>' : ''}`}</div>
+        <div class="desc-tipo"><button class="chip ${tp === 'd' ? 'on' : ''}" data-a="descTipo" data-c="d">% porcentagem</button><button class="chip ${tp === 'c' ? 'on' : ''}" data-a="descTipo" data-c="c">R$ valor</button></div>
+        <div class="desc-campo"><span class="desc-pre">${tp === 'c' ? 'R$' : ''}</span><input id="descM" class="inp" style="font-size:26px;text-align:center;letter-spacing:.04em" data-f="descM" data-vivo inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" enterkeyhint="done" autocomplete="off" autocapitalize="off" placeholder="${tp === 'c' ? '5,40' : '50'}" value="${esc(F.descM)}" data-enter="okD"><span class="desc-pre">${tp === 'd' ? '%' : ''}</span></div>
+        <div class="chips" style="justify-content:center;margin-top:8px">${[['d', '100', '100%'], ['d', '50', '50%'], ['d', '10', '10%'], ['c', '5', 'R$ 5'], ['c', '10', 'R$ 10']].map(([t, v, r]) => `<button class="chip" data-a="descRapido" data-c="${t}${v}">${r}</button>`).join('')}</div>
+        <div class="desc-prev">${!String(F.descM || '').trim() ? (tp === 'c' ? 'Digite o valor em reais a tirar (5,40 = R$ 5,40).' : 'Digite a porcentagem (50 = 50%; 100 zera o item).') + ' 0 tira o desconto.' : !ok ? '<span style="color:var(--vermelho)">' + (tp === 'c' ? 'Digite um valor, ex.: 5,40' : 'Digite um número de 0 a 100') + '</span>' : zero ? 'Sem desconto: volta a ' + R(c) : `${x.fixo != null ? '<b>' + R(Math.min(c, x.fixo)) + '</b> de desconto' : '<b>' + pctTxt(x.pct) + '</b> de desconto'}: ${R(c)} → <b>${R(c - tira)}</b> <span class="sub">(−${R(tira)})</span>${x.fixo != null && x.fixo > c ? '<br><span class="sub">o desconto não passa do preço do item</span>' : ''}`}</div>
         <input id="motivoD" class="inp" style="margin-top:10px" data-f="motivoD" autocomplete="off" placeholder="Motivo (ex.: demorou, cliente fiel, saiu errado)" value="${esc(F.motivoD)}">
         <div class="campo" style="margin-top:10px"><label for="pinM">Código do gerente ou sócio</label>${inputPin('pinM', 'okD')}</div>
         <div class="linha"><button class="bt" data-a="fecharModal">Voltar</button><span style="flex:1"></span><button class="bt pri" data-a="okD" ${ok ? '' : 'disabled'}>${ic('sell')} Aplicar</button></div>`;
     },
-    descRapido(dd) { F.descM = dd.c; pintarModal(); const p = $('#pinM'); if (p) p.focus(); },
+    descRapido(dd) { S.ui.descTipo = dd.c[0]; F.descM = dd.c.slice(1); pintarModal(); const p = $('#pinM'); if (p) p.focus(); },
+    descTipo(dd) { S.ui.descTipo = dd.c; pintarModal(); const e = $('#descM'); if (e) e.focus(); },
     async okD() {
-      const x = lerDesc(F.descM); if (!x) { toast('Digite d50 (porcentagem) ou c5,40 (valor)'); return; }
+      const x = lerUI(); if (!x) { toast(S.ui.descTipo === 'c' ? 'Digite o valor, ex.: 5,40' : 'Digite a porcentagem, ex.: 50'); return; }
       const pe = await pessoaPorPin(F.pinM, ACESSO_TOTAL); F.pinM = '';
       if (!pe) { toast('Código não confere (só gerente ou sócio)'); pintarModal(); return; }
       const motivo = (F.motivoD || '').trim(); let txt = '';
@@ -1762,17 +1821,18 @@ A.enviarMesa = async d => {
 };
 
 // --- conta, QR do cliente, receber ---
+const AVISO_MAQ = 'Em breve o atendente vai trazer a maquininha 😌';
+// Sugestões de divisão da conta: 2, 3 e 4 pessoas e o número da mesa (sem repetir), só quando a conta tem valor
+function sugestoesDivisao(tot, n) { if (!(tot > 0)) return []; return [...new Set([2, 3, 4, n].filter(k => k > 1))].sort((a, b) => a - b); }
 function contaTexto(m, n) {
   const val = itensValidos(m.itens); const tot = subtotal(m.itens); const dez = r2(tot * 0.1);
   let s = `*${NOME_CURTO}* · ${m.label || rotuloMesa(m.id)}\n${(m.nomes || []).join(', ')}\n\n`;
   val.forEach(it => { s += `• ${it.nome}: ${R(precoItem(it))}\n`; descItem(it).forEach(l => { s += `   ${l}\n`; }); });
   s += `\nSubtotal: ${R(tot)}\n10%: ${R(dez)}\n*Total com 10%: ${R(tot + dez)}*\n`;
   if (n > 1) s += `Dividido por ${n}: ${R((tot + dez) / n)} cada (sem 10%: ${R(tot / n)})\n`;
-  // Pagar pelo próprio celular (v20): a chave e o PIX copia e cola com o valor certo já vão na conversa
-  const p = cfg().pix || {}; const chave = p.chave || WA_CASA; const cc = pixCopiaCola(r2(tot + dez), 'ST' + String(m.id || '').replace(/\W/g, '') + 'C' + String(m.abertaEm || '').slice(-5));
-  s += `_${AVISO_10}_\n\n*Para pagar*\n• PIX, chave (celular): ${chave}${p.nome ? ' · ' + p.nome : ''}\n`;
-  if (cc) s += `• PIX copia e cola do total com 10%:\n${cc}\n`;
-  s += `• Cartão: na maquininha, com o garçom.\n\n${FRASE}`;
+  // v22 (JP, 26/11/2026): a conta é só para a mesa conferir (itens, 10%, divisão); o pagamento é na maquininha
+  sugestoesDivisao(tot, n).forEach(k => { if (k !== n) s += `Por ${k}: ${R((tot + dez) / k)} cada (sem 10%: ${R(tot / k)})\n`; });
+  s += `_${AVISO_10}_\n\n${AVISO_MAQ}`;
   return s;
 }
 // Conta (v20, JP 26/11/2026): o QR entra só aqui, na hora de pagar. O cliente lê, deixa o nome e o WhatsApp e a conta
@@ -1800,14 +1860,12 @@ A.conta = d => {
         <div class="entre" style="margin:8px 0"><span>Dividir por</span><span class="linha"><button class="bt-ic borda" data-a="nDiv" data-c="-1">${ic('remove')}</button><b style="font-size:20px;min-width:24px;text-align:center">${n}</b><button class="bt-ic borda" data-a="nDiv" data-c="1">${ic('add')}</button></span></div>
         ${n > 1 ? `<div class="card" style="background:var(--azul-cl);border:0;padding:10px 12px"><b>${R((tot + dez) / n)}</b> cada com 10% · ${R(tot / n)} sem</div>` : ''}
         <div class="secao-t">1 · A conta no WhatsApp do cliente</div>
-        <div class="conta-qr"><div class="qr" data-qr="${esc(urlMesaCli(id, m))}"></div>
-          <p class="sub">O cliente lê com a câmera, põe o nome e o WhatsApp e a conta chega na conversa dele com a casa (${esc(cfg().whatsapp || WA_CASA)}).</p></div>
-        ${cls.length ? `<div class="entraram">${cls.map((c, i) => { const fila = contaNaFila(c); return `<div class="entrou ${fila ? 'fila' : ''}"><span class="ms">${fila ? 'schedule_send' : 'check_circle'}</span><span class="nm"><b>${esc(c.nome)}</b> ${fila ? 'na fila do computador' : c.contaEm ? 'recebeu a conta' : 'entrou'}<small>${esc(c.tel)}${fila ? ' · pedida ' + hora(c.pediuEm) : c.contaEm ? ' · enviada ' + hora(c.contaEm) + (c.contaPor ? ' por ' + esc(c.contaPor) : '') : ''}</small></span>${pc ? `<button class="bt verde" data-a="enviarConta" data-i="${i}">${ic('send')} ${c.contaEm && !fila ? 'Reenviar' : 'Enviar'}</button>` : fila ? '' : `<button class="bt" data-a="enviarConta" data-i="${i}">${ic('replay')} Pedir de novo</button>`}</div>`; }).join('')}</div>` : '<p class="sub" style="margin:4px 0 0">Ninguém entrou ainda: quando o cliente ler o QR, o nome aparece aqui na hora.</p>'}
-        <div class="linha" style="margin-top:10px"><input id="telConta" class="inp" style="flex:1;min-width:0" data-f="telConta" inputmode="tel" autocomplete="off" placeholder="QR não deu? WhatsApp do cliente (DDD + número)" value="${esc(F.telConta || '')}" data-enter="enviarConta" data-i="-1"><button class="bt verde" data-a="enviarConta" data-i="-1">${ic('send')} ${pc ? 'Enviar' : 'Pedir'}</button></div>
-        <p class="sub" style="margin:6px 0 0">${ic('verified')} ${pc ? 'Abre a conversa do cliente no WhatsApp Business da casa, com a conta escrita: é só apertar Enter.' : 'A conta sai do computador da casa, pelo WhatsApp Business: o pedido aparece no topo da base e o gerente envia com um clique. O garçom não precisa do WhatsApp da loja.'}</p>
-        <div class="secao-t">2 · PIX da casa</div>
+        <div class="linha"><input id="telConta" class="inp" style="flex:1;min-width:0;font-size:18px" data-f="telConta" inputmode="tel" autocomplete="off" placeholder="WhatsApp do cliente (DDD + número)" value="${esc(F.telConta || '')}" data-enter="enviarConta" data-i="-1"><button class="bt verde" data-a="enviarConta" data-i="-1">${ic('send')} ${pc ? 'Enviar' : 'Pedir'}</button></div>
+        ${cls.length ? `<div class="entraram">${cls.map((c, i) => { const fila = contaNaFila(c); return `<div class="entrou ${fila ? 'fila' : ''}"><span class="ms">${fila ? 'schedule_send' : 'check_circle'}</span><span class="nm"><b>${esc(c.nome)}</b> ${fila ? 'na fila do computador' : c.contaEm ? 'recebeu a conta' : 'entrou'}<small>${esc(c.tel)}${fila ? ' · pedida ' + hora(c.pediuEm) : c.contaEm ? ' · enviada ' + hora(c.contaEm) + (c.contaPor ? ' por ' + esc(c.contaPor) : '') : ''}</small></span>${pc ? `<button class="bt verde" data-a="enviarConta" data-i="${i}">${ic('send')} ${c.contaEm && !fila ? 'Reenviar' : 'Enviar'}</button>` : fila ? '' : `<button class="bt" data-a="enviarConta" data-i="${i}">${ic('replay')} Pedir de novo</button>`}</div>`; }).join('')}</div>` : ''}
+        <p class="sub" style="margin:6px 0 0">${ic('verified')} ${pc ? 'Abre a conversa do cliente no WhatsApp Business da casa, com a conta escrita: é só apertar Enter.' : 'Digite o número que o cliente falar: a conta sai do computador da casa, pelo WhatsApp Business (o pedido aparece no topo da base e o gerente envia com um clique). O garçom não precisa do WhatsApp da loja.'} A conta é para a mesa conferir: o pagamento é na maquininha, com o atendente.</p>
+        <div class="secao-t">2 · PIX da casa (na mesa, se o cliente preferir)</div>
         <div class="chips">${[['com', 'Total com 10%'], ['sem', 'Sem 10%'], ['cada', 'Cada um (1/' + n + ')']].map(([k, l]) => `<button class="chip ${S.ui.pixV === k ? 'on' : ''}" data-a="pixV" data-c="${k}">${l} · ${R(Math.max(0, vals[k]))}</button>`).join('')}</div>
-        ${pix ? `<div class="qr" data-qr="${esc(pix)}"></div><p class="sub" style="text-align:center;margin:0">PIX de <b>${R(vPix)}</b> · chave ${esc(chave)}. O cliente lê com o app do banco e mostra a tela de pago.</p>` : `<p class="sub">${vPix > 0 ? 'Cadastre a chave PIX em Equipe e loja.' : 'Nada a receber.'}</p>`}
+        ${pix ? `<div class="qr" data-qr="${esc(pix)}"></div><p class="sub" style="text-align:center;margin:0">Se o cliente preferir pagar no PIX ali na mesa: PIX de <b>${R(vPix)}</b> · chave ${esc(chave)}. O cliente lê com o app do banco e mostra a tela de pago.</p>` : `<p class="sub">${vPix > 0 ? 'Cadastre a chave PIX em Equipe e loja.' : 'Nada a receber.'}</p>`}
         ${pc ? `<button class="bt bloco" style="margin-top:12px" data-a="pdfConta">${ic('picture_as_pdf')} Baixar PDF da conta</button>` : ''}
         <div style="margin-top:14px"><button class="bt pri bloco grande" data-a="irReceber">${ic('payments')} Registrar o pagamento</button></div>`;
     },
@@ -1895,19 +1953,14 @@ async function pdfConta(id, nomeCli, nDiv) {
   if (n > 1) linha('Dividido por ' + n + ': ' + R(r2((tot + dez) / n)) + ' cada (sem 10%: ' + R(r2(tot / n)) + ')', '', { t: 9.5 });
   if (pago) { linha('Já recebido', R(pago)); linha(falta > 0.004 ? 'Falta' : 'Tudo pago', R(Math.max(0, falta)), { b: true }); }
   linha(AVISO_10, '', { t: 8.5, cor: [95, 99, 104], esp: 2 });
+  // v22 (JP, 26/11/2026): o PDF é só para a mesa ver a conta (itens, 10%, sugestões de divisão); sem PIX nem cartão
+  const sug = sugestoesDivisao(tot, n);
+  if (sug.length) { traco(); linha('Sugestões de divisão', '', { b: true, t: 11.5, esp: 2 }); sug.forEach(k => linha('Por ' + k + ' pessoas', R(r2((tot + dez) / k)) + ' cada', { t: 10, esp: 1 })); linha('Sem os 10%: ' + sug.map(k => k + ' × ' + R(r2(tot / k))).join(' · '), '', { t: 8.5, cor: [95, 99, 104], esp: 2 }); }
   traco();
-  const p = cfg().pix || {}; const chave = p.chave || WA_CASA; const vPix = falta > 0.004 ? falta : 0;
-  const cc = vPix ? pixCopiaCola(vPix, 'ST' + String(id).replace(/\W/g, '') + 'C' + Math.round(vPix * 100)) : null;
-  linha('Para pagar', '', { b: true, t: 12, esp: 2 });
-  linha('PIX, chave (celular): ' + chave + (p.nome ? ' · ' + p.nome : ''), '', { t: 10 });
-  const img = cc && qrPng(cc);
-  if (img) { pagina(52); doc.addImage(img, 'PNG', X, y, 44, 44); doc.setFontSize(9); doc.setTextColor(95, 99, 104); doc.text(doc.splitTextToSize('Leia com o app do banco: PIX de ' + R(vPix) + ' (total com 10%' + (pago ? ', menos o já recebido' : '') + ').', D - X - 50), X + 50, y + 8); y += 48; }
-  if (cc) { linha('PIX copia e cola:', '', { t: 9, b: true, esp: 1 }); linha(cc, '', { t: 7.5, cor: [95, 99, 104], esp: 2.5 }); }
-  linha('Cartão: na maquininha, com o garçom.', '', { t: 10, esp: 3 });
-  linha(FRASE, '', { t: 9, cor: [26, 115, 232] });
+  pagina(16); doc.setFillColor(232, 240, 254); doc.roundedRect(X, y - 4, D - X, 13, 2, 2, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(23, 78, 166); doc.text('Em breve o atendente vai trazer a maquininha', X + 4, y + 3.8); y += 14;
   const d = new Date(); const arq = `Conta ${rot}${nomeCli ? ' - ' + nomeCli : ''} - ${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}h${String(d.getMinutes()).padStart(2, '0')}.pdf`;
   doc.save(arq.replace(/[\\/:*?"<>|]/g, ''));
-  toast('PDF baixado: mande no WhatsApp do cliente');
+  toast('PDF baixado: mande no WhatsApp do cliente (é só para consulta; o pagamento é na maquininha)');
 }
 A.pdfConta = d => pdfConta(d.id, d.c || '');
 A.modoWa = d => { try { localStorage.setItem('st-wa-pc', d.c === 'app' ? 'app' : 'web'); } catch (e) {} render(); };
@@ -2057,6 +2110,8 @@ function cardCozinha(c) {
   if (alergia) h += `<div class="kalerta">${ic('warning')} ALERGIA A GLÚTEN</div>`;
   if (troca) h += `<div class="ktroca-t">${ic('swap_horiz')} TEM TROCA</div>`;
   if (c.nPedido) h += `<div class="npedido">${ordinal(c.nPedido)} pedido com a gente</div>`;
+  if (c.origem !== 'salao') h += `<div class="kentrega ${tipoEntrega(c.entrega) || 'indef'}">${ic(icEntrega(c.entrega))} ${c.origem === 'ifood' && !c.entrega ? 'Entrega iFood' : rotEntrega(c.entrega)}</div>`;
+  (c.notas || []).forEach(n => { h += `<div class="knota">${ic('campaign')} ${esc(n.txt)}</div>`; });
   // Na TV, a abreviação da linha de produção (como nas fichas de montagem); sem abreviação, o nome
   const linhaK = (l, sep) => `<div class="kl ${sep ? 'sep' : ''}">${esc(l.ab || l.nome)}${l.trocas.length ? '<br>' + l.trocas.filter(t => !(l.troca || []).includes(t)).map(t => `<span class="kt">${esc(t)}</span>`).join('') : ''}${(l.troca || []).length ? `<div class="kx">${l.troca.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}${l.alergia ? `<br><span class="ka">${esc(l.alergia)}</span>` : ''}</div>`;
   c.blocos.forEach(b => {
@@ -2067,12 +2122,12 @@ function cardCozinha(c) {
       h += b.linhas.map(l => linhaK(l, false)).join('');
     }
   });
-  if (ag) h += `<div class="aviso-pg">Aguardando pagamento · 1º pedido</div><button class="kfeito cinza" data-a="pgCozinha" data-id="${c.refId}">${ic('payments')} PAGAMENTO CONFIRMADO</button>`;
+  if (ag) h += `<div class="aviso-pg">${ic('hourglass_top')} Aguardando pagamento<small>a base confirma e o tempo começa</small></div>`;
   else {
-    if (c.pgPendente) h += `<div class="linha"><span class="tag aviso">pagamento a confirmar</span><button class="bt txt" data-a="pgCozinha" data-id="${c.refId}">confirmar</button></div>`;
+    if (c.pgPendente) h += `<div class="linha"><span class="tag aviso">pagamento a confirmar na base</span></div>`;
     h += `<button class="kfeito" data-a="feito" data-id="${c.id}">✓ FEITO</button>`;
   }
-  h += `<div class="kmove"><button data-a="mover" data-id="${c.id}" data-c="-1" title="Adiantar">${ic('arrow_back')}</button><button data-a="mover" data-id="${c.id}" data-c="1" title="Atrasar">${ic('arrow_forward')}</button></div></div>`;
+  h += `<div class="kmove"><button data-a="mover" data-id="${c.id}" data-c="-1" title="Adiantar">${ic('arrow_back')}</button>${VIEW === 'base' ? `<button data-a="notaCard" data-id="${c.id}" title="Nota para a cozinha">${ic('edit_note')}</button>` : ''}<button data-a="mover" data-id="${c.id}" data-c="1" title="Atrasar">${ic('arrow_forward')}</button></div></div>`;
   return h;
 }
 // ================= leva de produção (JP, 24/11/2026) =================
@@ -2091,6 +2146,8 @@ function prodLinha(l) {
   const p = prodDaLinha(l); const adds = l.adds || [];
   // Frituras (v20): bacon de shitake (no burguer, na porção ou adicional) e iscas da porção ou do espeto
   r.bacon = adds.filter(c => c === 63).length + (p && p.tipo !== 'adicional' && /bacon de shitake/i.test(p.desc || '') ? 1 : 0);
+  const iscasAdd = adds.filter(c => c === 74).length; // v22: adicional de iscas de shimeji
+  if (iscasAdd && l.chapa !== 'burguer') r.iscaP += iscasAdd;
   if (l.chapa !== 'burguer' && ((p && /\bisca\b/.test(p.gl || '')) || /^E1\b/.test(l.ab || ''))) r.iscaP = 1;
   const semOnion = /SEM ONION/.test(l.alergia || '');
   if (l.chapa === 'burguer') {
@@ -2100,6 +2157,7 @@ function prodLinha(l) {
     adds.filter(c => c === 72).forEach(() => { if (prot[0]) r[prot[0]] += 1; else r.protX += 1; });
     const gl = String((p && p.gl) || '');
     if (/\bisca\b/.test(gl)) r.isca = 1;
+    r.isca += iscasAdd;
     if (/\bonion\b/.test(gl) && !semOnion) r.oniB += 2;
     r.oniB += adds.filter(c => c === 64).length * 2;
     return r;
@@ -2129,9 +2187,12 @@ function levasDaFila(fila) {
   return { lev, doCard };
 }
 let LEVAS_CARD = {};
+// v22 (JP, 26/11/2026): quando o pedido sai da faixa verde (20 min) e entra na amarela, as proteínas e frituras dele
+// saem da leva: a leva mostra só os pedidos novos. A TV se redesenha sozinha quando um card muda de faixa (sigTempo).
+const ehVerde = c => c.status !== 'aguardando' && corCoz(minDesde(cardInicio(c))) === 'verde';
 function telaLeva(fila, compacta) {
-  const { lev, doCard } = levasDaFila(fila); LEVAS_CARD = lev.length > 1 ? doCard : {};
-  const a = lev[0]; if (!a) return '';
+  const { lev, doCard } = levasDaFila(fila.filter(ehVerde)); LEVAS_CARD = lev.length > 1 ? doCard : {};
+  const a = lev[0]; if (!a) return fila.some(c => c.status !== 'aguardando') ? `<div class="leva${compacta ? ' compacta' : ''}"><div class="lv-t"><span class="lv-n">Leva</span><span class="sub">nenhum pedido novo na faixa verde</span></div></div>` : '';
   const resto = lev.slice(1); const burgResto = resto.reduce((s, x) => s + x.burg, 0);
   const it = (v, t, cls, ic1) => v ? `<span class="lv ${cls || ''}">${ic1 ? ic(ic1) : ''}<b>${v}</b>${t}</span>` : '';
   const its = [
@@ -2147,13 +2208,100 @@ function telaLeva(fila, compacta) {
 }
 function telaFilaCozinha(compacta) {
   const fila = filaDe('cozinha'); const s = somaFila(fila.filter(c => c.status !== 'aguardando'));
-  const leva = telaLeva(fila, compacta);
-  return `<div class="tv-topo">${compacta ? '' : `<b style="font-size:20px">Cozinha</b>`}<div class="soma"><div class="s"><b>${s.burguer}</b>hambúrgueres</div><div class="s"><b>${s.quesadilla}</b>quesadillas</div><div class="s"><b>${s.cogumelo}</b>cogumelos</div></div>
-    <span class="esp" style="flex:1"></span>${pilulaRede()}<span style="font-size:22px;font-weight:700" data-relogio>${hora(agora())}</span>${compacta ? '' : `<button class="bt-ic" data-a="sair" title="Sair">${ic('logout')}</button>`}</div>
-    ${leva}
-    ${fila.length ? `<div class="fila" id="fila">${fila.map(cardCozinha).join('')}</div>` : '<div class="tv-vazia">Fila vazia</div>'}
-    ${telaFrituras(fila, compacta)}${compacta ? telaFeitosRecentes() : ''}`;
+  const leva = telaLeva(fila, compacta); const nDesp = despachoLista().length;
+  const topo = `<div class="tv-topo">${compacta ? '' : `<b style="font-size:20px">Cozinha</b>`}<div class="soma"><div class="s"><b>${s.burguer}</b>hambúrgueres</div><div class="s"><b>${s.quesadilla}</b>quesadillas</div><div class="s"><b>${s.cogumelo}</b>cogumelos</div></div>
+    <span class="esp" style="flex:1"></span>${VIEW === 'cozinha' && !somOk() ? `<button class="bt-tv som" data-a="ligarSom">${ic('volume_off')} Ligar o som</button>` : ''}
+    <button class="bt-tv" data-a="receitasTV">${ic('menu_book')} Cardápio</button><button class="bt-tv ${DESPACHO ? 'on' : ''}" data-a="despacho">${ic('package_2')} Despachar${nDesp ? ` <span class="badge">${nDesp}</span>` : ''}</button>
+    ${pilulaRede()}<span style="font-size:22px;font-weight:700" data-relogio>${hora(agora())}</span>${compacta ? '' : `<button class="bt-ic" data-a="sair" title="Sair">${ic('logout')}</button>`}</div>`;
+  const prod = `${leva}${fila.length ? `<div class="fila" id="fila">${fila.map(cardCozinha).join('')}</div>` : '<div class="tv-vazia">Fila vazia</div>'}${telaFrituras(fila, compacta)}`;
+  const rec = receitaNaTela();
+  if (DESPACHO) return topo + `<div class="tv-split"><div class="tv-prod">${prod}</div>${telaDespacho()}</div>` + rec;
+  return topo + prod + (compacta ? telaFeitosRecentes() : '') + rec;
 }
+// ================= despacho (v22, JP e Yuri, 26 e 27/11/2026) =================
+// Botão "Despachar" na TV: a tela se divide ao meio (a produção segue à esquerda, como está) e à direita aparece o que
+// já ficou pronto e precisa sair: o prato e a mesa para onde vai; no delivery (WhatsApp e iFood), o pedido completo
+// (aperitivos, burguers, doces e bebidas) para montar o pacote, o nome ou código para escrever no saco e a entrega
+// (Uber Flash ou moto iFood). Quem despacha dá o check e o pedido sai do painel. No futuro vira um tablet só do despacho.
+let DESPACHO = LS.get('st-despacho', false);
+function despachoLista() {
+  // só desta noite e das últimas 6 h (card antigo, de antes do despacho existir, não aparece)
+  const nid = noiteId(); const lim = agora() - 6 * 3600000; const daNoite = c => (!c.noiteId || c.noiteId === nid) && (c.feitoEm || c.criadoEm || 0) > lim; const out = [];
+  const prontos = S.cards.filter(c => c.setor === 'cozinha' && c.status === 'feito' && !c.despachadoEm && daNoite(c));
+  prontos.filter(c => c.origem === 'salao').forEach(c => out.push({ tipo: 'mesa', id: c.id, ref: c.ref, t: c.feitoEm || c.criadoEm, cards: [c] }));
+  const refs = new Set(prontos.filter(c => c.origem !== 'salao').map(c => c.refId));
+  // delivery só de bebida ou doce (sem prato da cozinha): entra direto, quando já está liberado
+  S.cards.filter(c => c.origem !== 'salao' && c.setor === 'bar' && !c.despachadoEm && c.status !== 'aguardando' && daNoite(c) && !S.cards.some(x => x.refId === c.refId && x.setor === 'cozinha')).forEach(c => refs.add(c.refId));
+  refs.forEach(r => {
+    const todos = S.cards.filter(c => c.refId === r && !c.despachadoEm);
+    if (!todos.length || todos.some(c => c.setor === 'cozinha' && c.status !== 'feito')) return; // ainda tem prato saindo
+    const c0 = todos.find(c => c.setor === 'cozinha') || todos[0];
+    out.push({ tipo: c0.origem, id: r, ref: c0.ref, t: Math.max(...todos.map(c => c.feitoEm || c.criadoEm || 0)), cards: todos, entrega: c0.entrega, marca: c0.marca });
+  });
+  return out.sort((a, b) => a.t - b.t);
+}
+function linhasDesp(x) { const out = []; x.cards.forEach(c => (c.blocos || []).forEach(b => (b.linhas || []).forEach(l => out.push({ l, setor: c.setor, combo: b.combo })))); return out; }
+function cardDesp(x) {
+  const ls = linhasDesp(x); const m = minDesde(x.t);
+  const it = ({ l, setor }) => `<li><span class="ms">${setor === 'bar' ? 'local_bar' : 'restaurant'}</span><span>${esc(l.nome)}${(l.trocas || []).length ? ` <span class="dt">${esc(l.trocas.join(", "))}</span>` : ""}${(l.troca || []).length ? ` <span class="dx">${esc(l.troca.join(', '))}</span>` : ''}${l.alergia ? ` <span class="da">${esc(l.alergia)}</span>` : ''}</span></li>`;
+  if (x.tipo === 'mesa') {
+    const [mesa, ...nomes] = String(x.ref || '').split(' · ');
+    return `<div class="dc mesa"><div class="dc-h"><span class="tag salao">salão</span><b class="dc-dest">${esc(mesa)}</b>${nomes.length ? `<span class="sub">${esc(nomes.join(' · '))}</span>` : ''}<span class="dc-min" data-min="${x.t}">${m} min</span></div>
+      <ul class="dc-its">${ls.map(it).join('')}</ul><button class="dc-ok" data-a="despOk" data-id="${esc(x.id)}">✓ ENTREGUE NA MESA</button></div>`;
+  }
+  const nomeSaco = x.tipo === 'whatsapp' ? String(x.ref || '').split(' · ')[0] : String(x.ref || '').replace(/^iFood\s*/, '');
+  return `<div class="dc pacote"><div class="dc-h"><span class="tag ${x.tipo}">${x.tipo === 'ifood' ? 'iFood' : 'WhatsApp'}</span>${x.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<b class="dc-dest">${esc(x.ref)}</b><span class="dc-min" data-min="${x.t}">${m} min</span></div>
+    <div class="dc-ent ${tipoEntrega(x.entrega) || 'indef'}">${ic(icEntrega(x.entrega))} ${x.tipo === 'ifood' && !x.entrega ? 'Entrega iFood' : rotEntrega(x.entrega)}</div>
+    <div class="dc-saco">${ic('edit')} No saco: <b>${esc(nomeSaco)}</b></div>
+    <ul class="dc-its">${ls.map(it).join('')}</ul><button class="dc-ok" data-a="despOk" data-id="${esc(x.id)}">✓ PACOTE PRONTO</button></div>`;
+}
+function telaDespacho() {
+  const l = despachoLista();
+  return `<div class="desp"><div class="desp-cab">${ic('package_2')}<b>Despacho</b><span class="sub">${l.length ? l.length + (l.length > 1 ? ' para sair' : ' para sair') : 'nada pronto agora'}</span><span style="flex:1"></span><button class="bt-ic" data-a="despacho" title="Fechar o despacho">${ic('close')}</button></div>
+    <div class="desp-lista">${l.map(cardDesp).join('') || '<div class="desp-vazio">Quando um prato ficar pronto (FEITO), ele aparece aqui com o destino: a mesa, ou o pedido completo para montar o pacote.</div>'}</div></div>`;
+}
+A.despacho = () => { DESPACHO = !DESPACHO; LS.set('st-despacho', DESPACHO); window.scrollTo(0, 0); render(); };
+A.despOk = async d => {
+  const x = despachoLista().find(y => y.id === d.id); if (!x) return;
+  const t = agora(); const ops = x.cards.map(c => ({ op: 'update', c: 'cards', id: c.id, data: Object.assign({ despachadoEm: t, despachadoPor: quem() }, c.status !== 'feito' ? { status: 'feito', feitoEm: t } : {}) }));
+  await DB.batch(ops);
+  if (x.tipo === 'whatsapp') DB.update('delivery', x.id, { embaladoEm: t }).catch(() => {});
+  toast(x.tipo === 'mesa' ? 'Entregue: ' + x.ref : 'Pacote pronto: ' + x.ref, () => DB.batch(x.cards.map(c => ({ op: 'update', c: 'cards', id: c.id, data: { despachadoEm: null } }))));
+};
+A.ligarSom = () => { destravarSom(); setTimeout(() => { bip(2); render(); }, 150); };
+// ================= cardápio na TV (v22, JP 26/11/2026) =================
+// Botão "Cardápio": escolhe uma receita (do cardápio, o especial da semana ou o que só sai no iFood, como o Desafio Seu
+// Trem) e a descrição fica no canto da tela para quem produz saber montar. Fecha no X.
+let RECEITA_TV = LS.get('st-receita-tv', null);
+function receitasTV() {
+  const ps = C.fixos.filter(p => ativo(p) && ['burguer', 'aperitivo'].includes(p.tipo)).map(p => ({ id: 'p' + p.cod, cod: p.cod, nome: p.nome, ab: p.ab, desc: p.desc || '', grupo: p.tipo === 'burguer' ? 'Burguers' : 'Aperitivos' }));
+  return ps.concat((C.RECEITAS_TV || []).map(r => Object.assign({ grupo: 'Fora do cardápio da casa' }, r)));
+}
+function receitaNaTela() {
+  const r = RECEITA_TV && receitasTV().find(x => x.id === RECEITA_TV); if (!r) return '';
+  let ins = []; try { if (r.cod) ins = ingredientesDe({ cod: r.cod }); } catch (e) {}
+  return `<div class="receita-tv"><div class="rt-h">${ic('menu_book')}<b>${esc(r.nome)}</b>${r.ab ? `<span class="tag cinza">${esc(r.ab)}</span>` : ''}${r.onde ? `<span class="tag aviso">${esc(r.onde)}</span>` : ''}<span style="flex:1"></span><button class="bt-ic" data-a="fecharReceita" title="Fechar">${ic('close')}</button></div>
+    <p>${esc(r.desc)}</p>${ins.length ? `<div class="rt-ins"><b>Na ficha:</b> ${esc(ins.join(' · '))}</div>` : ''}</div>`;
+}
+A.receitasTV = () => abrirModal({ largo: true, render: () => { const l = receitasTV(); const gs = [...new Set(l.map(x => x.grupo))];
+  return `<div class="entre"><h2>${ic('menu_book')} Cardápio da produção</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div><p class="sub">Toque numa receita: a descrição fica no canto da TV.</p>`
+    + gs.map(g => `<div class="secao-t">${esc(g)}</div><div class="rt-lista">${l.filter(x => x.grupo === g).map(x => `<button class="rt-op ${RECEITA_TV === x.id ? 'on' : ''}" data-a="verReceita" data-c="${esc(x.id)}"><b>${esc(x.nome)}</b>${x.ab ? `<small>${esc(x.ab)}</small>` : x.onde ? `<small>${esc(x.onde)}</small>` : ''}</button>`).join('')}</div>`).join(''); },
+  verReceita(dd) { RECEITA_TV = dd.c; LS.set('st-receita-tv', RECEITA_TV); fecharModal(); render(); } });
+A.fecharReceita = () => { RECEITA_TV = null; LS.set('st-receita-tv', null); render(); };
+// ================= nota da base no card da cozinha (v22, JP 26/11/2026) =================
+// "Interferir no painel da cozinha pela base": na aba Cozinha da base, cada card ganha o botão Nota; o texto aparece
+// no card da TV em destaque azul. Dá para tirar a nota depois.
+A.notaCard = d => {
+  F.notaTxt = '';
+  abrirModal({ foco: 'notaTxt', render: () => { const c = S.cards.find(x => x.id === d.id); if (!c) return '<div class="vazio">O card saiu da fila.</div><button class="bt bloco" data-a="fecharModal">OK</button>';
+      return `<div class="entre"><h2>${ic('campaign')} Nota para a cozinha · ${esc(c.ref)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+        <p class="sub">O texto aparece no card da TV, em destaque.</p>
+        ${(c.notas || []).map((n, i) => `<div class="entre knota-l"><span>${esc(n.txt)} <span class="sub">${esc(n.quem)} · ${hora(n.t)}</span></span><button class="bt-ic" data-a="tiraNota" data-i="${i}">${ic('delete')}</button></div>`).join('')}
+        <textarea id="notaTxt" class="inp" data-f="notaTxt" rows="3" placeholder="Ex.: caprichar no molho, sai junto com a mesa 3, cliente com pressa">${esc(F.notaTxt || '')}</textarea>
+        <div class="linha" style="margin-top:10px"><span style="flex:1"></span><button class="bt" data-a="fecharModal">Fechar</button><button class="bt pri" data-a="ok">${ic('send')} Mandar para a TV</button></div>`; },
+    async ok() { const t = String(F.notaTxt || '').trim(); if (!t) { toast('Escreva a nota'); return; } F.notaTxt = ''; const n = { txt: t, quem: quem(), t: agora() }; await DB.mutate('cards', d.id, c => { if (!c) return undefined; c.notas = (c.notas || []).concat(n); return c; }); fecharModal(); toast('Nota na TV'); },
+    async tiraNota(dd) { const i = +dd.i; await DB.mutate('cards', d.id, c => { if (!c) return undefined; c.notas = (c.notas || []).filter((x, k) => k !== i); return c; }); pintarModal(); } });
+};
 // ================= frituras em aberto (v20, JP 26/11/2026) =================
 // No rodapé da cozinha: tudo o que a fritura ainda precisa entregar, na ordem da fila, com o tempo de cada pedido.
 // Quem chega sabe o que falta; quem frita vê a fila. Some sozinho quando o prato é marcado FEITO.
@@ -2213,9 +2361,20 @@ function colunaPedido(d) {
   if (d.status === 'fim') return 'posvenda';
   if (d.status === 'despachado') return 'despachado';
   if (d.status === 'pronto') return 'pronto';
-  if (!(d.pg && d.pg.confirmado) && d.nPedido === 1) return 'pagamento';
+  // v22 (JP, 27/11/2026): todo pedido do link espera o pagamento; a base confirma e só então a cozinha conta o tempo
+  if (!(d.pg && d.pg.confirmado)) return 'pagamento';
   return 'preparo';
 }
+// Entrega do delivery (v22): Uber Flash (o cliente chama a moto) ou moto do iFood (a casa chama). Combinada no WhatsApp
+// e marcada na base; vai para a TV, para o painel do despacho e para a mensagem de pronto. 'retirada' (antigo) = Uber Flash.
+const ENTREGAS = [['uber', 'Uber Flash', 'hail'], ['moto', 'Moto iFood', 'two_wheeler']];
+const tipoEntrega = t => t === 'retirada' ? 'uber' : (t || '');
+const rotEntrega = t => ({ uber: 'Uber Flash', moto: 'Moto iFood' })[tipoEntrega(t)] || 'entrega a definir';
+const icEntrega = t => ({ uber: 'hail', moto: 'two_wheeler' })[tipoEntrega(t)] || 'help';
+// Mensagens do WhatsApp (JP, 26 e 27/11/2026)
+const MSG_FIM_PEDIDO = 'Eii trem, já finalizei meu pedido 😌\n\nQuais são as formas de pagamento e de frete por favor 🙋';
+const MSG_UBER_PRONTO = 'Seu pedido está pronto. Sua entrega é através do *Uber flash* pode enviar a moto 😊 _por favor me informe o nome do motoboy, a placa e tempo._ ✔️\n\nAo solicitar o Uber se lembre de ativar a opção de código ✅ Assim você aumenta a segurança do frete ⚠️';
+const MSG_POS_VENDA = 'Se importa de avaliar o Seu Trem no Google? É muito importante pra gente poder crescer!! ♥️ https://g.page/r/CdNsgbKQkix9EB0/review';
 function totalPedido(d) { return r2(subtotal(d.itens) + (d.frete || 0)); }
 function sugestaoFrete(bairro) {
   const b = norm(bairro); if (!b) return null;
@@ -2234,8 +2393,8 @@ function msgCobranca(d) {
   return s + `\n\n${FRASE}`;
 }
 function telaWhatsApp() {
-  const cols = [['frete', 'Aguardando frete'], ['pagamento', 'Aguardando pagamento'], ['preparo', 'Em preparo'], ['pronto', 'Pronto'], ['despachado', 'Despachado'], ['posvenda', 'Pós-venda']];
   const ped = S.delivery.filter(d => d.noiteId === noiteId() || !['fim', 'cancelado'].includes(d.status)).sort((a, b) => a.ts - b.ts);
+  const cols = [['frete', 'Aguardando frete'], ['pagamento', 'Aguardando pagamento'], ['preparo', 'Em preparo'], ['pronto', 'Pronto'], ['despachado', 'Despachado'], ['posvenda', 'Pós-venda']].filter(([k]) => k !== 'frete' || ped.some(d => colunaPedido(d) === 'frete'));
   const linkPedido = BQ + 'v=pedido';
   let h = `<div class="entre" style="margin-bottom:12px"><div><h2 style="margin:0">WhatsApp do dia</h2><div class="sub">Link para a saudação do WhatsApp: ${esc(linkPedido)}</div></div>
     <div class="linha"><button class="bt" data-a="copiar" data-c="${esc(linkPedido)}">${ic('content_copy')} Copiar link</button><button class="bt ton" data-a="link" data-c="${esc(linkPedido)}">${ic('add')} Lançar pedido</button></div></div><div class="kanban" data-rola="kanban">`;
@@ -2248,9 +2407,11 @@ function telaWhatsApp() {
 function cardPedido(d, col) {
   const tot = totalPedido(d); const pg = d.pg || {};
   let h = `<div class="pd"><div class="entre"><span class="pt">#${d.num} · ${esc(d.cliente.nome)}</span><span class="sub">${hora(d.ts)}</span></div>
-    <div class="linha"><span class="tag ${d.nPedido > 1 ? 'ok' : 'aviso'}">${ordinal(d.nPedido)} pedido</span><span class="tag cinza">${d.entrega.tipo === 'moto' ? 'moto iFood' : 'Uber Flash'}</span><span class="tag cinza">${d.pagamento === 'pix' ? 'PIX' : 'cartão'}</span></div>
+    <div class="linha"><span class="tag ${d.nPedido > 1 ? 'ok' : 'aviso'}">${ordinal(d.nPedido)} pedido</span><span class="tag ${tipoEntrega(d.entrega.tipo) ? 'cinza' : 'aviso'}">${ic(icEntrega(d.entrega.tipo))} ${rotEntrega(d.entrega.tipo)}</span>${d.pagamento ? `<span class="tag cinza">${d.pagamento === 'pix' ? 'PIX' : 'cartão'}</span>` : ''}${d.embaladoEm ? '<span class="tag ok">pacote pronto ✓</span>' : ''}</div>
+    <div class="sub">${ic('call')} ${esc(d.cliente.tel)}</div>
     <div class="sub">${d.itens.map(i => esc(i.nome)).join(' · ')}</div>
-    ${d.entrega.tipo === 'moto' ? `<div class="sub">${ic('location_on')} ${esc([d.entrega.rua, d.entrega.numero, d.entrega.compl, d.entrega.bairro].filter(Boolean).join(', '))}${d.entrega.ref ? ' · ' + esc(d.entrega.ref) : ''}</div>` : ''}
+    ${d.entrega.rua ? `<div class="sub">${ic('location_on')} ${esc([d.entrega.rua, d.entrega.numero, d.entrega.compl, d.entrega.bairro].filter(Boolean).join(', '))}${d.entrega.ref ? ' · ' + esc(d.entrega.ref) : ''}</div>` : ''}
+    ${['pagamento', 'preparo', 'pronto'].includes(col) ? `<div class="pd-sec">Entrega</div><div class="chips">${ENTREGAS.map(([k, l, i]) => `<button class="chip ${tipoEntrega(d.entrega.tipo) === k ? 'on' : ''}" data-a="pdEntrega" data-id="${d.id}" data-c="${k}">${ic(i)} ${l}</button>`).join('')}</div>` : ''}
     <div><b>${R(tot)}</b>${d.frete ? ` <span class="sub">(frete ${R(d.frete)})</span>` : ''}</div>
     <div class="linha">${pg.ip && pg.ip.paid ? `<span class="tag ok">InfinitePay pago ✓</span>` : ''}${pg.comprovante ? '<span class="tag ok">comprovante ✓</span>' : ''}${pg.confirmado ? `<span class="tag ok">pago · ${esc(pg.forma || '')}</span>` : '<span class="tag aviso">pagamento a confirmar</span>'}</div>`;
   if (col === 'frete') {
@@ -2259,18 +2420,37 @@ function cardPedido(d, col) {
       <button class="bt pri" data-a="salvarFrete" data-id="${d.id}">${ic('send')} Salvar frete e cobrar</button>`;
   }
   if (!pg.confirmado && col !== 'frete') {
-    h += `<label class="sub"><input type="checkbox" data-ch="comprovante" data-id="${d.id}" ${pg.comprovante ? 'checked' : ''}> comprovante recebido no WhatsApp</label>
-      <div class="linha">${(d.pagamento === 'cartao' ? ['Cartão (link InfinitePay)'] : ['PIX']).map(f => `<button class="chip" data-a="confPg" data-id="${d.id}" data-c="${f}">${ic('check')} Pago: ${f}</button>`).join('')}</div>`;
-    if (d.pagamento === 'cartao' && !pg.link) h += `<button class="bt" data-a="gerarLink" data-id="${d.id}">${ic('link')} Gerar link do cartão</button>`;
-    h += `<button class="bt txt" data-a="cobrar" data-id="${d.id}">${ic('chat')} Mandar cobrança</button>`;
+    const fk = 'frete-' + d.id;
+    h += `<div class="pd-sec">Pagamento</div><div class="chips">${[['pix', 'PIX', 'qr_code'], ['cartao', 'Cartão (link)', 'credit_card']].map(([k, l, i]) => `<button class="chip ${d.pagamento === k ? 'on' : ''}" data-a="pdPgto" data-id="${d.id}" data-c="${k}">${ic(i)} ${l}</button>`).join('')}</div>
+      ${tipoEntrega(d.entrega.tipo) === 'moto' ? `<div class="linha" style="margin-top:6px"><input id="${fk}" class="inp" style="flex:1;min-width:0" data-f="${fk}" inputmode="decimal" placeholder="Frete R$ (moto iFood)" value="${esc(F[fk] != null ? F[fk] : (d.frete ? String(d.frete).replace('.', ',') : ''))}"><button class="bt" data-a="pdFrete" data-id="${d.id}">${ic('save')}</button></div>` : ''}
+      <button class="bt" data-a="cobrar" data-id="${d.id}" ${d.pagamento ? '' : 'disabled'}>${ic('send')} Mandar cobrança${d.pagamento ? ' · ' + R(tot) : ''}</button>
+      <label class="sub"><input type="checkbox" data-ch="comprovante" data-id="${d.id}" ${pg.comprovante ? 'checked' : ''}> comprovante recebido no WhatsApp</label>
+      <div class="pd-ok"><span class="sub">Recebeu? Confirme e a cozinha começa:</span><div class="linha">${[['PIX', 'PIX'], ['Cartão (link InfinitePay)', 'Cartão']].map(([f, l]) => `<button class="bt verde" data-a="confPg" data-id="${d.id}" data-c="${f}">${ic('task_alt')} Pago: ${l}</button>`).join('')}</div></div>`;
+    if (d.pagamento === 'cartao' && !pg.link) h += `<button class="bt txt" data-a="gerarLink" data-id="${d.id}">${ic('link')} Gerar link do cartão</button>`;
   }
   if (col === 'pronto') h += `<button class="bt verde" data-a="avisarPronto" data-id="${d.id}">${ic('notifications')} Avisar que está pronto</button><button class="bt pri" data-a="despachar" data-id="${d.id}">${ic('local_shipping')} Despachado</button>`;
   if (col === 'despachado') h += `<button class="bt" data-a="posVenda" data-id="${d.id}">${ic('favorite')} Pós-venda</button>`;
-  h += `<div class="linha"><button class="bt txt" data-a="link" data-c="${esc(wa(d.cliente.tel, 'Olá, ' + d.cliente.nome + '!'))}">${ic('chat')} conversa</button>${['frete', 'pagamento', 'preparo'].includes(col) ? `<button class="bt txt verm" data-a="cancelarPedido" data-id="${d.id}">cancelar</button>` : ''}</div></div>`;
+  h += `<div class="linha"><button class="bt txt" data-a="conversaPd" data-id="${d.id}">${ic('chat')} conversa</button>${['frete', 'pagamento', 'preparo'].includes(col) ? `<button class="bt txt verm" data-a="cancelarPedido" data-id="${d.id}">cancelar</button>` : ''}</div></div>`;
   return h;
 }
 const pedidoDe = id => S.delivery.find(x => x.id === id);
 A.sugFrete = d => { F['frete-' + d.id] = String(d.c).replace('.', ','); render(); };
+// v22: entrega e forma de pagamento combinadas no WhatsApp, marcadas aqui (a entrega vai para a TV e o despacho)
+A.pdEntrega = async d => {
+  const p = pedidoDe(d.id); if (!p) return; const novo = tipoEntrega(p.entrega.tipo) === d.c ? '' : d.c;
+  const ops = [{ op: 'update', c: 'delivery', id: d.id, data: { entrega: Object.assign({}, p.entrega, { tipo: novo || null }) } }];
+  S.cards.filter(c => c.refId === d.id).forEach(c => ops.push({ op: 'update', c: 'cards', id: c.id, data: { entrega: novo || null } }));
+  await DB.batch(ops);
+};
+A.pdPgto = d => { const p = pedidoDe(d.id); if (!p) return; return DB.update('delivery', d.id, { pagamento: p.pagamento === d.c ? null : d.c }); };
+A.pdFrete = async d => {
+  const v = r2(parseFloat(String(F['frete-' + d.id] || '').replace(',', '.')));
+  if (!(v >= 0)) { toast('Digite o frete'); return; }
+  const p = pedidoDe(d.id); await DB.update('delivery', d.id, { frete: v }); F['frete-' + d.id] = null;
+  if (p && p.entrega && p.entrega.bairro) DB.set('fretes', uid(), { bairro: norm(p.entrega.bairro), valor: v, ts: agora(), por: quem() }).catch(() => {});
+  toast('Frete salvo: ' + R(v));
+};
+A.conversaPd = d => { const p = pedidoDe(d.id); if (p) abrirWaCasa(p.cliente.tel, 'Olá, ' + p.cliente.nome + '!'); };
 A.salvarFrete = async d => {
   const v = r2(parseFloat(String(F['frete-' + d.id] || '').replace(',', '.')));
   if (!(v >= 0)) { toast('Digite o frete'); return; }
@@ -2280,20 +2460,22 @@ A.salvarFrete = async d => {
   await DB.set('fretes', uid(), { bairro: norm(p.entrega.bairro), valor: v, ts: agora(), por: quem() });
   const atual = Object.assign({}, p, { frete: v });
   if (p.pagamento === 'cartao') { try { const link = await criarLinkIP(atual, totalPedido(atual)); atual.pg = Object.assign({}, p.pg, { link }); await DB.update('delivery', d.id, { pg: atual.pg }); } catch (e) { toast(e.message); } }
-  abrir(wa(p.cliente.tel, msgCobranca(atual)));
+  abrirWaCasa(p.cliente.tel, msgCobranca(atual));
 };
 A.gerarLink = async d => {
   const p = pedidoDe(d.id);
-  try { const link = await criarLinkIP(p, totalPedido(p)); const pg = Object.assign({}, p.pg, { link }); await DB.update('delivery', d.id, { pg }); abrir(wa(p.cliente.tel, msgCobranca(Object.assign({}, p, { pg })))); }
+  try { const link = await criarLinkIP(p, totalPedido(p)); const pg = Object.assign({}, p.pg, { link }); await DB.update('delivery', d.id, { pg }); abrirWaCasa(p.cliente.tel, msgCobranca(Object.assign({}, p, { pg }))); }
   catch (e) { toast(e.message + ' · gere o link no app da InfinitePay e cole na conversa'); }
 };
-A.cobrar = d => { const p = pedidoDe(d.id); abrir(wa(p.cliente.tel, msgCobranca(p))); };
+A.cobrar = d => { const p = pedidoDe(d.id); if (!p.pagamento) { toast('Marque PIX ou cartão'); return; } abrirWaCasa(p.cliente.tel, msgCobranca(p)); };
 CH.comprovante = (el, d) => { const p = pedidoDe(d.id); DB.update('delivery', d.id, { pg: Object.assign({}, p.pg, { comprovante: el.checked }) }); };
 A.confPg = d => confirmarPagamento(d.id, d.c);
 A.avisarPronto = d => {
   const p = pedidoDe(d.id);
-  const txt = p.entrega.tipo === 'moto' ? `Oi, ${p.cliente.nome}! Seu pedido ${p.num} está pronto e a moto já vai sair. ${FRASE}` : `Oi, ${p.cliente.nome}! Pedido ${p.num} pronto! Pode chamar o Uber Flash para o endereço: ${cfg().endereco || '(endereço da casa)'}. Na chegada, é só falar o nome ${p.cliente.nome}.`;
-  abrir(wa(p.cliente.tel, txt)); DB.update('delivery', d.id, { avisadoEm: agora() });
+  const t = tipoEntrega(p.entrega.tipo);
+  if (!t) { toast('Marque a entrega: Uber Flash ou moto iFood'); return; }
+  const txt = t === 'moto' ? `Oi, ${p.cliente.nome}! Seu pedido ${p.num} está pronto e a moto já vai sair. ${FRASE}` : MSG_UBER_PRONTO;
+  abrirWaCasa(p.cliente.tel, txt); DB.update('delivery', d.id, { avisadoEm: agora() });
 };
 A.despachar = async d => {
   const p = pedidoDe(d.id);
@@ -2303,13 +2485,14 @@ A.despachar = async d => {
     id: 'w' + p.id, noiteId: noiteId(), canal: 'whatsapp', marca: 'st', ref: 'Pedido ' + p.num + ' · ' + p.cliente.nome, cliente: p.cliente,
     itens: itensValidos(p.itens).map(i => ({ cod: i.cod, nome: i.nome, preco: precoItem(i), desc: descItem(i) })),
     subtotal: subtotal(p.itens), dez: 0, frete: p.frete || 0, total: subtotal(p.itens),
-    pagamentos: [{ forma: (p.pg && p.pg.forma) || (p.pagamento === 'pix' ? 'PIX' : 'Cartão'), valor: totalPedido(p), por: (p.pg && p.pg.por) || quem(), ts: (p.pg && p.pg.em) || agora(), txid: p.pagamento === 'pix' ? 'P' + p.num : undefined }],
+    entrega: tipoEntrega(p.entrega.tipo) || null,
+    pagamentos: [{ forma: (p.pg && p.pg.forma) || (p.pagamento === 'pix' ? 'PIX' : 'Cartão'), valor: totalPedido(p), por: (p.pg && p.pg.por) || quem(), ts: (p.pg && p.pg.em) || agora(), txid: p.pagamento === 'pix' ? 'P' + p.num : null }],
     comprovante: !!(p.pg && p.pg.comprovante), infinitepay: (p.pg && p.pg.ip) || null, abertaEm: p.ts, fechadaEm: agora(), por: quem()
   });
 };
 A.posVenda = d => {
   const p = pedidoDe(d.id);
-  abrir(wa(p.cliente.tel, `Oi, ${p.cliente.nome}! Aqui é do Seu Trem. Chegou tudo certinho? Conta pra gente o que achou do pedido ${p.num}: a sua resposta ajuda a gente a melhorar.`));
+  abrirWaCasa(p.cliente.tel, MSG_POS_VENDA);
   DB.update('delivery', d.id, { status: 'fim', posVendaEm: agora() });
 };
 A.cancelarPedido = d => pedirAutorizacao('Cancelar o pedido?', async (pe, motivo) => {
@@ -2411,24 +2594,44 @@ function melhorProduto(nome, tipo) {
 }
 let ocr = null;
 // Print do iFood (JP, 25/11/2026): primeiro a IA, que devolve o pedido no formato do Gestor; se falhar, o Tesseract
+// v22 (JP, 26 e 27/11/2026: "colei o print, leu e depois não aconteceu nada"): a leitura agora tem prazo e aparece na
+// tela com contagem regressiva ("Processando… 25 s"). A IA tem até 30 s; se não responder, o leitor do navegador tenta
+// por até 60 s; se nada der certo, a tela diz o motivo e o caminho mais rápido (copiar o texto do pedido no gestor).
+const comPrazo = (p, ms, msg) => Promise.race([p, new Promise((_, erro) => setTimeout(() => erro(new Error(msg)), ms))]);
+let timerSeg = null;
+function etapaLeitura(txt, seg) {
+  S.ui.lendoIf = { txt, ate: agora() + seg * 1000 }; render();
+  if (!timerSeg) timerSeg = setInterval(() => { document.querySelectorAll('[data-seg]').forEach(el => { el.textContent = Math.max(0, Math.ceil((+el.dataset.seg - agora()) / 1000)); }); }, 500);
+}
+function fimLeitura(erro) { clearInterval(timerSeg); timerSeg = null; S.ui.lendoIf = null; S.ui.erroIf = erro || ''; render(); }
 async function lerPrint(arquivo) {
-  toast('A IA está lendo o print…');
-  try { const t = await iaLerIfood(arquivo); if (/itens no pedido/i.test(t)) return '[IA] lido pela IA\n' + t; } catch (e) { console.warn('iFood pela IA', e); }
-  toast('Lendo o print com o leitor do navegador…');
-  if (!window.Tesseract) await new Promise((ok, erro) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = ok; s.onerror = erro; document.head.appendChild(s); });
-  const r = await Tesseract.recognize(arquivo, 'por');
+  S.ui.erroIf = ''; let motivo = '';
+  etapaLeitura('A IA está lendo o print', 30);
+  try { const t = await comPrazo(iaLerIfood(arquivo), 30000, 'a IA passou de 30 s sem responder'); if (/itens no pedido/i.test(t)) etapaLeitura('Pedido lido', 1); if (/itens no pedido/i.test(t)) return '[IA] lido pela IA\n' + t; motivo = 'a IA não achou os itens no print'; console.warn('iFood pela IA sem itens:', t); }
+  catch (e) { motivo = String((e && e.message) || e); console.warn('iFood pela IA', e); }
+  etapaLeitura('A IA não respondeu (' + motivo + '). Lendo com o leitor do navegador', 60);
+  if (!window.Tesseract) await comPrazo(new Promise((ok, erro) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = ok; s.onerror = () => erro(new Error('sem internet para o leitor')); document.head.appendChild(s); }), 20000, 'o leitor do navegador não carregou');
+  const r = await comPrazo(Tesseract.recognize(arquivo, 'por'), 60000, 'o leitor do navegador passou de 60 s');
   return r.data.text;
+}
+async function lerPrintNaTela(arquivo) {
+  try { F.ifoodTxt = await lerPrint(arquivo); fimLeitura(); prepararIfood(F.ifoodTxt); if (!S.ui.ifood || !S.ui.ifood.itens.length) S.ui.erroIf = 'Li o print, mas não achei os itens do pedido.'; render(); }
+  catch (e) { fimLeitura('Não consegui ler o print: ' + ((e && e.message) || e) + '.'); }
 }
 function telaIfood() {
   const it = S.ui.ifood;
+  const lendo = S.ui.lendoIf;
   let h = `<h2>iFood na mesma fila</h2><p class="sub">Mais rápido: no gestor do iFood, com o pedido aberto e a lista de itens à vista, tecle <b>Win+Shift+S</b>, recorte o painel do pedido (do número até o subtotal) e cole aqui com <b>Ctrl+V</b>. Também vale colar o texto copiado do pedido. Confira o card e mande para a TV.</p>
     <textarea id="ifoodTxt" class="inp" data-f="ifoodTxt" placeholder="Cole o pedido aqui (Ctrl+V)">${esc(F.ifoodTxt || '')}</textarea>
     <div class="linha" style="margin:10px 0"><button class="bt pri" data-a="lerIfood">${ic('auto_fix_high')} Ler o pedido</button>
     <label class="bt">${ic('image')} Escolher print<input type="file" accept="image/*" data-ch="printIfood" style="display:none"></label></div>`;
+  if (lendo) h += `<div class="card lendo-if"><span class="giro"></span><div><b>Processando…</b> <span class="seg"><b data-seg="${lendo.ate}">${Math.max(0, Math.ceil((lendo.ate - agora()) / 1000))}</b> s</span><div class="sub">${esc(lendo.txt)}</div></div></div>`;
+  if (S.ui.erroIf && !lendo) h += `<div class="card erro-if">${ic('error')}<div><b>${esc(S.ui.erroIf)}</b><div class="sub">O jeito mais rápido e certeiro: no Gestor de Pedidos, abra o pedido, selecione do número até o subtotal, copie (Ctrl+C) e cole aqui (Ctrl+V). O texto é lido na hora, sem IA. Ou lance os itens pela busca.</div></div><button class="bt-ic" data-a="fechaErroIf">${ic('close')}</button></div>`;
   if (it) {
     h += `<div class="card"><div class="linha"><div class="campo" style="flex:1"><label>Nº do pedido</label><input id="ifNum" class="inp" data-f="ifNum" value="${esc(F.ifNum || '')}"></div>
       <div class="campo" style="width:120px"><label>Hora</label><input id="ifHora" class="inp" data-f="ifHora" placeholder="20:15" value="${esc(F.ifHora || '')}"></div></div>
-      <div class="chips" style="margin-bottom:10px"><button class="chip ${it.marca === 'st' ? 'on' : ''}" data-a="ifMarca" data-c="st">Seu Trem</button><button class="chip ${it.marca === 'ladob' ? 'on' : ''}" data-a="ifMarca" data-c="ladob" style="${it.marca === 'ladob' ? 'background:var(--ladob);color:#fff' : ''}">Lado B</button></div>
+      <div class="chips" style="margin-bottom:10px"><button class="chip ${it.marca === 'st' ? 'on' : ''}" data-a="ifMarca" data-c="st">Seu Trem</button><button class="chip ${it.marca === 'ladob' ? 'on' : ''}" data-a="ifMarca" data-c="ladob" style="${it.marca === 'ladob' ? 'background:var(--ladob);color:#fff' : ''}">Lado B</button>
+        <span class="sep-v"></span>${ENTREGAS.map(([k, l, i]) => `<button class="chip ${(it.entrega || 'moto') === k ? 'on' : ''}" data-a="ifEntrega" data-c="${k}">${ic(i)} ${l}</button>`).join('')}</div>
       <div class="itens">${it.itens.map((x, i) => `<div class="item"><div class="corpo">${x.item ? `<div class="nm">${esc(x.item.nome)}</div>${descItem(x.item).map(l => `<div class="troca">${esc(l)}</div>`).join('')}` : `<div class="nm" style="color:var(--vermelho)">Não reconhecido: ${esc(x.texto)}</div><div class="sub">Tire e lance pela busca abaixo.</div>`}<div class="sub">do iFood: ${esc(x.texto || '')}</div></div><button class="bt-ic" data-a="ifTirar" data-i="${i}">${ic('close')}</button></div>`).join('')}</div>
       <div class="busca" style="margin-top:10px">${ic('search')}<input id="buscaIf" data-f="buscaIf" data-vivo placeholder="Acrescentar item (código ou nome)" value="${esc(F.buscaIf || '')}" autocomplete="off"></div>
       ${buscar(F.buscaIf).length ? `<div class="resultados">${buscar(F.buscaIf).map(p => `<div class="res" data-a="ifAdd" data-c="${p.cod}"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}</span></div>`).join('')}</div>` : ''}
@@ -2443,8 +2646,9 @@ function prepararIfood(txt) {
   F.ifNum = r.num; F.ifHora = r.hora;
   if (r.obs.length && r.itens[0]) r.itens[0].obs = [r.itens[0].obs].concat(r.obs).filter(Boolean).join(', ');
   if (!r.itens.length) toast('Não achei itens no texto. Copie o pedido inteiro no gestor (do número até "Pago via iFood") ou lance pela busca.');
+  S.ui.erroIf = '';
   S.ui.ifood = {
-    marca: r.marca,
+    marca: r.marca, entrega: 'moto',
     itens: r.itens.map(x => {
       if (!x.cod) return { texto: x.texto, item: null };
       const p = P[x.cod]; let it;
@@ -2458,11 +2662,13 @@ function prepararIfood(txt) {
   render();
 }
 A.lerIfood = () => { if (!F.ifoodTxt) { toast('Cole o pedido primeiro'); return; } prepararIfood(F.ifoodTxt); };
-CH.printIfood = async el => { const f = el.files[0]; if (!f) return; try { F.ifoodTxt = await lerPrint(f); prepararIfood(F.ifoodTxt); } catch (e) { toast('Não consegui ler o print'); } };
+CH.printIfood = async el => { const f = el.files[0]; el.value = ''; if (!f) return; return lerPrintNaTela(f); };
+A.fechaErroIf = () => { S.ui.erroIf = ''; render(); };
+A.ifEntrega = d => { S.ui.ifood.entrega = d.c; render(); };
 document.addEventListener('paste', async e => {
   if (VIEW !== 'base' || S.ui.aba !== 'ifood') return;
   const img = [...(e.clipboardData || {}).items || []].find(i => i.type && i.type.indexOf('image') === 0);
-  if (img) { e.preventDefault(); try { F.ifoodTxt = await lerPrint(img.getAsFile()); prepararIfood(F.ifoodTxt); } catch (x) { toast('Não consegui ler o print'); } return; }
+  if (img) { e.preventDefault(); if (S.ui.lendoIf) { toast('Ainda lendo o print anterior…'); return; } return lerPrintNaTela(img.getAsFile()); }
   // Texto colado na caixa do iFood: já lê sozinho (um clique a menos)
   if (e.target && e.target.id === 'ifoodTxt') setTimeout(() => { F.ifoodTxt = e.target.value; if (F.ifoodTxt.trim()) prepararIfood(F.ifoodTxt); }, 0);
 });
@@ -2474,7 +2680,7 @@ A.ifConfirmar = async () => {
   let ts = agora();
   if (/^\d{1,2}:\d{2}$/.test(F.ifHora || '')) { const [hh, mm] = F.ifHora.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0); if (d.getTime() <= agora() + 60000) ts = d.getTime(); }
   const ref = (F.ifNum ? '#' + F.ifNum : 'iFood ' + hora(ts));
-  const base = { origem: 'ifood', marca: it.marca, ref, refId: 'if-' + (F.ifNum || uid()), criadoEm: ts, inicio: ts, ordem: ts };
+  const base = { origem: 'ifood', marca: it.marca, entrega: it.entrega || 'moto', ref, refId: 'if-' + (F.ifNum || uid()), criadoEm: ts, inicio: ts, ordem: ts };
   const ops = [];
   ['cozinha', 'bar'].forEach(s => { const g = itens.filter(i => temSetor(i, s)); if (g.length) { const c = cardNovo(s, g, base); ops.push({ op: 'set', c: 'cards', id: c.id, data: c }); } });
   ops.push({ op: 'set', c: 'vendas', id: 'i' + base.refId, data: { id: 'i' + base.refId, noiteId: noiteId(), canal: 'ifood', marca: it.marca, ref: 'iFood ' + ref, itens: itens.map(i => ({ cod: i.cod, nome: i.nome, preco: precoItem(i), desc: descItem(i) })), subtotal: subtotal(itens), dez: 0, frete: 0, total: subtotal(itens), referencia: true, pagamentos: [{ forma: 'iFood', valor: subtotal(itens) }], abertaEm: ts, fechadaEm: agora(), por: quem() } });
@@ -2483,7 +2689,44 @@ A.ifConfirmar = async () => {
 };
 
 // ================= noite: links, relatório, nova noite =================
+// Forma de pagamento curta, do jeito que JP lança as notas à mão (v22, 27/11/2026): 70 pix · 40 c.c · 50 c.d
+const formaCurta = f => ({ 'PIX': 'pix', 'Crédito': 'c.c', 'Débito': 'c.d', 'Dinheiro': 'din' })[f] || (/pix/i.test(f) ? 'pix' : /cr[eé]d|cart/i.test(f) ? 'c.c' : /d[eé]b/i.test(f) ? 'c.d' : String(f || '').toLowerCase());
+function pagCurto(v) { const g = {}; (v.pagamentos || []).forEach(p => { const k = formaCurta(p.forma); g[k] = r2((g[k] || 0) + p.valor); }); return Object.entries(g).map(([k, x]) => `${brN(x)} ${k}`).join(' · '); }
+function itensAgrupados(itens) { const g = []; (itens || []).forEach(i => { const k = i.nome + '|' + i.preco + '|' + (i.descPct || 0) + '|' + (i.desc || []).join(','); const x = g.find(y => y.k === k); if (x) x.q++; else g.push({ k, q: 1, i }); }); return g; }
+// Vendas da noite para as notas (v22, JP 27/11/2026): "as mesas da noite em uma lista com o nome de cada mesa; ao
+// clicar, abre a mesa: produtos, valores e como a conta foi paga, exatamente como a mesa passou". JP lança as NFC-e à
+// mão no fim do dia, uma a uma, e marca cada nota lançada (fica gravado na conferência da noite).
+function telaVendasNota(vs) {
+  const notas = (S.conf || {}).notas || {}; const ok = vs.filter(v => !v.cancelado); const feitas = ok.filter(v => notas[v.id]).length;
+  return `<div class="entre" style="margin:18px 0 8px;gap:8px;flex-wrap:wrap"><h3 style="margin:0">${ic('receipt_long')} Vendas da noite · notas</h3><span class="tag ${feitas === ok.length && ok.length ? 'ok' : 'cinza'}">${feitas} de ${ok.length} notas lançadas</span></div>
+    <div class="vendas-nota">${vs.map(v => { const nt = notas[v.id]; const nomes = (v.nomes || []).join(', ');
+      return `<button class="vn ${v.cancelado ? 'cancelada' : ''} ${nt ? 'ok' : ''}" data-a="verVenda" data-id="${esc(v.id)}"><span class="vn-h">${hora(v.fechadaEm)}</span>
+        <span class="vn-n"><b>${esc(v.ref)}</b><small><span class="tag ${v.canal}">${v.canal === 'salao' ? 'salão' : v.canal}</span>${v.marca === 'ladob' ? ' <span class="tag ladob">Lado B</span>' : ''}${nomes ? ' ' + esc(nomes) : ''}</small></span>
+        <span class="vn-v"><b>${R(v.total)}</b><small>${esc(pagCurto(v)) || (v.cancelado ? 'cancelada' : '—')}</small></span><span class="ms vn-ok">${nt ? 'task_alt' : 'chevron_right'}</span></button>`; }).join('') || '<div class="card vazio">Nenhuma venda fechada ainda.</div>'}</div>`;
+}
+A.verVenda = d => {
+  let cur = d.id;
+  abrirModal({
+    render() {
+      const v = S.vendas.find(x => x.id === cur); if (!v) return '<div class="vazio">Venda não encontrada.</div><button class="bt bloco" data-a="fecharModal">OK</button>';
+      const lista = S.vendas; const i = lista.indexOf(v); const nt = ((S.conf || {}).notas || {})[v.id];
+      return `<div class="entre"><h2 style="margin:0">${esc(v.ref)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+        <p class="sub" style="margin:4px 0 10px"><span class="tag ${v.canal}">${v.canal === 'salao' ? 'salão' : v.canal}</span> fechada às ${hora(v.fechadaEm)}${(v.nomes || []).length ? ' · ' + esc(v.nomes.join(', ')) : ''}${v.cancelado ? ' · <b style="color:var(--vermelho)">cancelada</b>' : ''}</p>
+        <div class="nota-itens">${itensAgrupados(v.itens).map(g => `<div class="total-linha"><span><b>${g.q}×</b> ${esc(g.i.nome)}${g.i.descPct ? ` <span class="tag desc">−${g.i.descFixo != null ? R(g.i.descFixo) : pctTxt(g.i.descPct)}</span>` : ''}${g.q > 1 ? `<br><span class="sub">${R(g.i.preco)} cada</span>` : ''}${(g.i.desc || []).length ? `<br><span class="sub">${esc(g.i.desc.join(' · '))}</span>` : ''}</span><span>${R(r2(g.i.preco * g.q))}</span></div>`).join('') || '<div class="sub">Sem itens.</div>'}</div>
+        <div class="total-linha"><span>Subtotal</span><span>${R(v.subtotal)}</span></div><div class="total-linha"><span>10%</span><span>${R(v.dez || 0)}</span></div>${v.frete ? `<div class="total-linha"><span>Frete (fora da nota)</span><span>${R(v.frete)}</span></div>` : ''}
+        <div class="total-linha forte"><span>Total da NFC-e</span><span>${R(v.total)}</span></div>
+        <div class="secao-t">Como pagou</div>
+        ${(v.pagamentos || []).map(p => `<div class="total-linha"><span><b>${esc(formaCurta(p.forma))}</b> · ${esc(p.forma)}${p.ts ? ` <span class="sub">${hora(p.ts)}${p.por ? ' · ' + esc(p.por) : ''}</span>` : ''}</span><b>${R(p.valor)}</b></div>`).join('') || '<div class="sub">Sem pagamento registrado.</div>'}
+        ${(v.pagamentos || []).length ? `<div class="pag-curto">${esc(pagCurto(v))}</div>` : ''}
+        ${v.cancelado ? '' : `<button class="bt bloco grande ${nt ? 'verde' : 'pri'}" style="margin-top:12px" data-a="notaFeita">${ic(nt ? 'task_alt' : 'receipt_long')} ${nt ? 'Nota lançada' : 'Marcar a nota como lançada'}</button>${nt ? `<p class="sub" style="text-align:center;margin:6px 0 0">marcada por ${esc(nt.por)} às ${hora(nt.em)} · toque de novo para desmarcar</p>` : ''}`}
+        <div class="linha" style="margin-top:12px"><button class="bt" data-a="vizinha" data-c="-1" ${i > 0 ? '' : 'disabled'}>${ic('chevron_left')} Anterior</button><span style="flex:1;text-align:center" class="sub">${i + 1} de ${lista.length}</span><button class="bt" data-a="vizinha" data-c="1" ${i < lista.length - 1 ? '' : 'disabled'}>Próxima ${ic('chevron_right')}</button></div>`;
+    },
+    vizinha(dd) { const l = S.vendas; const i = l.findIndex(x => x.id === cur) + (+dd.c); if (l[i]) { cur = l[i].id; pintarModal(); } },
+    async notaFeita() { const id = cur; await salvarConf(c => { c.notas = c.notas || {}; if (c.notas[id]) delete c.notas[id]; else c.notas[id] = { por: quem(), em: agora() }; }); pintarModal(); }
+  });
+};
 function telaNoite() {
+  assinarPrecos(); assinarCompras(); // o CSV da noite leva as compras do dia seguinte
   const n = cfg().noite || {}; const linkG = `${BQ}v=garcom&t=${n.token}`; const linkC = `${BQ}v=cozinha`;
   const vs = S.vendas; const tot = r2(vs.reduce((s, v) => s + v.total, 0));
   const formas = {}; vs.forEach(v => (v.pagamentos || []).forEach(p => { formas[p.forma] = r2((formas[p.forma] || 0) + p.valor); }));
@@ -2494,21 +2737,25 @@ function telaNoite() {
     <div class="card"><h3>${ic('smartphone')} Link dos garçons desta noite</h3><div class="qr" data-qr="${esc(linkG)}"></div><div class="copia">${esc(linkG)}</div>
       <div class="linha" style="margin-top:8px"><button class="bt" data-a="copiar" data-c="${esc(linkG)}">${ic('content_copy')} Copiar</button></div><p class="sub">O link muda a cada "Nova noite". Cada um entra com o próprio código.</p></div>
     <div class="card"><h3>${ic('tv')} Cozinha (celular da TV)</h3><div class="qr" data-qr="${esc(linkC)}"></div><div class="copia">${esc(linkC)}</div>
+      <div class="linha" style="margin-top:8px"><button class="bt" data-a="copiar" data-c="${esc(linkC)}">${ic('content_copy')} Copiar</button></div>
       <p class="sub">Abre no celular da cozinha, entra com um código de cozinha ou gerente e espelha na TV com o celular deitado.</p></div>
     <div class="card"><h3>${ic('dark_mode')} Noite</h3><p>Começou ${dataBR(n.inicio)} às ${hora(n.inicio)}.</p><p class="sub">Nova noite: novo link dos garçons, limpa a fila da cozinha e começa outro relatório. Mesas abertas impedem.</p>
-      <button class="bt verm" data-a="novaNoite">${ic('restart_alt')} Nova noite</button></div></div>
-    <div class="entre nao-imprimir" style="margin:20px 0 10px"><h2 style="margin:0">Relatório da noite</h2><div class="linha">
+      <button class="bt verm" data-a="novaNoite">${ic('restart_alt')} Nova noite</button></div></div>`;
+  if (!podeSensivel()) return h + `<div style="margin-top:20px">${avisoGestor('Relatório da noite e conferência do caixa')}</div>`;
+  h += `<div class="entre nao-imprimir" style="margin:20px 0 10px"><h2 style="margin:0">Relatório da noite</h2><div class="linha">
       <select class="inp" style="width:auto" data-ch="verNoite">${[n.id].concat((cfg().noites || []).map(x => x.id)).map(id => `<option ${id === S.ui.noiteVer ? 'selected' : ''} value="${id}">${id === n.id ? 'Noite atual' : id}</option>`).join('')}</select>
       <button class="bt" data-a="imprimir">${ic('print')} Imprimir / PDF</button><button class="bt" data-a="csv">${ic('download')} Planilha (CSV)</button><button class="bt" data-a="fiscalExportar" title="Toda terça: a semana de quarta a segunda">${ic('outbox')} Semana para o fiscal</button></div></div>
     <div class="kpis"><div class="kpi"><div class="v">${R(tot)}</div><div class="l">Total para NFC-e (com 10%)</div></div><div class="kpi"><div class="v">${vs.filter(v => !v.cancelado).length}</div><div class="l">Vendas fechadas</div></div><div class="kpi"><div class="v">${R(dez)}</div><div class="l">10% incluído</div></div>${descs.length ? `<div class="kpi" style="border-color:var(--laranja)"><div class="v" style="color:var(--laranja)">−${R(totDesc)}</div><div class="l">${descs.length} desconto${descs.length > 1 ? 's' : ''} nas contas (pelo cardápio)</div></div>` : ''}
       ${Object.entries(canais).map(([k, v]) => `<div class="kpi"><div class="v">${R(v)}</div><div class="l">${k === 'salao' ? 'Salão' : k === 'ifood' ? 'iFood (pelo cardápio)' : 'WhatsApp'}</div></div>`).join('')}
       ${Object.entries(formas).map(([k, v]) => `<div class="kpi"><div class="v">${R(v)}</div><div class="l">${esc(k)}</div></div>`).join('')}</div>
-    <div class="card" style="overflow-x:auto"><table class="tab"><tr><th>Hora</th><th>Venda</th><th>Itens</th><th class="n">Subtotal</th><th class="n">10%</th><th class="n">Total NFC-e</th><th>Pagamentos</th></tr>
+    <div class="nao-imprimir">${telaVendasNota(vs)}</div>
+    <div class="card so-imprimir" style="overflow-x:auto"><table class="tab"><tr><th>Hora</th><th>Venda</th><th>Itens</th><th class="n">Subtotal</th><th class="n">10%</th><th class="n">Total NFC-e</th><th>Pagamentos</th></tr>
     ${vs.map(v => `<tr><td>${hora(v.fechadaEm)}</td><td><span class="tag ${v.canal}">${v.canal === 'salao' ? 'salão' : v.canal}</span>${v.marca === 'ladob' ? ' <span class="tag ladob">Lado B</span>' : ''}<br>${esc(v.ref)}${v.nomes && v.nomes.length ? '<br><span class="sub">' + esc(v.nomes.join(', ')) + '</span>' : ''}</td>
       <td>${v.itens.map(i => `${esc(i.nome)} <span class="sub">${i.descPct ? `<s>${R(i.cheio)}</s> ` : ''}${R(i.preco)}</span>${i.descPct ? ` <span class="tag desc">−${i.descFixo != null ? R(i.descFixo) : pctTxt(i.descPct)}</span>` : ''}`).join('<br>')}${v.frete ? `<br><span class="sub">frete ${R(v.frete)} (fora da nota)</span>` : ''}</td><td class="n">${R(v.subtotal)}</td><td class="n">${R(v.dez)}</td><td class="n"><b>${R(v.total)}</b></td>
       <td>${(v.pagamentos || []).map(p => `${esc(p.forma)} ${R(p.valor)}`).join('<br>')}${v.comprovante ? '<br><span class="tag ok">comprovante</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhuma venda fechada ainda.</td></tr>'}</table></div>
     <p class="sub">iFood entra pelo preço do cardápio (referência); o valor real e as taxas ficam na planilha de Gestão do iFood. O 10% está dentro do total da NFC-e até a contadora responder.</p>`;
-  return h + telaResumoIA() + telaRelConsumo() + telaRelCompras() + telaConferencia();
+  // v22 (JP, 27/11/2026): as compras ficam só na aba Compras e tarefas; os apontamentos delas vão no CSV da noite
+  return h + telaResumoIA() + telaRelConsumo() + telaConferencia();
 }
 // --- resumo da noite pela IA (JP, 25/11/2026): para ler em 30 segundos. Vai para a IA só o que é da operação
 // (itens, valores, canais, horários, descontos, consumo, cancelamentos, compras de amanhã); nome e telefone de cliente não.
@@ -2561,13 +2808,13 @@ function telaRelConsumo() {
   const grupo = [consumoGrupo(val)].concat(dsc.map(x => ['CI', x.nome, 1, paraD(x), 'Desconto', (x.fixo != null ? R(x.fixo) : pctTxt(x.pct)) + (x.motivo ? ', ' + x.motivo : '')].join(' | '))).filter(Boolean).join('\n');
   const plan = [consumoPlanilha(val, id)].concat(dsc.map(x => [dData, x.nome, 1, paraD(x), 'Desconto', obsD(x)].map(y => String(y).replace(/[\t\r\n]+/g, ' ')).join('\t'))).filter(Boolean).join('\n');
   let h = `<div class="entre" style="margin:28px 0 10px"><h2 style="margin:0">${ic('inventory_2')} Consumo interno e perdas</h2><span class="sub">não é venda · o fiscal valora pelo custo (R41)</span></div>
-    <div class="kpis">${CI_TIPOS.map(([t]) => `<div class="kpi"><div class="v">${porTipo[t] || 0}</div><div class="l">${t}</div></div>`).join('')}<div class="kpi"><div class="v">${val.reduce((s, c) => s + (+c.qtd || 1), 0)}</div><div class="l">Itens no total (contagem, sem valor)</div></div></div>
+    <div class="kpis">${CI_TIPOS.map(([t]) => { const n = (porTipo[t] || 0) + (t === 'Desconto' ? dsc.length : 0); return `<div class="kpi"${t === 'Desconto' && dsc.length ? ' style="border-color:var(--laranja)"' : ''}><div class="v">${n}</div><div class="l">${t}${t === 'Desconto' && dsc.length ? ` <span class="sub">(${dsc.length} nas contas · −${R(dsc.reduce((s, x) => s + (x.valor || 0), 0))})</span>` : ''}</div></div>`; }).join('')}<div class="kpi"><div class="v">${val.reduce((s, c) => s + (+c.qtd || 1), 0) + dsc.length}</div><div class="l">Itens no total (contagem, sem valor)</div></div></div>
     <div class="card" style="overflow-x:auto"><table class="tab"><tr><th>Hora</th><th>Item</th><th class="n">Qtd</th><th>Tipo</th><th>Para quem</th><th>Motivo</th><th>Pedido</th><th>Lançou</th></tr>
     ${todos.map(c => `<tr class="${c.apagado ? 'apagado' : ''}"><td>${hora(c.ts)}</td><td>${esc(c.item)}${c.livre ? ' <span class="tag cinza">livre</span>' : ''}</td><td class="n">${c.qtd}</td><td>${esc(c.tipo)}</td><td>${esc(paraQuem(c))}</td><td>${esc(c.motivo || '')}${c.apagado ? `<br><span class="sub">apagado: pediu ${esc(c.apagado.pediu)}, autorizou ${esc(c.apagado.autorizou)} · ${esc(c.apagado.motivo)}</span>` : ''}</td><td>${esc(c.pedido || '')}</td><td>${esc(c.por)}</td></tr>`).join('') || '<tr><td colspan="8" class="vazio">Nada lançado nesta noite.</td></tr>'}</table></div>`;
-  if (dsc.length) h += `<p class="sub" style="margin:8px 0 0">${ic('sell')} Descontos nas contas das mesas: ${dsc.length} (−${R(dsc.reduce((s, x) => s + (x.valor || 0), 0))} pelo cardápio). Entram nas cópias abaixo como tipo Desconto; o detalhe está na Conferência do caixa.</p>`;
-  if (val.length || dsc.length) h += `<div class="grade nao-imprimir" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));margin-top:10px">
-    <div class="card"><h3>${ic('forum')} Padrão do grupo do fiscal</h3><div class="copia" style="white-space:pre-wrap">${esc(grupo)}</div><button class="bt" style="margin-top:8px" data-a="copiar" data-c="${esc(grupo)}">${ic('content_copy')} Copiar</button></div>
-    <div class="card"><h3>${ic('table_view')} Para a planilha (aba Consumo interno)</h3><p class="sub">Data, item, quantidade, para quem, tipo e observação, separados por tabulação. O custo entra no fechamento do fiscal.</p><button class="bt" data-a="copiar" data-c="${esc(plan)}">${ic('content_copy')} Copiar linhas</button></div></div>`;
+  // v22 (JP, 27/11/2026): a Planilha (CSV) da noite já leva tudo ao fiscal (consumo, descontos, compras e a orientação
+  // dos cruzamentos); as cópias para o grupo saíram daqui. grupo e plan seguem calculados para quem ainda quiser colar.
+  void grupo; void plan;
+  if (dsc.length) h += `<p class="sub" style="margin:8px 0 0">${ic('sell')} Descontos nas contas das mesas: ${dsc.length} (−${R(dsc.reduce((s, x) => s + (x.valor || 0), 0))} pelo cardápio). Já contam no quadro Desconto acima e vão na Planilha (CSV) da noite como tipo Desconto; o detalhe está na Conferência do caixa.</p>`;
   return h;
 }
 
@@ -2613,11 +2860,13 @@ function telaConferencia() {
       return `<tr><td><b>${esc(n)}</b></td><td class="n">${R(x.PIX)}</td><td class="n">${R(x['Crédito'])}</td><td class="n">${R(x['Débito'])}</td><td class="n">${R(x.Dinheiro)}</td>
       <td class="n">${x.Dinheiro ? `${inputConf(k, 'R$', 'width:110px;min-height:36px')} ${dif(ent, x.Dinheiro)}` : '—'}</td>
       <td>${al.map(a => `<span class="tag aviso">${esc(a)}</span>`).join(' ') || '<span class="sub">nenhum</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="sub">Sem pagamentos ainda.</td></tr>'}</table></div>`;
-  h += `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));margin-bottom:10px"><div class="card"><h3>${ic('point_of_sale')} Maquininha (salão)</h3>
-    <div class="total-linha"><span>Crédito no sistema</span><b>${R(sysCred)}</b></div><div class="linha">${inputConf('maqCred', 'Crédito no relatório da maquininha', 'flex:1')}${dif(num('maqCred'), sysCred)}</div>
-    <div class="total-linha" style="margin-top:8px"><span>Débito no sistema</span><b>${R(sysDeb)}</b></div><div class="linha">${inputConf('maqDeb', 'Débito no relatório da maquininha', 'flex:1')}${dif(num('maqDeb'), sysDeb)}</div></div>
-    <div class="card"><h3>${ic('qr_code')} PIX: ${pixOk} de ${pix.length} achados no extrato</h3><p class="sub">Abra o extrato da conta da empresa e marque cada PIX pelo valor e pela hora. PIX que não aparece = recebido fora da conta da casa.</p>
-    ${pix.map(p => `<label class="entre" style="padding:6px 0;border-bottom:1px solid #f1f3f4;cursor:pointer"><span><input type="checkbox" data-ch="confPix" data-k="${esc(chavePg(p))}" ${(cf.pix || {})[chavePg(p)] ? 'checked' : ''}> ${p.ts ? hora(p.ts) : ''} · ${esc(p.ref)} · ${esc(p.por || '')}${p.txid ? `<br><span class="sub">código ${esc(p.txid)}${p.qr ? ' · QR do sistema' : ''}</span>` : ''}</span><b>${R(p.valor)}</b></label>`).join('') || '<div class="sub">Nenhum PIX na noite.</div>'}</div></div>`;
+  // v22 (JP, 27/11/2026): "esses cruzamentos o fiscal vai fazer". O PIX de cada venda (hora, valor, código) e os totais de
+  // crédito e débito da maquininha vão na Planilha (CSV) da noite, com a orientação ao fiscal; no fechamento ele aponta
+  // a JP toda divergência. Aqui fica só o resumo.
+  void inputConf; void dif; void num; void pixOk;
+  h += `<div class="card cruza-fiscal" style="margin-bottom:10px"><h3 style="margin-top:0">${ic('fact_check')} PIX e maquininha: o fiscal confere</h3>
+    <div class="kpis" style="margin:6px 0 8px"><div class="kpi"><div class="v">${pix.length}</div><div class="l">PIX · ${R(soma(pix))}</div></div><div class="kpi"><div class="v">${R(sysCred)}</div><div class="l">crédito na maquininha (sistema)</div></div><div class="kpi"><div class="v">${R(sysDeb)}</div><div class="l">débito na maquininha (sistema)</div></div></div>
+    <p class="sub" style="margin:0">Vão na <b>Planilha (CSV)</b> da noite: cada PIX com hora, valor e código, os totais da maquininha e o dinheiro de cada garçom, com a orientação para o fiscal conferir no extrato do Itaú e no relatório da maquininha. No fechamento, no Claude, ele aponta qualquer divergência.</p></div>`;
   if (cancelados.length || estornos.length || descs.length) h += `<div class="card" style="margin-bottom:10px"><h3>${ic('gpp_maybe')} Cancelamentos, descontos e pagamentos tirados</h3>
     ${descs.map(x => `<div class="entre" style="padding:4px 0"><span>${esc(x.ref)} · <b>${esc(x.nome)}</b> · desconto de <b>${x.fixo != null ? R(x.fixo) : pctTxt(x.pct)}</b> (de ${R(x.cheio)}) · pediu ${esc(x.pediu || '?')} · autorizou <b>${esc(x.autorizou || '?')}</b>${x.motivo ? ' · ' + esc(x.motivo) : ''}</span><span style="color:var(--laranja)">−${R(x.valor)} ${x.ts ? '<span class="sub">' + hora(x.ts) + '</span>' : ''}</span></div>`).join('')}
     ${cancelados.map(c => `<div class="entre" style="padding:4px 0"><span>${esc(c.ref)} · <b>${esc(c.nome)}</b> · pediu ${esc(c.pediu || '?')} · autorizou <b>${esc(c.autorizou || '?')}</b> · ${esc(c.motivo || '')}</span><span>${c.valor ? R(c.valor) : ''} ${c.ts ? '<span class="sub">' + hora(c.ts) + '</span>' : ''}</span></div>`).join('')}
@@ -2628,7 +2877,7 @@ function telaConferencia() {
     • Desconto no item (d100, d50, d5…) só com código de gerente ou sócio; aparece aqui com a %, o valor, quem pediu, quem autorizou e o motivo.<br>
     • O QR do PIX sai sempre do sistema, com a chave da casa e um código por cobrança; trocar a chave fica registrado e acende alerta aqui.<br>
     • A cozinha e o bar só produzem o que está na tela: nada sai sem estar lançado.<br>
-    • No fim da noite: marcar cada PIX no extrato, digitar os totais da maquininha e o dinheiro de cada garçom.</div>`;
+    • No fim da noite: digitar o dinheiro entregue por cada garçom e baixar a Planilha (CSV) para o fiscal, que cruza PIX e maquininha e aponta as divergências no fechamento.</div>`;
   return h;
 }
 async function salvarConf(fn) {
@@ -2651,16 +2900,47 @@ function telaCaixa() {
 }
 CH.verNoite = el => { S.ui.noiteVer = el.value; assinarVendas(el.value); render(); };
 A.imprimir = () => window.print();
+// Planilha (CSV) da noite (v22, JP 27/11/2026): um arquivo leva tudo ao fiscal. Orientação dos cruzamentos no topo;
+// vendas com o pagamento do jeito que a mesa passou; consumo interno e descontos; compras e tarefas do dia seguinte
+// (os apontamentos da aba Compras); PIX um a um, maquininha e dinheiro por garçom para o fiscal cruzar.
 A.csv = () => {
-  const linhas = [['noite', 'hora', 'canal', 'marca', 'venda', 'itens', 'subtotal', '10%', 'frete', 'total_nfce', 'pagamentos']];
-  S.vendas.forEach(v => linhas.push([v.noiteId, hora(v.fechadaEm), v.canal, v.marca, v.ref, v.itens.map(i => i.nome + ' ' + i.preco.toFixed(2) + (i.descPct ? ' (desconto ' + pctTxt(i.descPct) + ' de ' + i.cheio.toFixed(2) + ')' : '')).join(' | '), v.subtotal.toFixed(2), (v.dez || 0).toFixed(2), (v.frete || 0).toFixed(2), v.total.toFixed(2), (v.pagamentos || []).map(p => p.forma + ' ' + p.valor.toFixed(2)).join(' | ')]));
-  const ci = (S.consumo || []).filter(c => !c.apagado);
-  if (ci.length) {
-    linhas.push([], ['consumo interno e perdas (não é venda; custo no fiscal)'], ['data', 'item', 'quantidade', 'para quem', 'tipo', 'observação']);
-    const d = dataBR(inicioDaNoite(S.ui.noiteVer || noiteId()));
-    ci.forEach(c => linhas.push([d, c.item, String(c.qtd), paraQuem(c), c.tipo, obsConsumo(c)]));
-  }
-  const csv = '﻿' + linhas.map(l => l.map(x => '"' + String(x).replace(/"/g, '""').replace(/\./g, ',') + '"').join(';')).join('\r\n');
+  const id = S.ui.noiteVer || noiteId(); const d = dataBR(inicioDaNoite(id)); const n2 = v => (+v || 0).toFixed(2).replace('.', ',');
+  const pgs = pagamentosDaNoite(); const pix = pgs.filter(p => /PIX/.test(p.forma)); const maq = f => r2(pgs.filter(p => p.canal === 'salao' && p.forma === f).reduce((s, p) => s + p.valor, 0));
+  const linhas = [
+    ['ORIENTAÇÃO AO FISCAL (Seu Trem · noite de ' + d + ')'],
+    ['1. Confira cada PIX da seção "PIX da noite" no extrato do Itaú, pela hora e pelo valor. PIX que não aparece no extrato foi recebido fora da conta da casa.'],
+    ['2. Confira o crédito e o débito da seção "Maquininha" com o relatório da maquininha do dia.'],
+    ['3. Confira o dinheiro de cada garçom com o que foi entregue ao gerente.'],
+    ['4. Consumo interno, cortesias, bonificações, descontos e perdas: lançar na aba Consumo interno pelo custo (R41), nunca pelo preço do cardápio.'],
+    ['5. Compras e tarefas do dia seguinte: separar o dinheiro de cada compra e, no dia, comparar a nota com o previsto.'],
+    ['6. No fechamento (no Claude), aponte a JP toda divergência encontrada, com valor e hora.'],
+    [],
+    ['VENDAS'], ['noite', 'hora', 'canal', 'marca', 'venda', 'pessoas', 'itens', 'subtotal', '10%', 'frete', 'total_nfce', 'como pagou', 'pagamentos (detalhe)']
+  ];
+  S.vendas.forEach(v => linhas.push([v.noiteId, hora(v.fechadaEm), v.canal, v.marca, v.ref, (v.nomes || []).join(', '), itensAgrupados(v.itens).map(g => g.q + 'x ' + g.i.nome + ' ' + n2(g.i.preco) + (g.i.descPct ? ' (desconto ' + (g.i.descFixo != null ? 'R$ ' + n2(g.i.descFixo) : pctTxt(g.i.descPct)) + ' de ' + n2(g.i.cheio) + ')' : '')).join(' | '), n2(v.subtotal), n2(v.dez), n2(v.frete), n2(v.total), v.cancelado ? 'cancelada' : pagCurto(v), (v.pagamentos || []).map(p => p.forma + ' ' + n2(p.valor) + (p.ts ? ' ' + hora(p.ts) : '') + (p.por ? ' (' + p.por + ')' : '')).join(' | ')]));
+  const ci = (S.consumo || []).filter(c => !c.apagado); const dsc = descontosDaNoite();
+  linhas.push([], ['CONSUMO INTERNO, CORTESIAS, BONIFICAÇÕES, DESCONTOS E PERDAS (não é venda; custo no fiscal)'], ['data', 'item', 'quantidade', 'para quem', 'tipo', 'observação']);
+  ci.forEach(c => linhas.push([d, c.item, String(c.qtd), paraQuem(c), c.tipo, obsConsumo(c)]));
+  dsc.forEach(x => linhas.push([d, x.nome, '1', 'Cliente · ' + x.ref + ((x.nomes || []).length ? ' (' + x.nomes.join(', ') + ')' : ''), 'Desconto', [(x.fixo != null ? 'R$ ' + n2(x.fixo) : pctTxt(x.pct)) + ' na conta, −R$ ' + n2(x.valor) + ' pelo cardápio', x.motivo, 'autorizou ' + x.autorizou, 'pediu ' + x.pediu + (x.ts ? ' às ' + hora(x.ts) : '')].filter(Boolean).join(' · ')]));
+  if (!ci.length && !dsc.length) linhas.push(['nada lançado nesta noite']);
+  const cid = pcDiaSeguinte(inicioDaNoite(id)); const cd = pcDoc(cid);
+  linhas.push([], ['COMPRAS E TAREFAS DE ' + pcRotuloDia(cid).toUpperCase() + ' (aba Compras e tarefas)']);
+  if (cd && ((cd.locais || []).length || (cd.tarefas || []).length)) {
+    const tt = pcTotais(cd); linhas.push(['local', 'quem compra', 'item', 'previsto', 'fonte do preço', 'comprado', 'gasto real do local']);
+    tt.locais.forEach(({ l, total }) => { (l.itens || []).forEach(i => { const p = pcPreco(i, l.nome); linhas.push([l.nome, l.quem || '', i.txt, p.total != null ? n2(p.total) : 'sem preço', (PC_TAG[p.fonte] || PC_TAG.sem)[1], i.feito ? 'sim' : '', '']); }); linhas.push([l.nome, l.quem || '', 'TOTAL DO LOCAL', n2(total), '', '', l.real ? n2(numBR(l.real)) : 'na nota']); });
+    linhas.push(['', '', 'TOTAL PREVISTO', n2(tt.total)]);
+    (cd.tarefas || []).forEach((t, i) => linhas.push(['tarefa ' + (i + 1), t.quem || '', t.txt, '', '', t.feita ? 'feita' : '']));
+  } else linhas.push(['nenhuma lista para ' + pcDM(cid)]);
+  linhas.push([], ['PIX DA NOITE (conferir no extrato do Itaú)'], ['hora', 'venda', 'garçom', 'valor', 'código', 'QR do sistema']);
+  pix.forEach(p => linhas.push([p.ts ? hora(p.ts) : '', p.ref, p.por || '', n2(p.valor), p.txid || '', p.qr ? 'sim' : '']));
+  linhas.push(['', '', 'TOTAL PIX', n2(pix.reduce((s, p) => s + p.valor, 0))]);
+  linhas.push([], ['MAQUININHA (salão, conferir no relatório da maquininha)'], ['crédito no sistema', n2(maq('Crédito'))], ['débito no sistema', n2(maq('Débito'))]);
+  const din = {}; pgs.forEach(p => { if (p.forma === 'Dinheiro' && p.por) din[p.por] = r2((din[p.por] || 0) + p.valor); });
+  const cfv = ((S.conf || {}).valores) || {};
+  linhas.push([], ['DINHEIRO POR GARÇOM'], ['garçom', 'no sistema', 'entregue (digitado na base)']);
+  Object.entries(din).forEach(([k, v]) => linhas.push([k, n2(v), cfv['din:' + k] || 'não digitado']));
+  if (!Object.keys(din).length) linhas.push(['nenhum pagamento em dinheiro']);
+  const csv = '﻿' + linhas.map(l => l.map(x => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"').join(';')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'Relatorio da noite ' + (S.ui.noiteVer || noiteId()) + '.csv'; a.click();
 };
 A.novaNoite = () => {
@@ -2678,24 +2958,60 @@ A.novaNoite = () => {
 };
 
 // ================= equipe e loja =================
+// Enquanto ninguém é gestor (antes de JP assumir), vale o de antes: sócio faz o sensível. Depois, só o gestor.
+const temGestor = () => (cfg().pessoas || []).some(p => p.papel === 'gestor');
+const podeSensivel = () => ehGestor() || (!temGestor() && !!S.eu && SOCIOS.includes(S.eu.papel));
+const ehJP = () => !!S.eu && /^joao paulo/.test(norm(S.eu.nome));
+const avisoGestor = (o) => `<div class="card trava-gestor">${ic('lock')}<div><b>${esc(o)}: acesso do sócio gestor do sistema</b><div class="sub">Por segurança, só o sócio gestor (JP) vê e muda esta parte. Fale com ele.</div></div></div>`;
 function telaEquipe() {
-  const c = cfg();
-  return `<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))"><div class="card"><h2>Equipe</h2>
-    <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco). Para trocar o código de alguém, toque na chave: só um sócio autoriza.</p>
-    <table class="tab"><tr><th>Nome</th><th>Função</th><th class="n">Código</th></tr>${equipeOrdenada().map(p => `<tr><td style="min-width:84px;word-break:normal">${esc(p.nome)}</td><td style="width:100%"><select class="inp" style="min-height:34px;padding:4px 8px;width:100%;min-width:0" data-ch="papelPessoa" data-id="${p.id}">${PAPEIS.map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td class="n" style="white-space:nowrap"><button class="bt-ic" data-a="trocarCodigo" data-id="${p.id}" title="Alterar código">${ic('key')}</button><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}" title="Tirar da equipe">${ic('delete')}</button></td></tr>`).join('')}</table>
-    <div class="secao-t">Acrescentar</div>${campo('Nome', 'pNome', 'Nome')}${campo('Código (4 números)', 'pPin', '', 'numeric')}
-    <div class="chips" style="margin-bottom:10px">${[['socio', 'Sócio'], ['gerente', 'Gerente'], ['cozinha', 'Chefe de chapa'], ['fritura', 'Chefe de fritura'], ['garcom', 'Gerente de mesas']].map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
-    <button class="bt pri" data-a="addPessoa">${ic('person_add')} Acrescentar</button></div>
-    <div class="card"><h2>Loja</h2>
+  const c = cfg(); const pode = podeSensivel(); const cods = S.ui.codigos || null;
+  const chipsPapel = [['socio', 'Sócio'], ['gerente', 'Gerente'], ['cozinha', 'Chefe de chapa'], ['fritura', 'Chefe de fritura'], ['garcom', 'Gerente de mesas']].concat(ehGestor() ? [['gestor', 'Sócio gestor']] : []);
+  const assumir = !temGestor() && ehJP() ? `<div class="card" style="border-color:var(--azul);background:var(--azul-cl);margin-bottom:12px"><b>${ic('shield_person')} Sócio gestor do sistema</b><p class="sub" style="margin:4px 0 8px">Relatórios, antifraude, equipe, códigos e dados da loja passam a ser só seus. Para criar outro gestor, só com o seu código.</p><button class="bt pri" data-a="assumirGestor">${ic('verified_user')} Assumir com o meu código</button></div>` : '';
+  return `${assumir}<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))"><div class="card"><div class="entre"><h2 style="margin:0">Equipe</h2>${pode ? `<button class="bt ${cods ? 'ton' : ''}" data-a="verCodigos">${ic(cods ? 'visibility_off' : 'visibility')} ${cods ? 'Esconder códigos' : 'Ver códigos'}</button>` : ''}</div>
+    <p class="sub">Cada pessoa tem um código de 4 números. Ele identifica quem fez cada mudança (não é senha de banco). ${pode ? 'Para trocar o código de alguém, toque na chave.' : 'Funções e códigos só o sócio gestor muda.'}</p>
+    <table class="tab"><tr><th>Nome</th><th>Função</th><th class="n">${cods ? 'Código' : ''}</th></tr>${equipeOrdenada().map(p => `<tr><td style="min-width:84px;word-break:normal">${esc(p.nome)}</td><td style="width:100%">${pode && (p.papel !== 'gestor' || ehGestor()) ? `<select class="inp" style="min-height:34px;padding:4px 8px;width:100%;min-width:0" data-ch="papelPessoa" data-id="${p.id}">${PAPEIS.filter(([k]) => k !== 'gestor' || ehGestor() || p.papel === 'gestor').map(([k, l]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select>` : `<span>${esc((PAPEIS.find(x => x[0] === p.papel) || [, p.papel])[1])}</span>`}</td><td class="n" style="white-space:nowrap">${cods ? `<b class="cod-ver">${esc(cods[p.id] || '—')}</b>` : ''}${pode && (p.papel !== 'gestor' || ehGestor()) ? `<button class="bt-ic" data-a="trocarCodigo" data-id="${p.id}" title="Alterar código">${ic('key')}</button><button class="bt-ic" data-a="tirarPessoa" data-id="${p.id}" title="Tirar da equipe">${ic('delete')}</button>` : ''}</td></tr>`).join('')}</table>
+    ${pode ? `<div class="secao-t">Acrescentar</div>${campo('Nome', 'pNome', 'Nome')}${campo('Código (4 números)', 'pPin', '', 'numeric')}
+    <div class="chips" style="margin-bottom:10px">${chipsPapel.map(([k, l]) => `<button class="chip ${(S.ui.pPapel || 'garcom') === k ? 'on' : ''}" data-a="pPapel" data-c="${k}">${l}</button>`).join('')}</div>
+    <button class="bt pri" data-a="addPessoa">${ic('person_add')} Acrescentar</button>` : ''}</div>
+    ${pode ? `<div class="card"><h2>Loja</h2>
     ${['lWa', 'lEnd', 'lPix', 'lPixNome', 'lPixCid', 'lTag', 'lMesas', 'lMin'].map(k => { if (F[k] == null) F[k] = { lWa: c.whatsapp, lEnd: c.endereco, lPix: (c.pix || {}).chave, lPixNome: (c.pix || {}).nome, lPixCid: (c.pix || {}).cidade, lTag: c.infiniteTag, lMesas: c.mesas, lMin: c.minPrato }[k]; return ''; }).join('')}
     ${campo('WhatsApp da casa', 'lWa', '31 9…', 'tel')}${campo('Endereço de retirada (Uber Flash)', 'lEnd', '')}${campo('Chave PIX', 'lPix', '')}${campo('Nome no PIX', 'lPixNome', '')}${campo('Cidade do PIX', 'lPixCid', '')}
     ${campo('InfiniteTag', 'lTag', 'seutrem')}${campo('Número de mesas', 'lMesas', '14', 'numeric')}${campo('Bebida com o prato entra em (min)', 'lMin', '15', 'numeric')}
     <button class="bt pri" data-a="salvarLoja">${ic('save')} Salvar</button>
-    <p class="sub" style="margin-top:12px">Dados: ${DB.modo === 'nuvem' ? 'nuvem (Firebase)' : 'modo local (ensaio)'} · loja ${esc(LOJA)}</p></div></div>`;
+    <p class="sub" style="margin-top:12px">Dados: ${DB.modo === 'nuvem' ? 'nuvem (Firebase)' : 'modo local (ensaio)'} · loja ${esc(LOJA)}</p></div>` : avisoGestor('Dados da loja (WhatsApp, PIX, mesas)')}</div>`;
 }
+// JP assume o papel de gestor com o próprio código (só aparece enquanto não há gestor e só para ele)
+A.assumirGestor = () => pedirPIN('Assumir sócio gestor do sistema', SOCIOS, async p => {
+  if (temGestor()) { toast('Já existe um sócio gestor'); return; }
+  if (p.id !== S.eu.id) { toast('Use o seu próprio código'); return; }
+  await DB.mutate('config', 'main', c => { const x = (c.pessoas || []).find(y => y.id === p.id); if (!x || (c.pessoas || []).some(y => y.papel === 'gestor')) return undefined; x.papel = 'gestor'; c.logLoja = [{ t: agora(), quem: p.nome, o: p.nome + ' assumiu como sócio gestor do sistema' }].concat(c.logLoja || []).slice(0, 100); return c; });
+  toast('Pronto: você é o sócio gestor do sistema');
+});
+// Ver os códigos da equipe (v22, JP 27/11/2026): o código nunca fica gravado (só a impressão SHA-256). Com o código do
+// gestor, o navegador testa os 10 mil códigos possíveis contra a impressão de cada pessoa e mostra o de cada uma.
+A.verCodigos = async () => {
+  if (S.ui.codigos) { S.ui.codigos = null; render(); return; }
+  pedirPIN('Ver os códigos da equipe', temGestor() ? ['gestor'] : SOCIOS, async p => {
+    toast('Abrindo os códigos…');
+    const alvo = {}; (cfg().pessoas || []).forEach(x => { if (x.h) alvo[x.h] = x.id; else if (x.pin != null) alvo['pin:' + x.pin] = x.id; });
+    const out = {}; (cfg().pessoas || []).forEach(x => { if (x.pin != null) out[x.id] = String(x.pin); });
+    for (let i = 0; i < 10000; i += 250) {
+      const lote = []; for (let k = i; k < i + 250; k++) { const pin = String(k).padStart(4, '0'); lote.push(hashPin(pin).then(h => { if (alvo[h]) out[alvo[h]] = pin; })); }
+      await Promise.all(lote);
+    }
+    S.ui.codigos = out; render();
+    DB.mutate('config', 'main', c => { c.logLoja = [{ t: agora(), quem: p.nome, o: 'viu os códigos da equipe' }].concat(c.logLoja || []).slice(0, 100); return c; }).catch(() => {});
+    clearTimeout(A._codT); A._codT = setTimeout(() => { S.ui.codigos = null; render(); }, 120000);
+  });
+};
 A.pPapel = d => { S.ui.pPapel = d.c; render(); };
 CH.papelPessoa = async (el, d) => {
   const novo = el.value;
+  if (!podeSensivel()) { toast('Só o sócio gestor muda funções'); render(); return; }
+  const alvo0 = (cfg().pessoas || []).find(p => p.id === d.id);
+  if ((novo === 'gestor' || (alvo0 && alvo0.papel === 'gestor')) && !ehGestor()) { toast('Só o sócio gestor mexe nesse nível'); render(); return; }
+  if (novo === 'gestor') { render(); return pedirPIN('Dar o nível de sócio gestor a ' + (alvo0 ? alvo0.nome : ''), ['gestor'], async g => { await DB.mutate('config', 'main', c => { const p = c.pessoas.find(x => x.id === d.id); if (!p) return undefined; c.logLoja = [{ t: agora(), quem: g.nome, o: p.nome + ': ' + p.papel + ' → gestor (autorizado por ' + g.nome + ')' }].concat(c.logLoja || []).slice(0, 100); p.papel = 'gestor'; return c; }); toast((alvo0 ? alvo0.nome : '') + ' agora é sócio gestor'); }); }
+  if (alvo0 && alvo0.papel === 'gestor' && !(cfg().pessoas || []).some(p => p.id !== d.id && p.papel === 'gestor')) { toast('Precisa ficar pelo menos um sócio gestor'); render(); return; }
   const outrosTotais = (cfg().pessoas || []).filter(p => p.id !== d.id && ACESSO_TOTAL.includes(p.papel)).length;
   if (!ACESSO_TOTAL.includes(novo) && !outrosTotais) { toast('Precisa ficar pelo menos uma pessoa com acesso total'); render(); return; }
   await DB.mutate('config', 'main', c => { const p = c.pessoas.find(x => x.id === d.id); if (!p) return undefined; c.logLoja = [{ t: agora(), quem: quem(), o: p.nome + ': ' + p.papel + ' → ' + novo }].concat(c.logLoja || []).slice(0, 100); p.papel = novo; return c; });
@@ -2704,15 +3020,18 @@ CH.papelPessoa = async (el, d) => {
 A.addPessoa = async () => {
   if (!F.pNome || !/^\d{4}$/.test(F.pPin || '')) { toast('Nome e código de 4 números'); return; }
   if (await pessoaPorPin(F.pPin)) { toast('Esse código já é de outra pessoa'); return; }
+  if (!podeSensivel()) { toast('Só o sócio gestor acrescenta pessoas'); return; }
   const p = { id: uid(), nome: F.pNome.trim(), h: await hashPin(F.pPin), papel: S.ui.pPapel || 'garcom' };
-  await DB.mutate('config', 'main', c => { c.pessoas.push(p); return c; });
-  F.pNome = ''; F.pPin = ''; toast(p.nome + ' na equipe');
+  const grava = async (por) => { await DB.mutate('config', 'main', c => { c.pessoas.push(p); c.logLoja = [{ t: agora(), quem: por || quem(), o: p.nome + ' entrou na equipe como ' + p.papel }].concat(c.logLoja || []).slice(0, 100); return c; }); F.pNome = ''; F.pPin = ''; toast(p.nome + ' na equipe'); };
+  if (p.papel === 'gestor') return pedirPIN('Criar outro sócio gestor: ' + p.nome, ['gestor'], g => grava(g.nome));
+  return grava();
 };
 // Alterar o código de acesso de qualquer pessoa da equipe (JP, 25/11/2026): só com o código de um sócio.
 // Primeiro o sócio autoriza; depois digita o código novo duas vezes. Grava só a impressão (SHA-256) e fica no log da loja.
 A.trocarCodigo = d => {
   const alvo = (cfg().pessoas || []).find(p => p.id === d.id); if (!alvo) return;
-  pedirPIN('Alterar o código de ' + alvo.nome, ['socio'], socio => {
+  if (!podeSensivel() || (alvo.papel === 'gestor' && !ehGestor())) { toast('Só o sócio gestor troca códigos'); return; }
+  pedirPIN('Alterar o código de ' + alvo.nome, temGestor() ? ['gestor'] : SOCIOS, socio => {
     F.novoPin = ''; F.novoPin2 = '';
     abrirModal({
       foco: 'novoPin',
@@ -2738,8 +3057,9 @@ A.trocarCodigo = d => {
     });
   });
 };
-A.tirarPessoa = d => { if (d.id === (S.eu || {}).id) { toast('Você não pode se tirar'); return; } if (!confirm('Tirar da equipe?')) return; DB.mutate('config', 'main', c => { c.pessoas = c.pessoas.filter(p => p.id !== d.id); return c; }); };
+A.tirarPessoa = d => { if (!podeSensivel()) { toast('Só o sócio gestor tira pessoas da equipe'); return; } const a0 = (cfg().pessoas || []).find(p => p.id === d.id); if (a0 && a0.papel === 'gestor' && !ehGestor()) return; if (d.id === (S.eu || {}).id) { toast('Você não pode se tirar'); return; } if (!confirm('Tirar da equipe?')) return; DB.mutate('config', 'main', c => { c.pessoas = c.pessoas.filter(p => p.id !== d.id); return c; }); };
 A.salvarLoja = async () => {
+  if (!podeSensivel()) { toast('Só o sócio gestor muda os dados da loja'); return; }
   await DB.mutate('config', 'main', c => {
     const novaChave = (F.lPix || '').trim();
     if (novaChave !== ((c.pix || {}).chave || '')) c.logLoja = [{ t: agora(), quem: quem(), o: 'chave PIX: ' + ((c.pix || {}).chave || '(vazia)') + ' → ' + novaChave }].concat(c.logLoja || []).slice(0, 100);
@@ -3502,7 +3822,7 @@ function telaCompras() {
       <div class="pc-itens">${pcPorSecao(l.itens).map(({ s, itens }) => `<div class="pc-sec">${ic(s.ic)} ${s.nome}</div>` + itens.map(i => { const p = pcPreco(i, l.nome); const L = p.L;
         const qtxt = p.q != null && p.cat ? (p.cat.un === 'kg' ? nBR(Math.round(p.q * 100) / 100) + ' kg' : nBR(Math.round(p.q * 100) / 100) + ' ' + p.cat.un) + ' × ' + RS(p.un) : p.q != null ? nBR(p.q) + ' × ' + RS(p.un) : '';
         return `<div class="pc-item ${i.feito ? 'feito' : ''}"><input type="checkbox" data-ch="pcFeito" data-l="${l.id}" data-i="${i.id}" ${i.feito ? 'checked' : ''} title="Comprado">
-          <div class="pc-txt"><b>${esc(L.nome || i.txt)}</b>${L.qtd !== 1 || L.un ? ` <span class="sub">${nBR(L.qtd)}${L.un ? ' ' + L.un : 'x'}</span>` : ''}${i.falta ? ` <span class="tag aviso">não tinha</span>` : ''}${L.obs ? `<div class="sub">${esc(L.obs)}</div>` : ''}
+          <div class="pc-txt toca" data-a="pcPrecoItem" data-l="${l.id}" data-i="${i.id}" title="Corrigir o item (nome, quantidade, valor)"><b>${esc(L.nome || i.txt)}</b> <span class="ms pc-edit">edit</span>${L.qtd !== 1 || L.un ? ` <span class="sub">${nBR(L.qtd)}${L.un ? ' ' + L.un : 'x'}</span>` : ''}${i.falta ? ` <span class="tag aviso">não tinha</span>` : ''}${L.obs ? `<div class="sub">${esc(L.obs)}</div>` : ''}
             <div class="sub">${p.cat ? esc(p.cat.nome) + (qtxt ? ' · ' + qtxt : '') : qtxt ? esc(p.info || '') + ' · ' + qtxt : ''}${p.info && p.cat ? ' · ' + esc(p.info) : ''}${p.barato ? ` · <span style="color:var(--verde)">${ic('south')} ${esc(p.barato.local)} ${RS(p.barato.preco)}</span>` : ''}${i.feito && i.feito.por ? ` · pegou: ${esc(i.feito.por)} ${hora(i.feito.em)}` : ''}</div></div>
           <button class="pc-preco" data-a="pcPrecoItem" data-l="${l.id}" data-i="${i.id}" title="Ajustar o valor ou a seção"><b>${p.total != null ? RS(p.total) : '—'}</b>${pcTag(p.fonte)}</button>
           <button class="bt-ic" data-a="pcTiraItem" data-l="${l.id}" data-i="${i.id}" title="Tirar">${ic('close')}</button></div>`; }).join('')).join('') || '<div class="sub" style="padding:6px 0">Nenhum item ainda.</div>'}</div>
@@ -3540,10 +3860,10 @@ A.pcPrecoItem = dd => {
   const d0 = pcDoc(pcId()); const l0 = d0 && d0.locais.find(x => x.id === dd.l); const i0 = l0 && l0.itens.find(x => x.id === dd.i); if (!i0) return;
   const p = pcPreco(Object.assign({}, i0, { manual: null }), l0.nome); F.pcItTxt = i0.txt; F.pcItVal = i0.manual != null && i0.manual !== '' ? String(i0.manual).replace('.', ',') : ''; F.pcItSec = i0.secao || '';
   const ps = (p.cat && p.cat.precos) || [];
-  abrirModal({ foco: 'pcItVal', largo: true, render: () => `<div class="entre"><h2>${esc(p.L.nome || i0.txt)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
+  abrirModal({ foco: 'pcItTxt', largo: true, render: () => `<div class="entre"><h2>${ic('edit')} Corrigir: ${esc(p.L.nome || i0.txt)}</h2><button class="bt-ic" data-a="fecharModal">${ic('close')}</button></div>
       <p class="sub">${p.cat ? 'No catálogo do fiscal: <b>' + esc(p.cat.nome) + '</b> (preço por ' + esc(p.cat.un) + ').' : 'O catálogo do fiscal ainda não conhece este item: no próximo fechamento ele entra (pc_pendentes.txt).'} Automático agora: <b>${p.total != null ? RS(p.total) : 'sem preço'}</b> ${pcTag(p.fonte)}${p.info ? ' · ' + esc(p.info) : ''}</p>
       ${ps.length ? `<div style="overflow-x:auto"><table class="tab"><tr><th>Local</th><th class="n">Último preço</th><th>Nota</th><th class="n">Compras</th></tr>${ps.map(x => `<tr><td>${esc(x.local)}${x.local === l0.nome ? ' <span class="tag ok">aqui</span>' : ''}</td><td class="n">${RS(x.preco)}</td><td class="sub">${pcDM(x.data)} · ${esc(x.nota || '')}</td><td class="n">${x.n}</td></tr>`).join('')}</table></div>` : ''}
-      ${campo('Como está na lista', 'pcItTxt', 'Ex.: 2x couve')}${campo('Valor desta linha (R$), se você já sabe; vazio = automático', 'pcItVal', 'Automático', 'decimal')}
+      ${campo('O item, do jeito certo (nome e quantidade)', 'pcItTxt', 'Ex.: 2x couve, 3kg cenoura')}${campo('Valor desta linha (R$), se você já sabe; vazio = automático', 'pcItVal', 'Automático', 'decimal')}
       <div class="campo"><label for="pcItSec">Seção do mercado</label><select id="pcItSec" class="inp" data-f="pcItSec"><option value="">Automático (${esc(PC_SEC[pcSecaoDe(F.pcItTxt || i0.txt)].nome)})</option>${PC_SECOES.map(s => `<option value="${s.id}" ${F.pcItSec === s.id ? 'selected' : ''}>${s.nome}</option>`).join('')}</select></div>
       <div class="linha"><span style="flex:1"></span><button class="bt" data-a="fecharModal">Cancelar</button><button class="bt pri" data-a="ok">${ic('save')} Salvar</button></div>`,
     async ok() { const t = pcLimpa(F.pcItTxt); if (!t) { toast('Escreva o item'); return; } const v = String(F.pcItVal || '').trim(); const sec = F.pcItSec || '';
@@ -3751,7 +4071,11 @@ function telaRelCompras() {
 // com o gemini-3.5-flash-lite de reserva; para texto, o contrário.
 const IA_SDK = '12.12.0';
 const IA_SITE_KEY = '6Lfk8zEuAAAAAIQxsuz5BppzQVSzk001DH5tD1bt';
-const IA_MODELOS = { foto: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], texto: ['gemini-3.5-flash-lite', 'gemini-3.8-flash'] };
+// v22 (27/11/2026): o gemini-3.8-flash ficava pendurado sem responder (o print do iFood "lia e não acontecia nada").
+// Testado da base: gemini-3.5-flash-lite lê o print em ~4 s e o gemini-3.5-flash em ~7 s, os dois certos. Cada modelo
+// agora tem prazo (IA_PRAZO); passou, tenta o seguinte.
+const IA_MODELOS = { foto: ['gemini-3.5-flash', 'gemini-3.5-flash-lite'], print: ['gemini-3.5-flash-lite', 'gemini-3.5-flash'], texto: ['gemini-3.5-flash-lite', 'gemini-3.5-flash'] };
+const IA_PRAZO = 25000;
 let IA = null;
 async function iaPronta() {
   if (IA) return IA;
@@ -3769,7 +4093,7 @@ async function iaPerguntar(tipo, partes, json) {
   for (const m of IA_MODELOS[tipo]) {
     try {
       const model = ai.getGenerativeModel(inst, Object.assign({ model: m }, json ? { generationConfig: { responseMimeType: 'application/json' } } : {}));
-      const r = await model.generateContent(partes); const t = String(r.response.text() || '').trim();
+      const r = await Promise.race([model.generateContent(partes), new Promise((_, erro) => setTimeout(() => erro(new Error(m + ' passou de ' + IA_PRAZO / 1000 + ' s')), IA_PRAZO))]); const t = String(r.response.text() || '').trim();
       if (!json) return t;
       return JSON.parse(t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
     } catch (e) { ultimo = e; console.warn('IA (' + m + '):', e); }
@@ -3790,7 +4114,7 @@ async function iaLerQuadro(arquivo) {
 }
 // 2. Print do pedido no Gestor de Pedidos do iFood: devolve no formato que lerIfood já entende
 async function iaLerIfood(arquivo) {
-  return iaPerguntar('foto', [IA_CASA + 'A imagem é a captura de tela de um pedido no Gestor de Pedidos do iFood. Transcreva só o pedido, exatamente neste formato, sem comentário:\nlinha 1: o número do pedido (só os dígitos); se a loja for "Seu Trem Lado B", acrescente " Lado B"\nlinha 2: Feito às HH:MM\nlinha 3: Itens no pedido\nem seguida, cada item como "<quantidade>x <nome do item como está na tela>" e, logo abaixo dele, cada complemento ou adicional em uma linha começando com "- " e cada observação do item com "- Obs: "\nlinha final: Subtotal\nNão inclua preços, taxas, endereço nem dados do cliente.', await iaImagem(arquivo)], false);
+  return iaPerguntar('print', [IA_CASA + 'A imagem é a captura de tela de um pedido no Gestor de Pedidos do iFood. Transcreva só o pedido, exatamente neste formato, sem comentário:\nlinha 1: o número do pedido (só os dígitos); se a loja for "Seu Trem Lado B", acrescente " Lado B"\nlinha 2: Feito às HH:MM\nlinha 3: Itens no pedido\nem seguida, cada item como "<quantidade>x <nome do item como está na tela>" e, logo abaixo dele, cada complemento ou adicional em uma linha começando com "- " e cada observação do item com "- Obs: "\nlinha final: Subtotal\nNão inclua preços, taxas, endereço nem dados do cliente.', await iaImagem(arquivo)], false);
 }
 // 3. Prancheta de consumo interno ou recado de substituição: devolve os lançamentos
 async function iaLerConsumo(arquivo) {
@@ -3817,7 +4141,7 @@ function trocasInsumos(doc) {
 }
 const porUn = (ins, cu) => cu == null ? '—' : ins.un === 'un' ? R(cu) + '/un' : R(cu * 1000) + (ins.un === 'ml' ? '/L' : '/kg');
 A.fiscalImportar = () => {
-  if (!S.eu || S.eu.papel !== 'socio') { toast('Importar o relatório do fiscal pede código de sócio'); return; }
+  if (!S.eu || !SOCIOS.includes(S.eu.papel)) { toast('Importar o relatório do fiscal pede código de sócio'); return; }
   assinarFicha(); F.fiDoc = null; F.fiErro = ''; F.fiMarca = {};
   abrirModal({ largo: true, render() {
       const d = F.fiDoc; const fis = cfg().fiscal || {};
@@ -3901,7 +4225,7 @@ const JORNADA = [
     ['noite', 'Gerar a nova noite (link novo dos garçons, TV limpa)', { a: 'novaNoite', rot: 'Nova noite' }],
     ['coz', 'Abrir o painel da cozinha no computador e no celular da cozinha', { link: 'cozinha', rot: 'Painel da cozinha' }],
     ['garcom', 'Abrir o painel do garçom no computador e nos celulares; cadastrar os garçons do dia', { aba: 'noite', rot: 'Link e QR' }],
-    ['wabiz', 'Ativar o WhatsApp Business da casa (31 99309-6150) no celular do garçom e no computador', { link: 'https://web.whatsapp.com', rot: 'WhatsApp Web' }],
+    ['wabiz', 'Deixar o computador logado no WhatsApp Business da casa (31 99309-6150): a conta e o delivery saem dele', { link: 'https://web.whatsapp.com', rot: 'WhatsApp Web' }],
     ['ifood', 'Abrir o gestor do iFood no computador', { link: 'https://gestordepedidos.ifood.com.br', rot: 'iFood' }],
     ['cardapio', 'Abrir o cardápio no navegador para consulta', { link: 'img/cardapio-seu-trem.pdf', rot: 'Cardápio' }],
     ['pixwa', 'Conferir a chave PIX e o WhatsApp da casa em Equipe e loja', { aba: 'equipe', rot: 'Equipe e loja' }]] },
@@ -3976,8 +4300,8 @@ TELAS.base = () => {
   if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
   if (!S.cfg) return telaConfigInicial();
   // No celular, a base completa é só para o sócio (JP, 23/11/2026)
-  if (!S.eu) return telaLogin('Plataforma base', CELULAR ? ['socio'] : ACESSO_TOTAL, CELULAR ? '<p class="sub" style="color:var(--azul-esc)">No celular, a base completa abre só com código de sócio.</p>' : '');
-  if (CELULAR && S.eu.papel !== 'socio') return `<div class="pag-estreita" style="padding-top:48px"><div class="card plano" style="text-align:center"><h1>${ic('smartphone')} Base no celular: só sócio</h1><p class="sub">Use a base no computador ou o app do garçom pelo link da noite.</p><button class="bt" data-a="sair">${ic('logout')} Trocar de pessoa</button></div></div>`;
+  if (!S.eu) return telaLogin('Plataforma base', CELULAR ? SOCIOS : ACESSO_TOTAL, CELULAR ? '<p class="sub" style="color:var(--azul-esc)">No celular, a base completa abre só com código de sócio.</p>' : '');
+  if (CELULAR && !SOCIOS.includes(S.eu.papel)) return `<div class="pag-estreita" style="padding-top:48px"><div class="card plano" style="text-align:center"><h1>${ic('smartphone')} Base no celular: só sócio</h1><p class="sub">Use a base no computador ou o app do garçom pelo link da noite.</p><button class="bt" data-a="sair">${ic('logout')} Trocar de pessoa</button></div></div>`;
   assinarFicha(); if (FICHA_DB && FICHA_DB.resumoPendente && !resumoRefeito && ACESSO_TOTAL.includes(S.eu.papel)) { resumoRefeito = true; salvarFicha(f => { delete f.resumoPendente; }, 'resumo recalculado depois da importação do fiscal'); }
   const aba = S.ui.aba || 'jornada';
   const nPg = S.delivery.filter(d => ['frete', 'pagamento'].includes(colunaPedido(d))).length;
@@ -4046,7 +4370,7 @@ TELAS.mesa = () => {
     <button class="bt verde grande bloco" data-a="cliEntrar">${ic('chat')} Receber a conta no WhatsApp</button></div></div>`;
 };
 // v21: o cliente só abre a conversa (com a mesa e um código no texto, para o computador achar); a conta vem da casa
-function msgContaCli(m, nome) { return `Olá! Sou ${nome}, da ${m.label || rotuloMesa(m.id)}. Pode me mandar a conta, por favor? (código ${String(m.id || '').replace(/\W/g, '')}-${String(m.abertaEm || '').slice(-4)})`; }
+function msgContaCli(m, nome) { return `Oi, quero a conta, estou na ${m.label || rotuloMesa(m.id)}`; }
 A.cliEntrar = async () => {
   const id = PARAMS.get('m'); const nome = (F.cliNome || '').trim(); const tel = soDig(F.cliTel);
   if (!nome || tel.length < 10) { toast('Nome e WhatsApp com DDD'); return; }
@@ -4182,7 +4506,7 @@ A.repetirItem = d => { const it = clone(CARRINHO[+d.i]); it.uid = uid(); CARRINH
 function opcao(a, v, atual, i, t, s) { return `<button class="opcao ${atual === v ? 'on' : ''}" data-a="${a}" data-c="${v}">${ic(i)}<span><b>${t}</b><small>${s}</small></span>${ic(atual === v ? 'radio_button_checked' : 'radio_button_unchecked')}</button>`; }
 function telaCheckout() {
   if (conferirAddsSobremesa(CARRINHO)) { salvarCarrinho(); toast('Sem sobremesa montada na sacola: o brownie ou o alfajor extra voltou ao preço avulso'); }
-  const tot = subtotal(CARRINHO); const ent = F.entrega || 'retirada'; const pg = F.pgto || 'pix';
+  const tot = subtotal(CARRINHO);
   if (F.pNomeC == null) { const u = LS.get('st-cliente', {}); F.pNomeC = u.nome || ''; F.pTelC = u.tel || ''; }
   const tem = re => CARRINHO.some(i => (i.partes || []).some(p => re.test(p.nome)));
   const sug = [].concat(tem(/fritas|onion/i) ? [] : [P[81]], tem(/suco|refri|cerveja|soda|drink|pilsen|água|agua/i) ? [] : [P[91], P[92]], tem(/brownie|alfajor|sobremesa/i) ? (temSobremesaMontada(CARRINHO) && !CARRINHO.some(i => ADD_SOBREMESA[i.cod]) ? [P[88], P[89]] : []) : [P[83], P[84]]).filter(ativo).slice(0, 4);
@@ -4190,24 +4514,18 @@ function telaCheckout() {
     <div class="etapa"><div class="etapa-t"><span class="etapa-n">1</span> Sua sacola</div>
       <div class="itens">${CARRINHO.map((it, i) => { const p = P[it.cod] || {}; const k = CATS_PEDIDO[p.cat] || {}; return `<div class="item"><span class="it-ic" style="background:${k.bg};color:${k.cor}">${ic(icProd(p))}</span><div class="corpo"><div class="nm">${esc(it.nome)}</div>${descItem(it).map(l => `<div class="troca">${esc(l)}</div>`).join('')}</div><div class="pr">${R(precoItem(it))}<div class="qtd-bt"><button class="bt-ic" data-a="tirarCarrinho" data-i="${i}" title="Tirar">${ic('remove_circle_outline')}</button><button class="bt-ic" data-a="repetirItem" data-i="${i}" title="Mais um igual">${ic('add_circle_outline')}</button></div></div></div>`; }).join('') || '<div class="vazio">Sua sacola está vazia.</div>'}</div>
       ${sug.length && CARRINHO.length ? `<div class="sub" style="margin:14px 0 8px">Peça também</div><div class="sugs" data-rola="sugs">${sug.map(p => `<button class="sug" data-a="cliProd" data-c="${p.cod}"><span class="sug-ic" style="background:${CATS_PEDIDO[p.cat].bg};color:${CATS_PEDIDO[p.cat].cor}">${ic(icProd(p))}</span><span class="sug-n">${esc(p.nome.replace(' (acompanha)', ''))}</span><b>${R(p.preco)}</b></button>`).join('')}</div>` : ''}</div>
-    <div class="etapa"><div class="etapa-t"><span class="etapa-n">2</span> Você</div>${campo('Nome', 'pNomeC', '')}${campo('WhatsApp (com DDD)', 'pTelC', '31 9…', 'tel', 'tel')}</div>
-    <div class="etapa"><div class="etapa-t"><span class="etapa-n">3</span> Como recebe</div>
-      <div class="opcoes">${opcao('cliEnt', 'retirada', ent, 'hail', 'Retirada', 'Você chama o Uber Flash quando avisarmos que está pronto')}${opcao('cliEnt', 'moto', ent, 'two_wheeler', 'Entrega por moto', 'A casa chama a moto; o frete vem pelo WhatsApp')}</div>
-      ${ent === 'moto' ? `<div style="margin-top:12px">${campo('Rua', 'eRua', '')}<div class="linha"><div style="flex:1">${campo('Número', 'eNum', '', 'numeric')}</div><div style="flex:2">${campo('Complemento', 'eCompl', 'apto, bloco')}</div></div>${campo('Bairro', 'eBairro', '')}${campo('Ponto de referência', 'eRef', '')}</div>` : ''}</div>
-    <div class="etapa"><div class="etapa-t"><span class="etapa-n">4</span> Como paga</div>
-      <div class="opcoes">${opcao('cliPg', 'pix', pg, 'qr_code', 'PIX', 'Código copia e cola na hora, com o valor certinho')}${opcao('cliPg', 'cartao', pg, 'credit_card', 'Cartão', 'Crédito ou débito no link seguro da InfinitePay')}</div>
-      <div style="margin-top:12px">${campo('Observação para a cozinha (opcional)', 'pObs', 'ex.: sem cebola')}</div></div>
-    <div class="etapa"><div class="total-linha"><span>Itens</span><span>${R(tot)}</span></div><div class="total-linha"><span>${ent === 'moto' ? 'Frete' : 'Retirada'}</span><span>${ent === 'moto' ? 'calculado no WhatsApp' : 'sem taxa'}</span></div>
-      <div class="total-linha forte"><span>Total</span><span>${R(tot)}${ent === 'moto' ? ' + frete' : ''}</span></div>
+    <div class="etapa"><div class="etapa-t"><span class="etapa-n">2</span> Você</div>${campo('Nome', 'pNomeC', '')}${campo('WhatsApp (com DDD)', 'pTelC', '31 9…', 'tel', 'tel')}
+      <div style="margin-top:4px">${campo('Observação para a cozinha (opcional)', 'pObs', 'ex.: sem cebola')}</div></div>
+    <div class="etapa"><div class="total-linha forte"><span>Itens</span><span>${R(tot)}</span></div>
+      <div class="fim-wa">${ic('chat')}<span>Pagamento e entrega (Uber Flash ou moto) a gente combina com você no WhatsApp, com o frete certinho.</span></div>
       <label class="sub" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0 14px"><input type="checkbox" data-f="pLgpd" ${F.pLgpd ? 'checked' : ''} style="margin-top:3px"> ${esc(LGPD)}</label>
-      <button class="bt verde grande bloco" data-a="finalizarPedido" ${CARRINHO.length ? '' : 'disabled'}>${ic('check')} Finalizar pedido · ${R(tot)}</button></div></div>`;
+      <button class="bt verde grande bloco bt-fim" data-a="finalizarPedido" ${CARRINHO.length ? '' : 'disabled'}>${ic('send')} Clique aqui para escolher a forma de pagamento e a forma de entrega</button></div></div>`;
 }
 A.cliEnt = d => { F.entrega = d.c; render(); };
 A.cliPg = d => { F.pgto = d.c; render(); };
 A.finalizarPedido = async (d, el) => {
-  const nome = (F.pNomeC || '').trim(), tel = soDig(F.pTelC); const ent = F.entrega || 'retirada', pg = F.pgto || 'pix';
+  const nome = (F.pNomeC || '').trim(), tel = soDig(F.pTelC);
   if (!nome || tel.length < 10) { toast('Nome e WhatsApp com DDD'); return; }
-  if (ent === 'moto' && (!F.eRua || !F.eNum || !F.eBairro)) { toast('Rua, número e bairro'); return; }
   if (!F.pLgpd) { toast('Marque a autorização para seguir'); return; }
   el.disabled = true;
   try {
@@ -4218,14 +4536,16 @@ A.finalizarPedido = async (d, el) => {
     const nPedido = cl.pedidos; const id = 'p' + num + '-' + uid().slice(0, 4); const t = agora();
     const itens = CARRINHO.map(i => Object.assign({}, i, { enviado: true }));
     if (F.pObs) { const alvo = itens.find(i => temSetor(i, 'cozinha')) || itens[0]; const pt = alvo.partes.find(x => x.setor === 'cozinha') || alvo.partes[0]; pt.obs = [pt.obs, F.pObs].filter(Boolean).join(', '); }
-    const ped = { id, num, ts: t, noiteId: noiteId(), cliente: { nome, tel }, nPedido, itens, entrega: { tipo: ent, rua: F.eRua || '', numero: F.eNum || '', compl: F.eCompl || '', bairro: F.eBairro || '', ref: F.eRef || '' }, frete: ent === 'moto' ? null : 0, pagamento: pg, status: ent === 'moto' ? 'frete' : (nPedido > 1 ? 'preparo' : 'pagamento'), pg: { confirmado: false }, obs: F.pObs || '' };
-    const base = { origem: 'whatsapp', ref: nome.split(' ')[0] + ' · #' + num, refId: id, nPedido, status: nPedido > 1 ? 'fila' : 'aguardando', pgPendente: nPedido > 1, criadoEm: t, inicio: t, ordem: t, por: 'cliente' };
+    // v22 (JP, 27/11/2026): o pedido vai para a cozinha como "aguardando pagamento"; entrega, frete e pagamento se
+    // combinam no WhatsApp. Quando a base confirma o pagamento, o card fica verde e o tempo de preparo começa.
+    const ped = { id, num, ts: t, noiteId: noiteId(), cliente: { nome, tel }, nPedido, itens, entrega: { tipo: null }, frete: 0, pagamento: null, status: 'pagamento', pg: { confirmado: false }, obs: F.pObs || '' };
+    const base = { origem: 'whatsapp', ref: nome.split(' ')[0] + ' · #' + num, refId: id, nPedido, status: 'aguardando', pgPendente: false, entrega: null, criadoEm: t, inicio: t, ordem: t, por: 'cliente' };
     const ops = [];
     ['cozinha', 'bar'].forEach(s => { const g = itens.filter(i => temSetor(i, s)); if (g.length) { const cd = cardNovo(s, g, base); ops.push({ op: 'set', c: 'cards', id: cd.id, data: cd }); } });
-    if (pg === 'cartao' && ent === 'retirada') { try { ped.pg.link = await criarLinkIP(ped, subtotal(itens)); } catch (e) { ped.pg.erroLink = String(e.message || e); } }
     ops.push({ op: 'set', c: 'delivery', id, data: ped });
     await DB.batch(ops);
     CARRINHO = []; salvarCarrinho(); S.ui.pedidoFeito = ped; S.ui.checkout = false; render(); window.scrollTo(0, 0);
+    location.href = wa(cfg().whatsapp || WA_CASA, MSG_FIM_PEDIDO);
   } catch (e) { el.disabled = false; toast('Não deu para finalizar: ' + (e.message || e)); }
 };
 function msgPedidoCliente(p) {
@@ -4238,8 +4558,15 @@ function msgPedidoCliente(p) {
   return s;
 }
 function telaPedidoFeito() {
-  const p = S.ui.pedidoFeito; const tot = subtotal(p.itens); const casa = cfg().whatsapp;
+  const p = S.ui.pedidoFeito; const tot = subtotal(p.itens); const casa = cfg().whatsapp || WA_CASA;
   let h = `<div class="pag-estreita"><div class="card"><h2>${ic('check_circle')} Pedido ${p.num} recebido!</h2>`;
+  // v22: pagamento e entrega se combinam no WhatsApp
+  if (!p.pagamento) {
+    if (p.nPedido > 1) h += `<p class="sub">Que bom te ver de novo: é o seu ${ordinal(p.nPedido)} pedido com a gente.</p>`;
+    return h + `<p>Itens: <b style="font-size:20px">${R(tot)}</b></p><p>Agora é só combinar com a gente no WhatsApp a forma de pagamento e a entrega. Assim que o pagamento for confirmado, a cozinha começa o seu pedido.</p>
+      <a class="bt verde grande bloco" href="${esc(wa(casa, MSG_FIM_PEDIDO))}">${ic('chat')} Escolher pagamento e entrega no WhatsApp</a>
+      <button class="bt txt bloco" style="margin-top:10px" data-a="novoPedido">Fazer outro pedido</button></div></div>`;
+  }
   if (p.nPedido > 1) h += `<p class="sub">Que bom te ver de novo: é o seu ${ordinal(p.nPedido)} pedido com a gente.</p>`;
   if (p.entrega.tipo === 'moto') {
     h += `<p>Agora a gente calcula o frete para <b>${esc(p.entrega.bairro)}</b> e te manda o total no WhatsApp.</p><a class="bt verde grande bloco" href="${wa(casa, msgPedidoCliente(p))}" target="_blank">${ic('chat')} Abrir o WhatsApp</a>`;
@@ -4299,7 +4626,7 @@ async function iniciar() {
   render();
 }
 function tentarEu() {
-  if (S.cfg && S.eu) { const p = (cfg().pessoas || []).find(x => x.id === S.eu.id); if (!p) S.eu = null; }
+  if (S.cfg && S.eu) { const p = (cfg().pessoas || []).find(x => x.id === S.eu.id); S.eu = p || null; } // v22: função nova vale na hora
   if (!S.eu && S.cfg) { S.eu = carregarEu(); if (S.eu && VIEW === 'cozinha') telaLigada(); }
 }
 iniciar();

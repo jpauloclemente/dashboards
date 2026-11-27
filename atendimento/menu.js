@@ -74,6 +74,8 @@ window.CARDAPIO = (function () {
     { cod: 71, nome: 'Alface e tomate', preco: 5, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', combina: true },
     { cod: 72, nome: 'Proteína em dobro', preco: 10, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', disco: 1 },
     { cod: 73, nome: 'Pão sem glúten', preco: 5, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional' },
+    // JP, 26/11/2026: iscas de shimeji empanadas como adicional, R$ 8 (fritura: entra na conta das iscas da TV)
+    { cod: 74, nome: 'Iscas de shimeji', preco: 8, cat: 'Adicionais', setor: 'cozinha', tipo: 'adicional', combina: true, gl: 'isca' },
 
     // Acompanhamentos e sobremesas
     { cod: 81, nome: 'Fritas (acompanha)', ab: 'FRI 100g', preco: 13, desc: 'Porção de fritas para acompanhar.', cat: 'Acompanhamentos e sobremesas', setor: 'cozinha', tipo: 'simples' },
@@ -153,5 +155,10 @@ window.CARDAPIO = (function () {
   // Fotos dos produtos (JP, 24/11/2026: "com o tempo vamos colocar uma foto para cada produto"). Arquivo em fotos/<código>.jpg.
   const FOTOS = { 50: 'fotos/50.jpg' };
 
-  return { itens, fixos: itens.slice(), EXTRAS, EXTRAS_AJUSTES, QUESADILLAS, AB_QUESA, DOCES, ACRESCIMO_COMBO_MESA, COMBO_BEBIDA, FOTOS };
+  // Receitas para o botão Cardápio da TV da cozinha (JP, 26/11/2026): além dos produtos do cardápio, o que se vende só
+  // fora da casa (ex.: no iFood) ou o especial da semana. Aparece no canto da TV para a produção saber montar.
+  const RECEITAS_TV = [
+    { id: 'desafio', nome: 'Desafio Seu Trem', onde: 'só no iFood', desc: 'Pão artesanal, 3 proteínas: soja 2x e grão de bico artesanais, iscas de shimeji empanadas, bacon de shitake, 4x onion rings, queijo cremoso estilo catupiry, shimeji salteado, couve crispy, alface, tomate-cereja, cebola caramelizada, rúcula, picles Hemmer e 2 maioneses especiais.' }
+  ];
+  return { itens, fixos: itens.slice(), EXTRAS, RECEITAS_TV, EXTRAS_AJUSTES, QUESADILLAS, AB_QUESA, DOCES, ACRESCIMO_COMBO_MESA, COMBO_BEBIDA, FOTOS };
 })();
