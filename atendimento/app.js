@@ -711,7 +711,7 @@ const LOJA_TESTE = 'ensaio';
 const MODO_TESTE = LOJA === LOJA_TESTE || LOJA === 'local';
 function faixaTeste() {
   const sair = ['base', 'cozinha', 'pedido'].includes(VIEW);
-  return `<div class="faixa-teste">${ic('science')}<span class="t">Modo de teste<span class="d"> · ${DB && DB.modo === 'local' ? 'ensaio neste navegador' : 'loja de ensaio'} · nada aqui vale para a loja real</span></span>${sair ? `<button data-a="sairTeste">${ic('logout')} Sair do teste</button>` : ''}</div>`;
+  return `<div class="faixa-teste">${ic('science')}<span class="t">Modo de teste<span class="d"> · ${DB && DB.modo === 'local' ? 'ensaio neste navegador' : 'loja de ensaio'} · nada aqui vale para a loja real</span></span>${VIEW === 'base' ? `<button data-a="limparTeste" title="Apagar tudo o que ficou de testes anteriores">${ic('cleaning_services')} Limpar teste</button>` : ''}${sair ? `<button data-a="sairTeste">${ic('logout')} Sair do teste</button>` : ''}</div>`;
 }
 const acaoModoTeste = () => pedirPIN('Entrar no modo de teste', SOCIOS, async (p, pin) => {
   const c = cfg();
@@ -736,8 +736,29 @@ async function chegadaTeste() {
     return c;
   });
   LS.set('st-eu-' + LOJA + '-base', { id: ida.eu.id });
-  toast('Modo de teste: cardápio da loja real copiado');
+  const n = await limparLojaTeste();
+  toast('Modo de teste limpo e pronto' + (n ? ` (${n} registros antigos apagados)` : '') + ': cardápio da loja real copiado');
 }
+// v24 (JP, 27/11/2026): "quero o painel de teste sempre limpo e pronto para testes novos". Toda entrada no modo de
+// teste apaga o que ficou de testes anteriores (mesas, cards da TV, pedidos, vendas, consumo, conferências, jornada,
+// compras, clientes e fretes) e zera a numeração dos pedidos. Fica só o que faz a loja funcionar: equipe e cardápio.
+// Só roda na loja de ensaio; a loja real nunca passa por aqui.
+const COLS_TESTE = ['mesas', 'cards', 'delivery', 'vendas', 'consumo', 'conferencias', 'jornada', 'compras', 'resumos', 'clientes', 'fretes'];
+async function limparLojaTeste() {
+  if (!MODO_TESTE || LOJA === 'st1') return 0;
+  let n = 0;
+  for (const c of COLS_TESTE) {
+    const docs = await lerUmaVez(c).catch(() => []);
+    for (let i = 0; i < docs.length; i += 400) { await DB.batch(docs.slice(i, i + 400).map(d => ({ op: 'del', c, id: d.id }))); }
+    n += docs.length;
+  }
+  await DB.mutate('config', 'main', c => { if (c) { c.seqPedido = 0; c.noite = novaNoiteObj(); } return c; });
+  return n;
+}
+const acaoLimparTeste = () => {
+  if (!confirm('Limpar o teste? Apaga mesas, cards, pedidos e vendas da loja de ensaio. A loja real não é tocada.')) return;
+  return limparLojaTeste().then(n => toast(n ? `Teste limpo: ${n} registros apagados` : 'O teste já estava limpo'));
+};
 async function pessoaPorPin(pin, papeis) {
   if (!pin) return null;
   const h = await hashPin(pin);
@@ -1130,7 +1151,7 @@ function precisaModal(p) {
 // ================= ações (cliques) =================
 const A = {};
 const CH = {};
-A.modoTeste = acaoModoTeste; A.sairTeste = acaoSairTeste;
+A.modoTeste = acaoModoTeste; A.sairTeste = acaoSairTeste; A.limparTeste = () => acaoLimparTeste();
 // Toque duplo não grava duas vezes (v19, 26/11/2026): enquanto uma ação que grava na nuvem não termina, o mesmo botão
 // (mesma ação, mesma mesa, mesmo item) não roda de novo. Antes, dois toques em Enviar mandavam o pedido duas vezes para
 // a cozinha, e dois em Recebido registravam o pagamento duas vezes. O erro sai em português claro.
@@ -2113,6 +2134,7 @@ function cardCozinha(c) {
   if (troca) h += `<div class="ktroca-t">${ic('swap_horiz')} TEM TROCA</div>`;
   if (c.nPedido) h += `<div class="npedido">${ordinal(c.nPedido)} pedido com a gente</div>`;
   if (c.origem !== 'salao') h += `<div class="kentrega ${tipoEntrega(c.entrega) || 'indef'}">${ic(icEntrega(c.entrega))} ${c.origem === 'ifood' && !c.entrega ? 'Entrega iFood' : rotEntrega(c.entrega)}${c.codMoto && tipoEntrega(c.entrega) === 'moto' ? ` · ${esc(c.codMoto)}` : ''}</div>`;
+  if (c.origem === 'ifood' && (c.previsao || c.criadoEm)) h += `<div class="kif">${ic('schedule')} pedido ${esc(c.pedidoAs || hora(c.criadoEm))}${c.previsao ? ` · <b>entrega até ${esc(c.previsao)}</b>` : ''}</div>`;
   (c.notas || []).forEach(n => { h += `<div class="knota">${ic('campaign')} ${esc(n.txt)}</div>`; });
   // Na TV, a abreviação da linha de produção (como nas fichas de montagem); sem abreviação, o nome
   const linhaK = (l, sep) => `<div class="kl ${sep ? 'sep' : ''}">${esc(l.ab || l.nome)}${l.trocas.length ? '<br>' + l.trocas.filter(t => !(l.troca || []).includes(t)).map(t => `<span class="kt">${esc(t)}</span>`).join('') : ''}${(l.troca || []).length ? `<div class="kx">${l.troca.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}${l.alergia ? `<br><span class="ka">${esc(l.alergia)}</span>` : ''}</div>`;
@@ -2238,7 +2260,7 @@ function despachoLista() {
     const todos = S.cards.filter(c => c.refId === r && !c.despachadoEm);
     if (!todos.length || todos.some(c => c.setor === 'cozinha' && c.status !== 'feito')) return; // ainda tem prato saindo
     const c0 = todos.find(c => c.setor === 'cozinha') || todos[0];
-    out.push({ tipo: c0.origem, id: r, ref: c0.ref, t: Math.max(...todos.map(c => c.feitoEm || c.criadoEm || 0)), cards: todos, entrega: c0.entrega, marca: c0.marca, codMoto: (todos.find(c => c.codMoto) || {}).codMoto || '' });
+    out.push({ tipo: c0.origem, id: r, ref: c0.ref, t: Math.max(...todos.map(c => c.feitoEm || c.criadoEm || 0)), cards: todos, entrega: c0.entrega, marca: c0.marca, codMoto: (todos.find(c => c.codMoto) || {}).codMoto || '', previsao: c0.previsao || '', pedidoEm: c0.origem === 'ifood' ? (c0.pedidoAs || hora(c0.criadoEm)) : '' });
   });
   return out.sort((a, b) => a.t - b.t);
 }
@@ -2255,14 +2277,33 @@ function cardDesp(x) {
   return `<div class="dc pacote"><div class="dc-h"><span class="tag ${x.tipo}">${x.tipo === 'ifood' ? 'iFood' : 'WhatsApp'}</span>${x.marca === 'ladob' ? '<span class="tag ladob">Lado B</span>' : ''}<b class="dc-dest">${esc(x.ref)}</b><span class="dc-min" data-min="${x.t}">${m} min</span></div>
     <div class="dc-ent ${tipoEntrega(x.entrega) || 'indef'}">${ic(icEntrega(x.entrega))} ${x.tipo === 'ifood' && !x.entrega ? 'Entrega iFood' : rotEntrega(x.entrega)}</div>
     ${x.tipo === 'whatsapp' && tipoEntrega(x.entrega) === 'moto' ? (x.codMoto ? `<div class="dc-cod">${ic('pin')} Código da moto: <b>${esc(x.codMoto)}</b></div>` : `<div class="dc-cod falta">${ic('pending')} Código da moto: a base ainda não pôs</div>`) : ''}
+    ${x.pedidoEm ? `<div class="dc-prev">${ic('schedule')} pedido ${esc(x.pedidoEm)}${x.previsao ? ` · <b>entrega até ${esc(x.previsao)}</b>` : ''}</div>` : ''}
     <div class="dc-saco">${ic('edit')} No saco: <b>${esc(nomeSaco)}</b></div>
     <ul class="dc-its">${ls.map(it).join('')}</ul><button class="dc-ok" data-a="despOk" data-id="${esc(x.id)}">✓ PACOTE PRONTO</button></div>`;
 }
-function telaDespacho() {
+function telaDespacho(solo) {
   const l = despachoLista();
-  return `<div class="desp"><div class="desp-cab">${ic('package_2')}<b>Despacho</b><span class="sub">${l.length ? l.length + (l.length > 1 ? ' para sair' : ' para sair') : 'nada pronto agora'}</span><span style="flex:1"></span><button class="bt-ic" data-a="despacho" title="Fechar o despacho">${ic('close')}</button></div>
+  return `<div class="desp${solo ? ' solo' : ''}"><div class="desp-cab">${ic('package_2')}<b>Despacho</b><span class="sub">${l.length ? l.length + ' para sair' : 'nada pronto agora'}</span><span style="flex:1"></span>${solo ? '' : `<button class="bt-ic" data-a="despacho" title="Fechar o despacho">${ic('close')}</button>`}</div>
     <div class="desp-lista">${l.map(cardDesp).join('') || '<div class="desp-vazio">Quando um prato ficar pronto (FEITO), ele aparece aqui com o destino: a mesa, ou o pedido completo para montar o pacote.</div>'}</div></div>`;
 }
+// ================= áreas (v24, JP 27/11/2026) =================
+// Aba "Áreas" da base: cada estação da produção num painel só dela (bebidas, frituras e despachante), para conferir
+// uma de cada vez. É a preparação para os tablets: cada painel abre sozinho em ?v=cozinha&painel=<área>.
+const AREAS = [['bebidas', 'local_bar', 'Bebidas'], ['frituras', 'local_fire_department', 'Frituras'], ['despacho', 'package_2', 'Despachante']];
+const nArea = k => k === 'bebidas' ? filaDe('bar').length : k === 'despacho' ? despachoLista().length : filaDe('cozinha').filter(c => c.status !== 'aguardando' && FRIT.some(([f]) => friturasDoCard(c)[f])).length;
+function painelArea(k) {
+  if (k === 'bebidas') return `<div class="area-bebidas">${telaBebidas()}</div>`;
+  if (k === 'frituras') return telaFrituras(filaDe('cozinha'), false, true);
+  return telaDespacho(true);
+}
+function telaAreas() {
+  const sel = S.ui.area || LS.get('st-area', 'bebidas'); const k = AREAS.some(([a]) => a === sel) ? sel : 'bebidas';
+  return `<div class="areas-topo"><div class="chips">${AREAS.map(([a, i, l]) => { const n = nArea(a); return `<button class="chip ${a === k ? 'on' : ''}" data-a="area" data-c="${a}">${ic(i)} ${l}${n ? ` <span class="badge">${n}</span>` : ''}</button>`; }).join('')}</div>
+    <button class="bt txt" data-a="abrirPainel" data-c="${k}" title="Abrir este painel sozinho, como vai ficar no tablet">${ic('tablet')} Abrir só este painel</button></div>
+    <div class="tv area-tv" style="min-height:0">${painelArea(k)}</div>`;
+}
+A.area = d => { S.ui.area = d.c; LS.set('st-area', d.c); render(); };
+A.abrirPainel = d => window.open(BQ + 'v=cozinha&painel=' + d.c, '_blank');
 A.despacho = () => { DESPACHO = !DESPACHO; LS.set('st-despacho', DESPACHO); window.scrollTo(0, 0); render(); };
 A.despOk = async d => {
   const x = despachoLista().find(y => y.id === d.id); if (!x) return;
@@ -2314,7 +2355,7 @@ function friturasDoCard(c) {
   (c.blocos || []).forEach(b => (b.linhas || []).forEach(l => { const x = prodLinha(l); FRIT.forEach(([k]) => { r[k] += x[k] || 0; }); r.meio += x.meio || 0; }));
   return r;
 }
-function telaFrituras(fila, compacta) {
+function telaFrituras(fila, compacta, solo) {
   const lista = fila.filter(c => c.status !== 'aguardando').map(c => ({ c, r: friturasDoCard(c) })).filter(x => FRIT.some(([k]) => x.r[k]));
   const tot = {}; FRIT.forEach(([k]) => { tot[k] = lista.reduce((s, x) => s + x.r[k], 0); }); const meio = lista.reduce((s, x) => s + x.r.meio, 0);
   const chip = (k, v, ic1, t1, tn) => v ? `<span class="fr-t fr-${k}">${ic(ic1)}<b>${v}</b>${v === 1 ? t1 : tn}${k === 'G' && meio ? ` <small>(${meio} meio a meio)</small>` : ''}</span>` : '';
@@ -2322,7 +2363,7 @@ function telaFrituras(fila, compacta) {
   const fila2 = lista.map((x, n) => { const t0 = cardInicio(x.c); const m = minDesde(t0);
     return `<div class="fr-p c-borda-${corCoz(m)}" data-cor="${t0}" data-pref="c-borda-"><div class="fr-ph"><span class="fr-n">${n + 1}</span><b>${esc(x.c.ref)}</b><span class="fr-min" data-min="${t0}">${m} min</span></div>
       <div class="fr-its">${FRIT.map(([k, , t1, tn]) => x.r[k] ? `<span><b>${x.r[k]}</b> ${x.r[k] === 1 ? t1 : tn}</span>` : '').join('')}</div></div>`; }).join('');
-  return `<div class="frituras${compacta ? ' compacta' : ''}">${head}${lista.length ? `<div class="fr-fila" data-rola="frituras">${fila2}</div>` : ''}</div>`;
+  return `<div class="frituras${compacta ? ' compacta' : ''}${solo ? ' solo' : ''}">${head}${lista.length ? `<div class="fr-fila" data-rola="frituras">${fila2}</div>` : ''}</div>`;
 }
 function telaFeitosRecentes() {
   const f = S.cards.filter(c => c.setor === 'cozinha' && c.status === 'feito').sort((a, b) => b.feitoEm - a.feitoEm).slice(0, 10);
@@ -2371,9 +2412,12 @@ function colunaPedido(d) {
 // Entrega do delivery (v22): Uber Flash (o cliente chama a moto) ou moto do iFood (a casa chama). Combinada no WhatsApp
 // e marcada na base; vai para a TV, para o painel do despacho e para a mensagem de pronto. 'retirada' (antigo) = Uber Flash.
 const ENTREGAS = [['uber', 'Uber Flash', 'hail'], ['moto', 'Moto iFood', 'two_wheeler']];
+// v24 (JP, 27/11/2026): no pedido do iFood, o que a casa precisa saber da entrega: pedir a moto, o iFood já busca a
+// moto sozinho, ou o cliente retira. ('retirada' sem prefixo é o nome antigo do Uber Flash no WhatsApp.)
+const ENTREGAS_IF = [['ifPedir', 'Pedir moto', 'two_wheeler'], ['ifAuto', 'Moto automática iFood', 'autorenew'], ['ifRetira', 'Retirada pelo cliente', 'storefront']];
 const tipoEntrega = t => t === 'retirada' ? 'uber' : (t || '');
-const rotEntrega = t => ({ uber: 'Uber Flash', moto: 'Moto iFood' })[tipoEntrega(t)] || 'entrega a definir';
-const icEntrega = t => ({ uber: 'hail', moto: 'two_wheeler' })[tipoEntrega(t)] || 'help';
+const rotEntrega = t => ({ uber: 'Uber Flash', moto: 'Moto iFood', ifPedir: 'Pedir moto', ifAuto: 'Moto automática iFood', ifRetira: 'Retirada pelo cliente' })[tipoEntrega(t)] || 'entrega a definir';
+const icEntrega = t => ({ uber: 'hail', moto: 'two_wheeler', ifPedir: 'two_wheeler', ifAuto: 'autorenew', ifRetira: 'storefront' })[tipoEntrega(t)] || 'help';
 // Mensagens do WhatsApp (JP, 26 e 27/11/2026)
 const MSG_FIM_PEDIDO = 'Eii trem, já finalizei meu pedido 😌\n\nQuais são as formas de pagamento e de frete por favor 🙋';
 const MSG_UBER_PRONTO = 'Seu pedido está pronto. Sua entrega é através do *Uber flash* pode enviar a moto 😊 _por favor me informe o nome do motoboy, a placa e tempo._ ✔️\n\nAo solicitar o Uber se lembre de ativar a opção de código ✅ Assim você aumenta a segurança do frete ⚠️';
@@ -2528,11 +2572,28 @@ A.cancelarPedido = d => pedirAutorizacao('Cancelar o pedido?', async (pe, motivo
 // (nome / R$ preço / quantidade); complemento = nome / R$ preço sem quantidade; texto solto = observação.
 // Texto que a IA transcreveu do print (começa com [IA]): formato fixo, então a leitura é direta:
 // "Nx nome" é item, "- algo" é complemento (adicional do cardápio quando acha, senão observação), "- Obs: …" é observação.
+// v24 (JP, 27/11/2026): no pedido do iFood não aparecem sachês (catchup, mostarda, maionese) nem o recado dos
+// descartáveis; o que importa é código, nome, hora, previsão de entrega, o pedido e a entrega. Outras observações
+// (ex.: "sem cebola") seguem, porque mudam o prato.
+const LIXO_IF = /catchup|ketchup|mostarda|maionese|sach[eê]|descart[aá]ve|talher|guardanapo|canudo|utens[ií]lio/i;
+function limparObsIf(t) { return String(t || '').split(/\s*[,;]\s*/).map(s => s.trim()).filter(s => s && !LIXO_IF.test(s)).join(', '); }
+// Nome do cliente, previsão de entrega e tipo de entrega no texto do gestor ou da IA
+function extrasIfood(txt, out) {
+  const t = String(txt || '');
+  const mc = t.match(/^\s*cliente\s*:?\s*(.+)$/im); if (mc && !/^\d/.test(mc[1].trim())) out.cliente = mc[1].replace(/\s*(?:·|\||-)\s*\d.*$/, '').trim().slice(0, 40);
+  const mp = t.match(/(?:previs[aã]o(?:\s+de\s+entrega)?|entrega\s+prevista|entregar\s+at[eé]|previsto\s+para|entrega\s+at[eé])\s*:?\s*(?:às|as|at[eé])?\s*([01]?\d|2[0-3])[:h]([0-5]\d)/i);
+  if (mp) out.prev = mp[1].padStart(2, '0') + ':' + mp[2];
+  const me = t.match(/^\s*entrega\s*:\s*(.+)$/im); const e = norm(me ? me[1] : t);
+  if (/retirad|retirar|cliente retira|pra retirar|para retirar/.test(e)) out.entrega = 'ifRetira';
+  else if (/solicitar|pedir moto|chamar entregador|solicite/.test(e)) out.entrega = 'ifPedir';
+  else if (/automatic|buscando entregador|entregador a caminho|entrega ifood|entrega parceira/.test(e)) out.entrega = 'ifAuto';
+}
 function lerIfoodIA(txt) {
   const L = String(txt).split(/\r?\n/).map(l => l.trim()).filter(Boolean).slice(1);
   const out = { num: '', hora: '', marca: /lado\s*b/i.test(L[0] || '') ? 'ladob' : 'st', itens: [], obs: [] };
   const mn = (L[0] || '').match(/(\d{3,6})/); if (mn) out.num = mn[1];
   const mh = String(txt).match(/feito\s*(?:às|as|a)?\s*([01]?\d|2[0-3])[:h]([0-5]\d)/i); if (mh) out.hora = mh[1].padStart(2, '0') + ':' + mh[2];
+  extrasIfood(txt, out);
   let grupo = null;
   L.forEach(l => {
     let m;
@@ -2541,10 +2602,11 @@ function lerIfoodIA(txt) {
       const c = l.replace(/^[-•+*\s]+/, '').trim(); if (!c) return;
       const o = c.match(/^obs\.?\s*:?\s*(.+)$/i);
       const a = o ? null : melhorProduto(c, 'adicional');
-      grupo.forEach(it => { if (a) it.adds = (it.adds || []).concat(a.cod); else it.obs = [it.obs, o ? o[1] : c].filter(Boolean).join(', '); });
+      const ob = a ? '' : limparObsIf(o ? o[1] : c);
+      grupo.forEach(it => { if (a) it.adds = (it.adds || []).concat(a.cod); else if (ob) it.obs = [it.obs, ob].filter(Boolean).join(', '); });
       return;
     }
-    if (/^obs\.?\s*:/i.test(l)) out.obs.push(l.replace(/^obs\.?\s*:\s*/i, ''));
+    if (/^obs\.?\s*:/i.test(l)) { const ob = limparObsIf(l.replace(/^obs\.?\s*:\s*/i, '')); if (ob) out.obs.push(ob); }
   });
   return out;
 }
@@ -2552,7 +2614,8 @@ function lerIfood(txt) {
   if (/^\[IA\]/.test(String(txt || '').trim())) return lerIfoodIA(txt);
   const L = String(txt || '').split(/\r?\n/).map(l => l.replace(/[ \s]+/g, ' ').trim()).filter(l => l && l !== '●' && l !== '•');
   const out = { num: '', hora: '', marca: /lado\s*b/i.test(txt) ? 'ladob' : 'st', itens: [], obs: [] };
-  const l0 = L.slice(0, 8).find(l => /^#?\d{3,5}$/.test(l)) || (L.slice(0, 8).join('\n').match(/^#?(\d{3,5}) [A-Za-zÀ-ú]/m) || [])[1];
+  extrasIfood(txt, out);
+  const l0 =L.slice(0, 8).find(l => /^#?\d{3,5}$/.test(l)) || (L.slice(0, 8).join('\n').match(/^#?(\d{3,5}) [A-Za-zÀ-ú]/m) || [])[1];
   if (l0) out.num = String(l0).replace('#', '');
   else { for (const l of L) { const m = l.match(/(?:^|\s)(?:pedido\s*(?:n[ºo°.]?\s*)?#?\s*|#)(\d{3,6})\b/i); if (m && !/^\d+º/.test(l)) { out.num = m[1]; break; } } }
   const mh = txt.match(/feito\s*(?:às|as|a)?\s*([01]?\d|2[0-3])[:h]([0-5]\d)/i) || txt.match(/\b([01]?\d|2[0-3])[:h]([0-5]\d)\b/);
@@ -2568,7 +2631,8 @@ function lerIfood(txt) {
   const complemento = (nome) => {
     const limpo = nome.replace(/^[-•+*]\s*/, '').replace(/R\$\s*[\d.,]+/g, '').trim(); if (!limpo || ultimo == null) return;
     const a = melhorProduto(limpo, 'adicional'); const base = out.itens.filter(x => x.texto === out.itens[ultimo].texto);
-    base.forEach(it => { if (a) it.adds = (it.adds || []).concat(a.cod); else it.obs = [it.obs, limpo].filter(Boolean).join(', '); });
+    const ob = a ? '' : limparObsIf(limpo); if (!a && !ob) return; // sachê ou descartável: fica de fora
+    base.forEach(it => { if (a) it.adds = (it.adds || []).concat(a.cod); else it.obs = [it.obs, ob].filter(Boolean).join(', '); });
   };
   if (sec.length) {
     for (let i = 0; i < sec.length; i++) {
@@ -2583,7 +2647,7 @@ function lerIfood(txt) {
         if (ultimo == null || (melhorProduto(nm) && !melhorProduto(nm, 'adicional'))) novoItem(nm, qf || 1); else complemento(l);
         if (ehPreco(sec[i + 1])) i += 1; continue;
       }
-      if (ultimo != null) complemento(l); else out.obs.push(l);
+      if (ultimo != null) complemento(l); else { const ob = limparObsIf(l); if (ob) out.obs.push(ob); }
     }
   } else {
     // Sem a seção "Itens no pedido" (outro formato ou print): "2x Nome", "2 Nome R$ 10,00"; só entra o que parece produto
@@ -2644,31 +2708,34 @@ function telaIfood() {
   let h = `<h2>iFood na mesma fila</h2><p class="sub">Mais rápido: no gestor do iFood, com o pedido aberto e a lista de itens à vista, tecle <b>Win+Shift+S</b>, recorte o painel do pedido (do número até o subtotal) e cole aqui com <b>Ctrl+V</b>. Também vale colar o texto copiado do pedido. Confira o card e mande para a TV.</p>
     <textarea id="ifoodTxt" class="inp" data-f="ifoodTxt" placeholder="Cole o pedido aqui (Ctrl+V)">${esc(F.ifoodTxt || '')}</textarea>
     <div class="linha" style="margin:10px 0"><button class="bt pri" data-a="lerIfood">${ic('auto_fix_high')} Ler o pedido</button>
-    <label class="bt">${ic('image')} Escolher print<input type="file" accept="image/*" data-ch="printIfood" style="display:none"></label></div>`;
+    <label class="bt">${ic('image')} Escolher print<input type="file" accept="image/*" data-ch="printIfood" style="display:none"></label>
+    ${F.ifoodTxt || it || S.ui.erroIf ? `<span style="flex:1"></span><button class="bt txt verm" data-a="ifZerar" title="Limpar o pedido lido e começar outro">${ic('restart_alt')} Zerar</button>` : ''}</div>`;
   if (lendo) h += `<div class="card lendo-if"><span class="giro"></span><div><b>Processando…</b> <span class="seg"><b data-seg="${lendo.ate}">${Math.max(0, Math.ceil((lendo.ate - agora()) / 1000))}</b> s</span><div class="sub">${esc(lendo.txt)}</div></div></div>`;
   if (S.ui.erroIf && !lendo) h += `<div class="card erro-if">${ic('error')}<div><b>${esc(S.ui.erroIf)}</b><div class="sub">O jeito mais rápido e certeiro: no Gestor de Pedidos, abra o pedido, selecione do número até o subtotal, copie (Ctrl+C) e cole aqui (Ctrl+V). O texto é lido na hora, sem IA. Ou lance os itens pela busca.</div></div><button class="bt-ic" data-a="fechaErroIf">${ic('close')}</button></div>`;
   if (it) {
-    h += `<div class="card"><div class="linha"><div class="campo" style="flex:1"><label>Nº do pedido</label><input id="ifNum" class="inp" data-f="ifNum" value="${esc(F.ifNum || '')}"></div>
-      <div class="campo" style="width:120px"><label>Hora</label><input id="ifHora" class="inp" data-f="ifHora" placeholder="20:15" value="${esc(F.ifHora || '')}"></div></div>
-      <div class="chips" style="margin-bottom:10px"><button class="chip ${it.marca === 'st' ? 'on' : ''}" data-a="ifMarca" data-c="st">Seu Trem</button><button class="chip ${it.marca === 'ladob' ? 'on' : ''}" data-a="ifMarca" data-c="ladob" style="${it.marca === 'ladob' ? 'background:var(--ladob);color:#fff' : ''}">Lado B</button>
-        <span class="sep-v"></span>${ENTREGAS.map(([k, l, i]) => `<button class="chip ${(it.entrega || 'moto') === k ? 'on' : ''}" data-a="ifEntrega" data-c="${k}">${ic(i)} ${l}</button>`).join('')}</div>
+    h += `<div class="card"><div class="linha if-campos"><div class="campo" style="flex:1 1 110px"><label>Nº do pedido</label><input id="ifNum" class="inp" data-f="ifNum" inputmode="numeric" value="${esc(F.ifNum || '')}"></div>
+      <div class="campo" style="flex:2 1 160px"><label>Nome do cliente</label><input id="ifNome" class="inp" data-f="ifNome" placeholder="como está no iFood" autocomplete="off" value="${esc(F.ifNome || '')}"></div></div>
+      <div class="linha if-campos"><div class="campo" style="flex:1 1 110px"><label>Pedido às</label><input id="ifHora" class="inp" data-f="ifHora" inputmode="numeric" placeholder="20:15" value="${esc(F.ifHora || '')}"></div>
+      <div class="campo" style="flex:1 1 110px"><label>Previsão de entrega</label><input id="ifPrev" class="inp" data-f="ifPrev" inputmode="numeric" placeholder="20:55" value="${esc(F.ifPrev || '')}"></div></div>
+      <div class="chips" style="margin-bottom:6px"><button class="chip ${it.marca === 'st' ? 'on' : ''}" data-a="ifMarca" data-c="st">Seu Trem</button><button class="chip ${it.marca === 'ladob' ? 'on' : ''}" data-a="ifMarca" data-c="ladob" style="${it.marca === 'ladob' ? 'background:var(--ladob);color:#fff' : ''}">Lado B</button></div>
+      <div class="pd-sec">Entrega${it.entrega ? '' : ' <span class="tag aviso">marque uma</span>'}</div><div class="chips" style="margin-bottom:10px">${ENTREGAS_IF.map(([k, l, i]) => `<button class="chip ${it.entrega === k ? 'on' : ''}" data-a="ifEntrega" data-c="${k}">${ic(i)} ${l}</button>`).join('')}</div>
       <div class="itens">${it.itens.map((x, i) => `<div class="item"><div class="corpo">${x.item ? `<div class="nm">${esc(x.item.nome)}</div>${descItem(x.item).map(l => `<div class="troca">${esc(l)}</div>`).join('')}` : `<div class="nm" style="color:var(--vermelho)">Não reconhecido: ${esc(x.texto)}</div><div class="sub">Tire e lance pela busca abaixo.</div>`}<div class="sub">do iFood: ${esc(x.texto || '')}</div></div><button class="bt-ic" data-a="ifTirar" data-i="${i}">${ic('close')}</button></div>`).join('')}</div>
       <div class="busca" style="margin-top:10px">${ic('search')}<input id="buscaIf" data-f="buscaIf" data-vivo placeholder="Acrescentar item (código ou nome)" value="${esc(F.buscaIf || '')}" autocomplete="off"></div>
       ${buscar(F.buscaIf).length ? `<div class="resultados">${buscar(F.buscaIf).map(p => `<div class="res" data-a="ifAdd" data-c="${p.cod}"><span class="cod">${p.cod}</span><span class="nm">${esc(p.nome)}</span></div>`).join('')}</div>` : ''}
-      <div class="entre" style="margin-top:14px"><span class="sub">Referência pelo cardápio: ${R(subtotal(it.itens.filter(x => x.item).map(x => x.item)))}</span><button class="bt verde grande" data-a="ifConfirmar" ${it.itens.some(x => !x.item) || !it.itens.length ? 'disabled' : ''}>${ic('check')} Mandar para a TV</button></div></div>`;
+      <div class="entre" style="margin-top:14px"><span class="sub">Referência pelo cardápio: ${R(subtotal(it.itens.filter(x => x.item).map(x => x.item)))}</span><button class="bt verde grande" data-a="ifConfirmar" ${it.itens.some(x => !x.item) || !it.itens.length || !it.entrega ? 'disabled' : ''}>${ic('check')} Mandar para a TV</button></div></div>`;
   }
   const feitos = S.cards.filter(c => c.origem === 'ifood').sort((a, b) => b.criadoEm - a.criadoEm).slice(0, 8);
-  if (feitos.length) h += `<div class="secao-t">Últimos do iFood</div>${feitos.map(c => `<div class="sub">#${esc(c.ref)} · ${hora(c.inicio)} · ${c.status === 'feito' ? 'feito' : 'na fila'}</div>`).join('')}`;
+  if (feitos.length) h += `<div class="secao-t">Últimos do iFood</div>${feitos.map(c => `<div class="sub">${esc(c.ref)} · ${hora(c.inicio)} · ${c.status === 'feito' ? 'feito' : 'na fila'}</div>`).join('')}`;
   return h;
 }
 function prepararIfood(txt) {
   const r = lerIfood(txt);
-  F.ifNum = r.num; F.ifHora = r.hora;
+  F.ifNum = r.num; F.ifHora = r.hora; F.ifNome = r.cliente || ''; F.ifPrev = r.prev || '';
   if (r.obs.length && r.itens[0]) r.itens[0].obs = [r.itens[0].obs].concat(r.obs).filter(Boolean).join(', ');
   if (!r.itens.length) toast('Não achei itens no texto. Copie o pedido inteiro no gestor (do número até "Pago via iFood") ou lance pela busca.');
   S.ui.erroIf = '';
   S.ui.ifood = {
-    marca: r.marca, entrega: 'moto',
+    marca: r.marca, entrega: r.entrega || null,
     itens: r.itens.map(x => {
       if (!x.cod) return { texto: x.texto, item: null };
       const p = P[x.cod]; let it;
@@ -2687,6 +2754,8 @@ function prepararIfood(txt) {
 A.lerIfood = () => { if (!F.ifoodTxt) { toast('Cole o pedido primeiro'); return; } prepararIfood(F.ifoodTxt); };
 CH.printIfood = async el => { const f = el.files[0]; el.value = ''; if (!f) return; return lerPrintNaTela(f); };
 A.fechaErroIf = () => { S.ui.erroIf = ''; render(); };
+// v24 (JP, 27/11/2026): Zerar limpa o que foi lido para começar outro pedido do zero
+A.ifZerar = () => { S.ui.ifood = null; S.ui.erroIf = ''; ['ifoodTxt', 'ifNum', 'ifHora', 'ifNome', 'ifPrev', 'buscaIf'].forEach(k => { F[k] = ''; }); const t = $('#ifoodTxt'); if (t) t.value = ''; render(); };
 A.ifEntrega = d => { S.ui.ifood.entrega = d.c; render(); };
 document.addEventListener('paste', async e => {
   if (VIEW !== 'base' || S.ui.aba !== 'ifood') return;
@@ -2702,13 +2771,16 @@ A.ifConfirmar = async () => {
   const it = S.ui.ifood; const itens = it.itens.map(x => x.item);
   let ts = agora();
   if (/^\d{1,2}:\d{2}$/.test(F.ifHora || '')) { const [hh, mm] = F.ifHora.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0); if (d.getTime() <= agora() + 60000) ts = d.getTime(); }
-  const ref = (F.ifNum ? '#' + F.ifNum : 'iFood ' + hora(ts));
-  const base = { origem: 'ifood', marca: it.marca, entrega: it.entrega || 'moto', ref, refId: 'if-' + (F.ifNum || uid()), criadoEm: ts, inicio: ts, ordem: ts };
+  if (!it.entrega) { toast('Marque a entrega: pedir moto, moto automática ou retirada'); return; }
+  const nome = String(F.ifNome || '').trim().slice(0, 40);
+  const prev = /^\d{1,2}:\d{2}$/.test(String(F.ifPrev || '').trim()) ? String(F.ifPrev).trim().padStart(5, '0') : '';
+  const ref = (F.ifNum ? '#' + F.ifNum : 'iFood ' + hora(ts)) + (nome ? ' · ' + nome : '');
+  const base = { origem: 'ifood', marca: it.marca, entrega: it.entrega, ref, refId: 'if-' + (F.ifNum || uid()), cliente: nome || null, previsao: prev || null, pedidoAs: /^\d{1,2}:\d{2}$/.test(F.ifHora || '') ? F.ifHora.padStart(5, '0') : hora(ts), criadoEm: ts, inicio: ts, ordem: ts };
   const ops = [];
   ['cozinha', 'bar'].forEach(s => { const g = itens.filter(i => temSetor(i, s)); if (g.length) { const c = cardNovo(s, g, base); ops.push({ op: 'set', c: 'cards', id: c.id, data: c }); } });
   ops.push({ op: 'set', c: 'vendas', id: 'i' + base.refId, data: { id: 'i' + base.refId, noiteId: noiteId(), canal: 'ifood', marca: it.marca, ref: 'iFood ' + ref, itens: itens.map(i => ({ cod: i.cod, nome: i.nome, preco: precoItem(i), desc: descItem(i) })), subtotal: subtotal(itens), dez: 0, frete: 0, total: subtotal(itens), referencia: true, pagamentos: [{ forma: 'iFood', valor: subtotal(itens) }], abertaEm: ts, fechadaEm: agora(), por: quem() } });
   await DB.batch(ops);
-  S.ui.ifood = null; F.ifoodTxt = ''; F.ifNum = ''; F.ifHora = ''; render(); toast('Pedido do iFood na fila');
+  S.ui.ifood = null; F.ifoodTxt = ''; F.ifNum = ''; F.ifHora = ''; F.ifNome = ''; F.ifPrev = ''; render(); toast('Pedido do iFood na fila');
 };
 
 // ================= noite: links, relatório, nova noite =================
@@ -4137,7 +4209,7 @@ async function iaLerQuadro(arquivo) {
 }
 // 2. Print do pedido no Gestor de Pedidos do iFood: devolve no formato que lerIfood já entende
 async function iaLerIfood(arquivo) {
-  return iaPerguntar('print', [IA_CASA + 'A imagem é a captura de tela de um pedido no Gestor de Pedidos do iFood. Transcreva só o pedido, exatamente neste formato, sem comentário:\nlinha 1: o número do pedido (só os dígitos); se a loja for "Seu Trem Lado B", acrescente " Lado B"\nlinha 2: Feito às HH:MM\nlinha 3: Itens no pedido\nem seguida, cada item como "<quantidade>x <nome do item como está na tela>" e, logo abaixo dele, cada complemento ou adicional em uma linha começando com "- " e cada observação do item com "- Obs: "\nlinha final: Subtotal\nNão inclua preços, taxas, endereço nem dados do cliente.', await iaImagem(arquivo)], false);
+  return iaPerguntar('print', [IA_CASA + 'A imagem é a captura de tela de um pedido no Gestor de Pedidos do iFood. Transcreva só o pedido, exatamente neste formato, sem comentário:\nlinha 1: o número do pedido (só os dígitos); se a loja for "Seu Trem Lado B", acrescente " Lado B"\nlinha 2: Feito às HH:MM\nlinha 3: Cliente: <primeiro nome do cliente como está na tela>\nlinha 4: Entrega prevista: HH:MM (a previsão de entrega ou o horário limite que aparece na tela; se não houver, escreva "Entrega prevista: -")\nlinha 5: Entrega: <uma destas três palavras: "solicitar" se a loja precisa pedir o entregador (botão ou aviso para solicitar/chamar entregador), "automatica" se o iFood já busca ou já designou o entregador sozinho, "retirada" se o cliente vai retirar na loja; "-" se não der para saber>\nlinha 6: Itens no pedido\nem seguida, cada item como "<quantidade>x <nome do item como está na tela>" e, logo abaixo dele, cada complemento ou adicional em uma linha começando com "- " e cada observação do item com "- Obs: "\nlinha final: Subtotal\nNão inclua preços, taxas, endereço, telefone, CPF, sachês (catchup, mostarda, maionese) nem o pedido de talheres ou descartáveis.', await iaImagem(arquivo)], false);
 }
 // 3. Prancheta de consumo interno ou recado de substituição: devolve os lançamentos
 async function iaLerConsumo(arquivo) {
@@ -4328,14 +4400,16 @@ TELAS.base = () => {
   assinarFicha(); if (FICHA_DB && FICHA_DB.resumoPendente && !resumoRefeito && ACESSO_TOTAL.includes(S.eu.papel)) { resumoRefeito = true; salvarFicha(f => { delete f.resumoPendente; }, 'resumo recalculado depois da importação do fiscal'); }
   const aba = S.ui.aba || 'jornada';
   const nPg = S.delivery.filter(d => ['frete', 'pagamento'].includes(colunaPedido(d))).length;
-  const abas = [['jornada', 'route', 'Jornada'], ['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['bebidas', 'local_bar', 'Bebidas', filaDe('bar').length], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['compras', 'shopping_cart', 'Compras e tarefas'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
+  if (S.ui.aba === 'bebidas') S.ui.aba = 'areas'; // a aba Bebidas virou Áreas (v24)
+  const abas = [['jornada', 'route', 'Jornada'], ['mesas', 'table_restaurant', 'Mesas ao vivo'], ['cozinha', 'skillet', 'Cozinha'], ['areas', 'dashboard', 'Áreas', filaDe('bar').length + despachoLista().length], ['whatsapp', 'chat', 'WhatsApp do dia', nPg], ['ifood', 'delivery_dining', 'iFood'], ['noite', 'dark_mode', 'Noite e relatório'], ['compras', 'shopping_cart', 'Compras e tarefas'], ['cardapio', 'menu_book', 'Cardápio'], ['ficha', 'receipt_long', 'Ficha técnica'], ['equipe', 'group', 'Equipe e loja']];
   let corpo;
   if (aba !== 'noite') assinarConsumo(noiteId());
   if (aba === 'jornada') corpo = `<div class="pag-estreita" style="padding:0;max-width:980px">${telaJornada()}</div>`;
   else if (aba === 'mesas') corpo = S.ui.mesa ? `<div class="pag-estreita" style="padding:0">${S.ui.mesa === CI_ID ? telaConsumo() : telaMesa(S.ui.mesa)}</div>` : `<div class="entre"><h2>Mesas ao vivo</h2><span class="sub">Acesso total: abra qualquer mesa. Tudo fica registrado com o seu nome.</span></div>` + telaSlots();
   else if (aba === 'cozinha') { const fc = faixaContas(); return topoBase(abas, aba) + (fc ? `<div class="pag" style="padding-bottom:0">${fc}</div>` : '') + `<div class="tv" style="min-height:0">${telaFilaCozinha(true)}</div>`; }
   // Bebidas na base (JP, 24/11/2026): a mesma fila do bar do app do garçom, para o sócio ver e ajudar a preparar
-  else if (aba === 'bebidas') corpo = `<div class="pag-estreita" style="padding:0;max-width:900px"><p class="sub" style="margin:0 0 8px">A mesma fila do app do garçom. Fez a bebida? Toque Feito: some para todos.</p>${telaBebidas()}</div>`;
+  // Áreas (v24): bebidas (a mesma fila do app do garçom), frituras e despachante, cada um no seu painel
+  else if (aba === 'areas') corpo = telaAreas();
   else if (aba === 'whatsapp') corpo = telaWhatsApp();
   else if (aba === 'ifood') corpo = `<div class="pag-estreita" style="padding:0;max-width:760px">${telaIfood()}</div>`;
   else if (aba === 'noite') { if (!S.ui.noiteVer) { S.ui.noiteVer = noiteId(); } assinarVendas(S.ui.noiteVer); assinarConf(S.ui.noiteVer); assinarConsumo(S.ui.noiteVer); corpo = telaNoite(); }
@@ -4370,7 +4444,10 @@ TELAS.garcom = () => {
 TELAS.cozinha = () => {
   if (S.cfg === undefined) return '<div class="carregando">Carregando…</div>';
   if (!S.cfg) return '<div class="vazio">O sistema ainda não foi configurado na base.</div>';
-  if (!S.eu) return telaLogin('Painel da cozinha', PAPEIS_COZINHA.concat(ACESSO_TOTAL));
+  // v24: painel de uma área só, para o tablet de cada estação (?v=cozinha&painel=bebidas|frituras|despacho)
+  const painel = AREAS.find(([a]) => a === PARAMS.get('painel'));
+  if (!S.eu) return telaLogin(painel ? 'Painel: ' + painel[2] : 'Painel da cozinha', PAPEIS_COZINHA.concat(ACESSO_TOTAL, painel && painel[0] === 'bebidas' ? ['garcom'] : []));
+  if (painel) return `<div class="tv"><div class="tv-topo"><b style="font-size:20px">${ic(painel[1])} ${esc(painel[2])}</b><span class="esp" style="flex:1"></span>${!somOk() ? `<button class="bt-tv som" data-a="ligarSom">${ic('volume_off')} Ligar o som</button>` : ''}${pilulaRede()}<span style="font-size:22px;font-weight:700" data-relogio>${hora(agora())}</span><button class="bt-ic" data-a="sair" title="Sair">${ic('logout')}</button></div>${painelArea(painel[0])}</div>`;
   return `<div class="tv">${telaFilaCozinha(false)}</div>`;
 };
 

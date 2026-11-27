@@ -725,6 +725,14 @@ body.teste .carrinho-bar{background:#fef7e0}
 /* cozinha: entrega, nota da base, aguardando pagamento */
 .kc .kentrega{display:flex;align-items:center;gap:6px;font-weight:900;font-size:16px;letter-spacing:.04em;text-transform:uppercase;border-radius:8px;padding:5px 10px;background:#202124;color:#fff}
 .kc .kentrega.moto{background:var(--vermelho)}
+.kc .kentrega.ifPedir{background:var(--vermelho)}
+.kc .kentrega.ifAuto{background:#1a73e8}
+.kc .kentrega.ifRetira{background:#188038}
+.kc .kif,.dc-prev{display:flex;align-items:center;gap:4px;font-size:14px;color:#3c4043;flex-wrap:wrap}
+.kc .kif b,.dc-prev b{color:#c5221f}
+.dc-ent.ifPedir{background:var(--vermelho)}
+.dc-ent.ifAuto{background:#1a73e8}
+.dc-ent.ifRetira{background:#188038}
 .kc .kentrega.indef{background:#fff;color:#b06000;border:2px dashed #f9ab00}
 .kc .knota{display:flex;gap:8px;align-items:flex-start;background:var(--azul);color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:6px 10px;line-height:1.25}
 .knota-l{border-bottom:1px solid #f1f3f4;padding:6px 0}
@@ -756,6 +764,15 @@ body.teste .carrinho-bar{background:#fef7e0}
 .dc-ent{display:flex;align-items:center;gap:6px;font-weight:900;font-size:18px;text-transform:uppercase;border-radius:8px;padding:6px 10px;background:#202124;color:#fff}
 .dc-ent.moto{background:var(--vermelho)}
 .dc-ent.indef{background:#fff;color:#b06000;border:2px dashed #f9ab00}
+/* Áreas (v24): um painel por estação */
+.areas-topo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.areas-topo .chips{flex:1;min-width:0}
+.area-tv{border-radius:12px;overflow:hidden;border:1px solid var(--borda)}
+.area-bebidas{padding:12px;background:#fff}
+.desp.solo{position:static;max-height:none;min-height:calc(100vh - 140px)}
+.desp.solo .desp-lista{grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr))}
+.frituras.solo{position:static;box-shadow:none;border-top:0;padding:12px}
+.frituras.solo .fr-fila{flex-wrap:wrap;overflow:visible}
 .dc-cod{display:flex;align-items:center;gap:6px;border:3px solid var(--vermelho);border-radius:8px;padding:6px 10px;font-size:16px;font-weight:500}
 .dc-cod b{font-size:26px;letter-spacing:.08em;font-weight:900}
 .dc-cod.falta{border:2px dashed #f9ab00;color:#b06000;font-size:14px}
